@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Outer Halo — One Direction Only</title>
+<style>
+:root{
+  --bg:#0f1116; --panel:rgba(255,255,255,.06); --muted:#8aa0bf; --fg:#e8eefb;
+  --rot: 1.2s;      /* rotasi searah (single direction) */
+  --hue: 7s;        /* hue-rotate cycle */
+  --thickness: 18px;/* tebal ring (dimodulasi 2.6s) */
+}
+*{box-sizing:border-box}
+body{
+  margin:0; color:var(--fg); font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Arial;
+  background:
+    radial-gradient(1200px 700px at 20% -8%, rgba(62,166,255,.10), transparent 60%),
+    radial-gradient(1200px 700px at 80% 120%, rgba(255,211,110,.10), transparent 60%),
+    var(--bg);
+  min-height:100dvh; display:grid; place-items:center; padding:22px;
+}
+.wrap{ width:min(900px,94vw); display:grid; gap:12px }
+.header{ text-align:center }
+h1{margin:0; font-size:22px}
+.sub{margin:4px 0 0; color:var(--muted)}
+
+.panel{
+  position:relative; background:var(--panel); border:1px solid rgba(255,255,255,.14);
+  border-radius:22px; padding:26px; overflow:hidden;
+  backdrop-filter: blur(22px) saturate(160%) brightness(1.06);
+  -webkit-backdrop-filter: blur(22px) saturate(160%) brightness(1.06);
+  box-shadow: inset 0 0 36px rgba(255,255,255,.08), 0 18px 54px rgba(0,0,0,.45);
+}
+.stage{ position:relative; height:420px; display:grid; place-items:center }
+
+/* ===== One-way Outer Halo ===== */
+.halo{
+  position:relative; width:min(420px,80vw); aspect-ratio:1/1;
+  border-radius:50%;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--thickness)), #000 calc(100% - var(--thickness)));
+          mask: radial-gradient(farthest-side, transparent calc(100% - var(--thickness)), #000 calc(100% - var(--thickness)));
+  filter: drop-shadow(0 0 14px rgba(255,255,255,.34)) drop-shadow(0 0 22px rgba(62,166,255,.34));
+}
+/* Satu lapis, rotasi searah saja */
+.halo::before{
+  content:""; position:absolute; inset:0; border-radius:50%;
+  background: conic-gradient(from 0deg,
+    rgba(62,166,255,0.0) 0 60%,
+    rgba(62,166,255,1.0) 65%,
+    rgba(255,211,110,1.0) 78%,
+    rgba(255,255,255,1.0) 88%,
+    rgba(255,211,110,0.0) 100%);
+  animation: spin var(--rot) linear infinite, hue var(--hue) linear infinite;
+  filter: drop-shadow(0 0 16px rgba(255,255,255,.35)) drop-shadow(0 0 24px rgba(62,166,255,.35));
+}
+
+@keyframes spin{ to{ transform:rotate(360deg) } }
+@keyframes hue{ to{ filter:hue-rotate(360deg) drop-shadow(0 0 16px rgba(255,255,255,.35)) drop-shadow(0 0 24px rgba(62,166,255,.35)); } }
+
+/* Controls */
+.controls{ display:flex; gap:14px; align-items:center; justify-content:center; flex-wrap:wrap; margin-top:10px; color:var(--muted); font-size:13px }
+.controls input[type="range"]{ width:230px }
+.controls code{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); padding:2px 6px; border-radius:6px; color:#e9eef9 }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>Outer Halo — One Direction Only</h1>
+      <p class="sub">Rotasi satu arah (tanpa counter-rotation), hue 7s, napas 2.6s memodulasi ketebalan.</p>
+    </div>
+
+    <div class="panel">
+      <div class="stage">
+        <div class="halo" id="halo"></div>
+      </div>
+      <div class="controls">
+        <label>Kecepatan rotasi: <input id="rot" type="range" min="0.6" max="2.4" step="0.05" value="1.2"></label>
+        <span><code id="rotVal">1.20s</code>/rev</span>
+        <label>Amplitudo napas: <input id="amp" type="range" min="0.0" max="8.0" step="0.2" value="3.6"></label>
+        <span><code id="ampVal">3.6px</code></span>
+        <label>Tebal dasar: <input id="base" type="range" min="8" max="28" step="1" value="18"></label>
+        <span><code id="baseVal">18px</code></span>
+      </div>
+    </div>
+  </div>
+
+<script>
+const halo = document.getElementById('halo');
+
+const rot = document.getElementById('rot');
+const rotVal = document.getElementById('rotVal');
+const amp = document.getElementById('amp');
+const ampVal = document.getElementById('ampVal');
+const base = document.getElementById('base');
+const baseVal = document.getElementById('baseVal');
+
+const PULSE_PERIOD = 2600; // ms
+
+let ampPx = parseFloat(amp.value);
+let basePx = parseFloat(base.value);
+
+function applyVars(){
+  halo.style.setProperty('--rot', rot.value + 's');
+  rotVal.textContent = parseFloat(rot.value).toFixed(2) + 's';
+  ampPx = parseFloat(amp.value);
+  basePx = parseFloat(base.value);
+  ampVal.textContent = ampPx.toFixed(1) + 'px';
+  baseVal.textContent = basePx.toFixed(0) + 'px';
+}
+rot.addEventListener('input', applyVars);
+amp.addEventListener('input', applyVars);
+base.addEventListener('input', applyVars);
+applyVars();
+
+// Modulasikan ketebalan (napas) 2.6s, tanpa mempengaruhi arah rotasi (satu arah saja)
+(function loop(t){
+  const phase = ((t % PULSE_PERIOD) / PULSE_PERIOD) * Math.PI * 2;
+  const delta = Math.sin(phase) * ampPx;
+  halo.style.setProperty('--thickness', (basePx + delta) + 'px');
+  requestAnimationFrame(loop);
+})(performance.now());
+</script>
+</body>
+</html>
