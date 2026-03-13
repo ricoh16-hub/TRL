@@ -1,0 +1,62 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Alembic Current",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "scripts/alembic-current.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Alembic Upgrade Head",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "scripts/alembic-upgrade.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Alembic Downgrade -1",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "scripts/alembic-downgrade.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Alembic Revision Safe",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "scripts/alembic-revision-safe.ps1",
+        "-Message",
+        "${input:alembicRevisionMessage}"
+      ],
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "alembicRevisionMessage",
+      "type": "promptString",
+      "description": "Pesan revision Alembic baru"
+    }
+  ]
+}

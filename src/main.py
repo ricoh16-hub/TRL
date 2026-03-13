@@ -7,6 +7,7 @@ import sys
 from ui.boot import show_boot
 from ui.lock import show_lock
 from ui.login import show_login
+from database.models import init_db
 
 def main():
     """
@@ -16,9 +17,13 @@ def main():
     app_instance = QApplication.instance()
     app = app_instance if isinstance(app_instance, QApplication) else QApplication(sys.argv)
     try:
+        init_db()
         show_boot()
         if show_lock():
             show_login(app)
+    except RuntimeError as error:
+        print(f"[ERROR] {error}")
+        raise SystemExit(1)
     except KeyboardInterrupt:
         print("[INFO] Proses dihentikan manual. Keluar dengan elegan.")
 if __name__ == "__main__":

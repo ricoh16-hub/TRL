@@ -1,0 +1,16 @@
+param(
+    [string]$AdminUser,
+    [System.Security.SecureString]$AdminPassword
+)
+
+. "$PSScriptRoot\alembic-common.ps1"
+
+if ($AdminUser -and $null -eq $AdminPassword -and $env:DB_ADMIN_PASSWORD) {
+    $AdminPassword = ConvertTo-SecureString $env:DB_ADMIN_PASSWORD -AsPlainText -Force
+}
+
+if ($AdminUser -and $null -eq $AdminPassword) {
+    $AdminPassword = Read-AdminPassword
+}
+
+Invoke-AlembicCommand -AlembicArgs @('current') -AdminUser $AdminUser -AdminPassword $AdminPassword

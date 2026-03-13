@@ -20,6 +20,7 @@ class UserForm(QWidget):
         self.layout.addWidget(self.list_widget)
         self.username = QLineEdit(); self.username.setPlaceholderText('Username')
         self.password = QLineEdit(); self.password.setPlaceholderText('Password')
+        self.password.setEchoMode(QLineEdit.EchoMode.Password)
         self.role = QLineEdit(); self.role.setPlaceholderText('Role')
         self.layout.addWidget(self.username)
         self.layout.addWidget(self.password)
@@ -53,24 +54,43 @@ class UserForm(QWidget):
 
     def add_user(self):
         session = Session()
-        create_user(session, self.username.text(), self.password.text(), self.role.text())
-        session.close()
-        self.refresh_list()
+        try:
+            create_user(session, self.username.text(), self.password.text(), self.role.text())
+            self.username.clear()
+            self.password.clear()
+            self.role.clear()
+            self.refresh_list()
+        except ValueError as error:
+            QMessageBox.warning(self, 'Validasi Gagal', str(error))
+            session.rollback()
+        finally:
+            session.close()
 
     def update_user(self):
         selected = self.list_widget.currentItem()
         if selected:
             user_id = int(selected.text().split(':')[0])
             session = Session()
-            update_user(session, user_id, username=self.username.text(), password=self.password.text(), role=self.role.text())
-            session.close()
-            self.refresh_list()
+            try:
+                update_user(session, user_id, username=self.username.text(), password=self.password.text(), role=self.role.text())
+                self.password.clear()
+                self.refresh_list()
+            except ValueError as error:
+                QMessageBox.warning(self, 'Validasi Gagal', str(error))
+                session.rollback()
+            finally:
+                session.close()
 
     def delete_user(self):
         selected = self.list_widget.currentItem()
         if selected:
             user_id = int(selected.text().split(':')[0])
             session = Session()
-            delete_user(session, user_id)
-            session.close()
-            self.refresh_list()
+            try:
+                delete_user(session, user_id)
+                self.refresh_list()
+            except ValueError as error:
+                QMessageBox.warning(self, 'Validasi Gagal', str(error))
+                session.rollback()
+            finally:
+                session.close()
