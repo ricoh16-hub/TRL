@@ -4,49 +4,44 @@
     {
       "label": "Alembic Current",
       "type": "shell",
-      "command": "powershell",
+      "command": "python",
       "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "scripts/alembic-current.ps1"
+        "scripts/alembic_cli.py",
+        "current"
       ],
       "problemMatcher": []
     },
     {
       "label": "Alembic Upgrade Head",
       "type": "shell",
-      "command": "powershell",
+      "command": "python",
       "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "scripts/alembic-upgrade.ps1"
+        "scripts/alembic_cli.py",
+        "upgrade",
+        "head"
       ],
       "problemMatcher": []
     },
     {
       "label": "Alembic Downgrade -1",
       "type": "shell",
-      "command": "powershell",
+      "command": "python",
       "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "scripts/alembic-downgrade.ps1"
+        "scripts/alembic_cli.py",
+        "downgrade",
+        "-1"
       ],
       "problemMatcher": []
     },
     {
       "label": "Alembic Revision Safe",
       "type": "shell",
-      "command": "powershell",
+      "command": "python",
       "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "scripts/alembic-revision-safe.ps1",
-        "-Message",
+        "scripts/alembic_cli.py",
+        "revision",
+        "--safe",
+        "-m",
         "${input:alembicRevisionMessage}"
       ],
       "problemMatcher": []

@@ -14,7 +14,7 @@ Revision aktif saat ini: `20260313_02 (head)`.
 ### Cek revision aktif
 
 ```powershell
-.\scripts\alembic-current.ps1 -AdminUser postgres
+python scripts/alembic_cli.py current --admin-user postgres
 ```
 
 > Script akan meminta password admin secara aman.
@@ -22,31 +22,31 @@ Revision aktif saat ini: `20260313_02 (head)`.
 ### Apply migration ke head
 
 ```powershell
-.\scripts\alembic-upgrade.ps1 -AdminUser postgres
+python scripts/alembic_cli.py upgrade head --admin-user postgres
 ```
 
 ### Rollback satu step
 
 ```powershell
-.\scripts\alembic-downgrade.ps1 -AdminUser postgres
+python scripts/alembic_cli.py downgrade -1 --admin-user postgres
 ```
 
 ### Buat revision baru
 
 ```powershell
-.\scripts\alembic-revision.ps1 -Message "add audit columns"
+python scripts/alembic_cli.py revision -m "add audit columns"
 ```
 
 ### Buat revision baru dengan checklist aman
 
 ```powershell
-.\scripts\alembic-revision-safe.ps1 -Message "add audit columns"
+python scripts/alembic_cli.py revision --safe -m "add audit columns"
 ```
 
 ### Buat revision baru + autogenerate
 
 ```powershell
-.\scripts\alembic-revision.ps1 -Message "add audit columns" -Autogenerate -AdminUser postgres
+python scripts/alembic_cli.py revision --autogenerate --admin-user postgres -m "add audit columns"
 ```
 
 ## Checklist Sebelum Buat Migration

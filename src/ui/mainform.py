@@ -3,6 +3,7 @@ from PySide6.QtCore import QPropertyAnimation, QEasingCurve, Qt
 from PySide6.QtGui import QColor
 import sys
 import os
+from typing import cast
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ui.userform import UserForm
 from ui.webform import WebForm
@@ -65,8 +66,12 @@ class MainForm(QMainWindow):
         self.sidebar.currentRowChanged.connect(self.animate_page_change)
 
     def animate_page_change(self, index: int) -> None:
+        if index < 0 or index >= self.pages.count():
+            return
+
         current_widget = self.pages.currentWidget()
-        next_widget = self.pages.widget(index)
+        next_widget = cast(QWidget, self.pages.widget(index))
+
         if current_widget is not next_widget:
             fade_out = QPropertyAnimation(current_widget, b"windowOpacity")
             fade_out.setDuration(220)

@@ -91,12 +91,15 @@ Aplikasi ini adalah aplikasi Python yang telah dioptimalkan dan dibersihkan dari
 - Untuk migrasi schema, gunakan kredensial admin/owner schema. Runtime app tetap memakai user `app_client`.
 - Revision aktif saat ini: `20260313_02 (head)`.
 - Contoh revision riil yang sudah diterapkan: [alembic/versions/20260313_02_add_user_audit_timestamps.py](alembic/versions/20260313_02_add_user_audit_timestamps.py)
-- Helper script PowerShell untuk Windows tersedia di folder [scripts](scripts).
-- [scripts/alembic-current.ps1](scripts/alembic-current.ps1)
-- [scripts/alembic-upgrade.ps1](scripts/alembic-upgrade.ps1)
-- [scripts/alembic-downgrade.ps1](scripts/alembic-downgrade.ps1)
-- [scripts/alembic-revision.ps1](scripts/alembic-revision.ps1)
-- [scripts/alembic-revision-safe.ps1](scripts/alembic-revision-safe.ps1)
+- Helper CLI migrasi tersedia di [scripts/alembic_cli.py](scripts/alembic_cli.py).
+- Contoh penggunaan:
+
+   ```powershell
+   python scripts/alembic_cli.py current --admin-user postgres
+   python scripts/alembic_cli.py upgrade head --admin-user postgres
+   python scripts/alembic_cli.py downgrade -1 --admin-user postgres
+   python scripts/alembic_cli.py revision --safe -m "deskripsi_perubahan_schema"
+   ```
 
 - Panduan operasional lengkap ada di [docs/MIGRATION_WORKFLOW.md](docs/MIGRATION_WORKFLOW.md).
 - Template migration aman ada di [docs/SAFE_MIGRATION_TEMPLATE.md](docs/SAFE_MIGRATION_TEMPLATE.md).
