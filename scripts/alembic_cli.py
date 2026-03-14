@@ -64,7 +64,12 @@ def run_alembic(command_args: list[str], admin_user: str = "", admin_password: s
         env["DB_ADMIN_PASSWORD"] = resolved_password
 
     completed = subprocess.run(
-        [sys.executable, "-m", "alembic", *command_args],
+        [
+            sys.executable,
+            "-c",
+            "from alembic.config import main; main()",
+            *command_args,
+        ],
         cwd=PROJECT_ROOT,
         env=env,
         check=False,
