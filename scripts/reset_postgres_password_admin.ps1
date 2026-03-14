@@ -1,3 +1,4 @@
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'NewPassword', Justification='Script intentionally updates a local .env file with the generated PostgreSQL password.')]
 param(
     [string]$NewPassword = "",
     [string]$PgVersion = "16",
@@ -99,7 +100,7 @@ try {
 
     @(
         "DB_USER=$DbUser",
-        "DB_PASSWORD=\"$NewPassword\"",
+        ('DB_PASSWORD="' + $NewPassword + '"'),
         "DB_HOST=localhost",
         "DB_PORT=5432",
         "DB_NAME=$DbName"
