@@ -3,29 +3,37 @@
 ## Cara Setup & Menjalankan Aplikasi
 
 ### 1. Persiapan Lingkungan
+
 - Pastikan Python 3.9+ sudah terinstall.
 - Install dependensi dengan perintah:
-	```bash
-	pip install -r requirements.txt
-	```
+
+```bash
+pip install -r requirements.txt
+```
 
 ### 2. Menjalankan Aplikasi
+
 - Aktifkan virtual environment jika ada:
-	```bash
-	.venv\Scripts\activate
-	```
+
+```bash
+.venv\Scripts\activate
+```
+
 - Jalankan aplikasi utama:
-	```bash
-	python src/main.py
-	```
+
+```bash
+python src/main.py
+```
 
 ### 3. Struktur Folder Penting
+
 - `src/ui/` : Semua file UI utama (form, widget)
 - `src/auth/` : Modul autentikasi
 - `src/database/` : Modul database dan model
 - `assets/` : File gambar dan HTML
 
 ### 4. Catatan
+
 - Untuk menjalankan demo webview: jalankan `app.py`.
 - Setup database mengikuti konfigurasi PostgreSQL pada root `README.md` dan migrasi Alembic.
 
