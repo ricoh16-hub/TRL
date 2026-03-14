@@ -4,7 +4,7 @@
     {
       "label": "Alembic Current",
       "type": "shell",
-      "command": "python",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "args": [
         "scripts/alembic_cli.py",
         "current"
@@ -14,7 +14,7 @@
     {
       "label": "Alembic Upgrade Head",
       "type": "shell",
-      "command": "python",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "args": [
         "scripts/alembic_cli.py",
         "upgrade",
@@ -25,7 +25,7 @@
     {
       "label": "Alembic Downgrade -1",
       "type": "shell",
-      "command": "python",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "args": [
         "scripts/alembic_cli.py",
         "downgrade",
@@ -36,7 +36,7 @@
     {
       "label": "Alembic Revision Safe",
       "type": "shell",
-      "command": "python",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "args": [
         "scripts/alembic_cli.py",
         "revision",
