@@ -27,7 +27,7 @@
 
 ### 4. Catatan
 - Untuk menjalankan demo webview: jalankan `app.py`.
-- Untuk setup database: jalankan `init_db.py`.
+- Setup database mengikuti konfigurasi PostgreSQL pada root `README.md` dan migrasi Alembic.
 
 ---
 Folder ini berisi semua file dan gambar yang sudah berjalan normal dan siap digunakan. Semua file test dan percobaan telah dipindahkan/hapus.
