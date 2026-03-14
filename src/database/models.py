@@ -73,8 +73,8 @@ def _resolve_database_url() -> tuple[str, str, str]:
 DATABASE_URL, DATABASE_CONFIG_SOURCE, DATABASE_CONFIG_ERROR = _resolve_database_url()
 
 
-def _build_connect_args() -> dict:
-    connect_args = {
+def _build_connect_args() -> dict[str, object]:
+    connect_args: dict[str, object] = {
         "connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT", "10")),
         "application_name": os.getenv("DB_APP_NAME", "python-apps-12R"),
     }
