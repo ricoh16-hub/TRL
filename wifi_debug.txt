@@ -10,7 +10,7 @@ There is 1 interface on the system:
     SSID                   : GBR KANTOR
     AP BSSID               : 58:b4:bb:e8:a0:e9
     Band                   : 5 GHz
-    Channel                : 44
+    Channel                : 52
     Connected Akm-cipher   : [ akm = 00-0f-ac:02, cipher =  00-0f-ac:04 ]
     Network type           : Infrastructure
     Radio type             : 802.11ac
@@ -18,9 +18,9 @@ There is 1 interface on the system:
     Cipher                 : CCMP
     Connection mode        : Profile
     Receive rate (Mbps)    : 780
-    Transmit rate (Mbps)   : 780
-    Signal                 : 85% 
-    Rssi                   : -60
+    Transmit rate (Mbps)   : 325
+    Signal                 : 84% 
+    Rssi                   : -56
     Profile                : GBR KANTOR 
     QoS MSCS Configured         : 0
     QoS Map Configured          : 0
