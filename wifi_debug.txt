@@ -17,10 +17,10 @@ There is 1 interface on the system:
     Authentication         : WPA2-Personal
     Cipher                 : CCMP
     Connection mode        : Profile
-    Receive rate (Mbps)    : 780
-    Transmit rate (Mbps)   : 325
-    Signal                 : 84% 
-    Rssi                   : -56
+    Receive rate (Mbps)    : 702
+    Transmit rate (Mbps)   : 351
+    Signal                 : 85% 
+    Rssi                   : -60
     Profile                : GBR KANTOR 
     QoS MSCS Configured         : 0
     QoS Map Configured          : 0
