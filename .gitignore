@@ -3,4 +3,20 @@
 reset_*.log
 __pycache__/
 *.pyc
+*.pyo
 .venv/
+
+# SQLite artifacts
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+sqlite-journal
+
+# General local junk
+*.tmp
+*.bak
