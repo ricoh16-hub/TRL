@@ -23,7 +23,7 @@ def load_config() -> dict[str, str]:
     config = {
         "host": os.getenv("DB_HOST") or env.get("DB_HOST", "localhost"),
         "port": os.getenv("DB_PORT") or env.get("DB_PORT", "5432"),
-        "dbname": os.getenv("DB_NAME") or env.get("DB_NAME", "app_db"),
+        "dbname": os.getenv("DB_NAME") or env.get("DB_NAME", "GBR"),
         "user": os.getenv("DB_ADMIN_USER") or env.get("DB_ADMIN_USER", "postgres"),
         "password": os.getenv("DB_ADMIN_PASSWORD") or env.get("DB_ADMIN_PASSWORD", ""),
     }

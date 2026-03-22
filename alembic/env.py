@@ -43,7 +43,7 @@ def resolve_migration_url() -> str:
 
     db_host = os.getenv("DB_HOST", "localhost").strip() or "localhost"
     db_port = int(os.getenv("DB_PORT", "5432").strip() or "5432")
-    db_name = os.getenv("DB_NAME", "app_db").strip() or "app_db"
+    db_name = os.getenv("DB_NAME", "GBR").strip() or "GBR"
 
     admin_user = os.getenv("DB_ADMIN_USER", "").strip()
     admin_password = os.getenv("DB_ADMIN_PASSWORD", "")

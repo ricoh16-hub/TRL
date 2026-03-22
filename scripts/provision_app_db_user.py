@@ -12,7 +12,7 @@ from dotenv import dotenv_values
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = PROJECT_ROOT / ".env"
 APP_USER = "app_client"
-APP_DB = "app_db"
+APP_DB = "GBR"
 
 
 def load_admin_config() -> dict[str, str]:

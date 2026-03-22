@@ -14,7 +14,7 @@ Aplikasi ini adalah aplikasi Python yang telah dioptimalkan dan dibersihkan dari
    pip install -r requirements.txt
    ```
 
-3. Siapkan PostgreSQL dan buat database, misalnya `app_db`.
+3. Siapkan PostgreSQL dan buat database, misalnya `GBR`.
 
 4. Set koneksi PostgreSQL.
 
@@ -27,7 +27,7 @@ Aplikasi ini adalah aplikasi Python yang telah dioptimalkan dan dibersihkan dari
    $env:DB_PASSWORD = "PASSWORD_APP_DB_ANDA"
    $env:DB_HOST = "localhost"
    $env:DB_PORT = "5432"
-   $env:DB_NAME = "app_db"
+   $env:DB_NAME = "GBR"
    $env:DB_CONNECT_TIMEOUT = "10"
    $env:DB_APP_NAME = "python-apps-12R"
    ```
@@ -35,7 +35,7 @@ Aplikasi ini adalah aplikasi Python yang telah dioptimalkan dan dibersihkan dari
    Alternatif (single URL):
 
    ```powershell
-   $env:DATABASE_URL = "postgresql+psycopg2://app_client:PASSWORD_APP_DB_ANDA@localhost:5432/app_db"
+   $env:DATABASE_URL = "postgresql+psycopg2://app_client:PASSWORD_APP_DB_ANDA@localhost:5432/GBR"
    ```
 
    Atau gunakan file `.env`:
@@ -57,6 +57,16 @@ Aplikasi ini adalah aplikasi Python yang telah dioptimalkan dan dibersihkan dari
 - File `.env` dibaca relatif dari root project, jadi tidak tergantung current working directory.
 - Gunakan role DB non-superuser dengan privilege minimum untuk runtime aplikasi.
 - Runtime aplikasi tidak disarankan menjalankan DDL otomatis. Gunakan migrasi admin terpisah untuk perubahan schema.
+
+### Mode Database Terpusat (Direkomendasikan)
+
+- Aktifkan `DB_CENTRAL_MODE=1` di `.env`.
+- Isi `DB_HOST` dengan IP/hostname server PostgreSQL terpusat (jangan `localhost`).
+- Pastikan `DB_AUTO_MIGRATE=0` untuk runtime client.
+- Aktifkan TLS koneksi dengan `DB_SSLMODE=require` (atau `verify-ca`/`verify-full`).
+- Saat `DB_CENTRAL_MODE=1`, startup aplikasi akan memvalidasi host bukan local loopback, auto-migrate runtime nonaktif, dan mode SSL sesuai policy.
+
+- Checklist operasional lengkap: [docs/CENTRALIZED_POSTGRESQL_CHECKLIST.md](docs/CENTRALIZED_POSTGRESQL_CHECKLIST.md)
 
 ## Operasional yang Disarankan
 

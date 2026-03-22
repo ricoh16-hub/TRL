@@ -23,6 +23,19 @@ _PASSWORD_PLACEHOLDERS = {
     "<PASSWORD>",
 }
 
+_LOCAL_HOST_ALIASES = {
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    "0.0.0.0",
+}
+
+_SSLMODE_STRICT_VALUES = {
+    "require",
+    "verify-ca",
+    "verify-full",
+}
+
 Base = declarative_base()
 
 class User(Base):
@@ -46,7 +59,7 @@ def _resolve_database_url() -> tuple[str, str, str]:
     db_password = os.getenv("DB_PASSWORD", "")
     db_host = os.getenv("DB_HOST", "localhost").strip() or "localhost"
     db_port_raw = os.getenv("DB_PORT", "5432").strip() or "5432"
-    db_name = os.getenv("DB_NAME", "app_db").strip() or "app_db"
+    db_name = os.getenv("DB_NAME", "GBR").strip() or "GBR"
 
     if db_user and db_password:
         if db_password in _PASSWORD_PLACEHOLDERS or db_password.upper().startswith("GANTI_DENGAN"):
@@ -88,6 +101,48 @@ def _build_connect_args() -> dict[str, object]:
 
 def _auto_migrate_enabled() -> bool:
     return os.getenv("DB_AUTO_MIGRATE", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _centralized_mode_enabled() -> bool:
+    return os.getenv("DB_CENTRAL_MODE", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _centralized_ssl_required() -> bool:
+    return os.getenv("DB_CENTRAL_REQUIRE_SSL", "1").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _validate_centralized_database_target() -> None:
+    if not _centralized_mode_enabled() or not DATABASE_URL:
+        return
+
+    try:
+        parsed_url = make_url(DATABASE_URL)
+    except Exception as error:
+        raise RuntimeError("DATABASE_URL tidak valid untuk mode database terpusat.") from error
+
+    host = (parsed_url.host or "").strip().lower()
+    if not host:
+        raise RuntimeError("DB_HOST wajib diisi saat DB_CENTRAL_MODE aktif.")
+
+    if host in _LOCAL_HOST_ALIASES:
+        raise RuntimeError(
+            "DB_CENTRAL_MODE aktif, tetapi host masih lokal. "
+            "Gunakan host server PostgreSQL terpusat (misal IP LAN/hostname server)."
+        )
+
+    if _auto_migrate_enabled():
+        raise RuntimeError(
+            "DB_CENTRAL_MODE aktif, tetapi DB_AUTO_MIGRATE masih aktif. "
+            "Set DB_AUTO_MIGRATE=0 dan jalankan migrasi lewat user admin terpisah."
+        )
+
+    if _centralized_ssl_required():
+        sslmode = str(_build_connect_args().get("sslmode", "")).strip().lower()
+        if sslmode not in _SSLMODE_STRICT_VALUES:
+            raise RuntimeError(
+                "Mode terpusat membutuhkan koneksi TLS. "
+                "Set DB_SSLMODE ke salah satu: require, verify-ca, verify-full."
+            )
 
 engine = None
 if DATABASE_URL:
@@ -171,10 +226,12 @@ def init_db() -> None:
         raise RuntimeError(
             "Konfigurasi PostgreSQL belum lengkap.\n"
             "Gunakan salah satu cara berikut:\n"
-            "1) DATABASE_URL=postgresql+psycopg2://<user>:<password>@localhost:5432/app_db\n"
+            "1) DATABASE_URL=postgresql+psycopg2://<user>:<password>@localhost:5432/GBR\n"
             "2) DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME\n"
             "Tips: jika password berisi karakter khusus (@, :, /), lebih aman pakai DB_*"
         )
+
+    _validate_centralized_database_target()
 
     try:
         test_connection()
