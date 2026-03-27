@@ -507,7 +507,7 @@ class BackspaceButton(QWidget):
         painter.end()
 
 class BackButton(QWidget):
-    """Custom back button with ← arrow icon in circular neumorphic style"""
+    """Custom back button with home icon in circular neumorphic style"""
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.charging = False
@@ -685,34 +685,103 @@ class BackButton(QWidget):
                         painter.setPen(QPen(border_color, 0.3, Qt.PenStyle.SolidLine))
                         painter.drawArc(rect, int(angle_qt * 16), 16)
         
-        # Tentukan warna berdasarkan status charging
+        # Tentukan warna berdasarkan status charging: biru saat charging, putih saat normal
         if self.charging:
-            icon_color = QColor(80, 180, 255)
+            outline = QColor(80, 180, 255)
+            fill = QColor(80, 180, 255)
         else:
-            icon_color = QColor(255, 255, 255)
+            outline = QColor(255, 255, 255)
+            fill = QColor(255, 255, 255)
         
-        # Gambar custom back arrow icon: ←
-        arrow_size = 16.0
-        arrow_center_x = 28.0
-        arrow_center_y = 28.0
-        line_thickness = 1.0
+        # ===== GAMBAR HOME ICON PERSIS SEPERTI HomeLogoButton =====
+        # Dimensi rumah - scaled untuk circular
+        margin_y = 22  # Centering vertical lebih tepat dalam button 56x56
+        roof_height = 4.5
+        body_height = 6.5
+        body_width = 16.0
         
-        # Panah kiri: garis horizontal + chevron kiri
-        painter.setPen(QPen(icon_color, line_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        # Center rumah SEMPURNA dalam circular (56x56, center: 28, 28)
+        body_left_x = (w - body_width) / 2
+        body_right_x = body_left_x + body_width
         
-        # Garis horizontal
-        left_x = arrow_center_x - arrow_size / 2
-        right_x = arrow_center_x + arrow_size / 2
-        painter.drawLine(QPointF(left_x, arrow_center_y), QPointF(right_x, arrow_center_y))
+        # Posisi atap dan body - centered vertically
+        roof_top = margin_y
+        roof_bottom = roof_top + roof_height
+        body_top = roof_bottom
+        body_bottom = body_top + body_height
         
-        # Chevron kiri (V terbalik di ujung kiri)
-        chevron_size = 5.5
-        chevron_x = left_x
-        chevron_top_y = arrow_center_y - chevron_size
-        chevron_bottom_y = arrow_center_y + chevron_size
+        # Segitiga atap
+        import math
+        triangle_base = body_width
+        triangle_height = (triangle_base/2) / math.tan(math.radians(60))  # 60 derajat angle
+        segitiga_top = roof_top - triangle_height + roof_height
+        p_left = QPointF(body_left_x, body_top)
+        p_right = QPointF(body_right_x, body_top)
+        p_top = QPointF((body_left_x + body_right_x) / 2, segitiga_top)
         
-        painter.drawLine(QPointF(chevron_x + chevron_size, chevron_top_y), QPointF(chevron_x, arrow_center_y))
-        painter.drawLine(QPointF(chevron_x, arrow_center_y), QPointF(chevron_x + chevron_size, chevron_bottom_y))
+        pen_width = 1.0
+        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        
+        # Hitung pintu
+        door_width = 5.5
+        door_height = 6.0
+        door_x = body_left_x + (body_width - door_width) / 2
+        door_y = body_bottom - door_height - 0.8
+        door_rect = QRectF(door_x, door_y, door_width, door_height)
+        
+        # Isi body rumah persegi panjang, tapi jangan isi area pintu (biar transparan)
+        painter.setBrush(QBrush(fill))
+        body_rect = QRectF(body_left_x, body_top, body_width, body_height)
+        
+        # Bagian atas body (di atas pintu)
+        if door_y > body_top:
+            top_rect = QRectF(body_left_x, body_top, body_width, door_y - body_top)
+            painter.drawRect(top_rect)
+        
+        # Bagian kiri body (di samping kiri pintu)
+        if door_x > body_left_x:
+            left_rect = QRectF(body_left_x, door_y, door_x - body_left_x, body_bottom - door_y)
+            painter.drawRect(left_rect)
+        
+        # Bagian kanan body (di samping kanan pintu)
+        right_x = door_x + door_width
+        if right_x < body_right_x:
+            right_rect = QRectF(right_x, door_y, body_right_x - right_x, body_bottom - door_y)
+            painter.drawRect(right_rect)
+        
+        # Outline body persegi panjang
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.drawRect(body_rect)
+        
+        # Isi atap segitiga dengan fill color
+        painter.setBrush(QBrush(fill))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPolygon([p_left, p_top, p_right])
+        
+        # Outline atap (segitiga)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.drawLine(p_left, p_top)
+        painter.drawLine(p_top, p_right)
+        
+        # Alas rumah
+        alas_offset = 2.5
+        alas_y = body_bottom + 0.8
+        left_bottom = QPointF(body_left_x - alas_offset, alas_y)
+        right_bottom = QPointF(body_right_x + alas_offset, alas_y)
+        painter.drawLine(left_bottom, right_bottom)
+        
+        # Dinding vertikal kiri dan kanan
+        painter.drawLine(p_left, QPointF(body_left_x, body_top))
+        painter.drawLine(QPointF(body_right_x, body_top), p_right)
+        
+        # Pintu (hanya outline, tanpa fill)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.drawLine(door_rect.topLeft(), door_rect.topRight())  # top
+        painter.drawLine(door_rect.topLeft(), door_rect.bottomLeft())  # left
+        painter.drawLine(door_rect.topRight(), door_rect.bottomRight())  # right
         
         painter.restore()
         painter.end()
