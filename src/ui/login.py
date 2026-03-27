@@ -1,4 +1,5 @@
-from typing import Optional, Union
+from importlib import import_module
+from typing import Callable, Optional, Union, cast
 from database.models import User
 from PySide6.QtWidgets import QWidget, QDialog, QVBoxLayout, QGridLayout, QLabel, QGraphicsDropShadowEffect, QToolTip, QApplication
 from PySide6.QtCore import Qt, Signal, QRectF, QEasingCurve, QPropertyAnimation, Property, QEvent, QPointF
@@ -7,6 +8,15 @@ from PySide6.QtCore import QRect
 from PySide6.QtGui import QLinearGradient
 # Import widgets from lock.py
 from ui.lock import BatteryLogoWidget, KeyCapWidget, GearIconWidget, WiFiLogoWidget
+
+AuthenticateFn = Callable[[str, str, object | None], User | None]
+
+try:
+    _authenticate = import_module("auth.login").authenticate
+except ImportError:
+    _authenticate = import_module("src.auth.login").authenticate
+
+authenticate = cast(AuthenticateFn, _authenticate)
 
 QSS_LABEL_STYLE = """
 QLabel[charging="true"] {
@@ -17,231 +27,6 @@ QLabel[charging="false"] {
 }
 """
 
-class HomeLogoButton(QWidget):
-    charging: bool = False
-
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
-        super().__init__(parent)
-        self.setFixedSize(55, 64)  # Perbesar lebar agar body_bottom_width tampil penuh
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("Home")
-        self._hover = False
-        self._scale = 1.0
-        self._scale_anim = None
-        self.charging = False
-
-    def set_charging(self, charging: bool):
-        self.charging = charging
-        self.update()
-
-    def get_scale(self) -> float:
-        return getattr(self, '_scale', 1.0)
-
-    def set_scale(self, value: float) -> None:
-        self._scale = value
-        self.update()
-
-    def _animate_scale(self, start: float, end: float):
-        from PySide6.QtCore import QPropertyAnimation, QEasingCurve
-        # Stop and cleanup previous animation to prevent memory leak
-        old_anim = getattr(self, '_scale_anim', None)
-        if old_anim is not None:
-            old_anim.stop()
-            try:
-                old_anim.valueChanged.disconnect()
-            except:
-                pass
-            old_anim.deleteLater()
-            self._scale_anim = None
-        
-        anim = QPropertyAnimation(self, b"scale")
-        anim.setStartValue(start)
-        anim.setEndValue(end)
-        anim.setDuration(340)  # lebih lama agar lebih mulus
-        anim.setEasingCurve(QEasingCurve.Type.InOutCubic)  # easing lebih halus
-        anim.valueChanged.connect(self.update)
-        anim.finished.connect(lambda: self._cleanup_home_animation())
-        self._scale_anim = anim
-        anim.start()
-    
-    def _cleanup_home_animation(self) -> None:
-        """Safely cleanup animation object"""
-        old_anim = getattr(self, '_scale_anim', None)
-        if old_anim is not None:
-            try:
-                old_anim.valueChanged.disconnect()
-            except:
-                pass
-            self._scale_anim = None
-
-
-    def enterEvent(self, event: QEnterEvent) -> None:
-        self._hover = True
-        self._animate_scale(getattr(self, '_scale', 1.0), 1.18)
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
-        shadow.setOffset(0, 0)
-        shadow.setColor(QColor(80, 180, 255, 180))
-        self.setGraphicsEffect(shadow)
-        super().enterEvent(event)
-
-    def leaveEvent(self, event: QEvent) -> None:
-        self._hover = False
-        self._animate_scale(getattr(self, '_scale', 1.18), 1.0)
-        self.setGraphicsEffect(None)  # type: ignore
-        super().leaveEvent(event)
-
-    from PySide6.QtCore import Property
-    scale = Property(float, get_scale, set_scale)
-
-    def paintEvent(self, event: QPaintEvent) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w, h = self.width(), self.height()
-        painter.save()
-        painter.translate(w/2, h/2)
-        painter.scale(getattr(self, '_scale', 1.0), getattr(self, '_scale', 1.0))
-        painter.translate(-w/2, -h/2)
-        # Agar body dan atap benar-benar sejajar di kaki
-        margin_y = 14
-        roof_height = 7
-        body_height = 10
-        # Buat body rumah dengan sisi kiri dan kanan tegak lurus (persegi panjang)
-        body_width = 24.9
-        # Validasi agar body tidak melebihi lebar widget
-        max_width = min(body_width, w)
-        body_width = min(body_width, max_width)
-        # body_top_width and body_bottom_width are not needed anymore; use body_width directly
-        # Inisialisasi triangle_base2 dan triangle_base
-        triangle_base2 = 25.5  # default value
-        triangle_base = triangle_base2 - 6  # Alas segitiga lama lebih pendek dari segitiga baru
-        roof_top = margin_y
-        roof_bottom = roof_top + roof_height
-        # Ikuti logika chevron: biru saat charging, putih saat tidak
-        outline = QColor(255, 255, 255)
-        fill = QColor(255, 255, 255)
-        if self.charging:
-            outline = QColor(80, 180, 255)
-            fill = QColor(80, 180, 255)
-        pen_width = 1.25
-        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
-        # Dinding rumah: body persegi panjang (benar-benar tegak lurus)
-        body_top = roof_bottom
-        body_left_x = (w - body_width) / 2
-        body_right_x = body_left_x + body_width
-        body_bottom = body_top + body_height
-        body_rect = QRectF(body_left_x, body_top, body_width, body_height)
-        # Hitung pintu
-        door_width = 8.5
-        door_height = 9.5
-        # Center the door within the house body, not the widget
-        door_x = body_left_x + (body_width - door_width) / 2
-        # Beri jarak kecil antara alas rumah dan pintu (misal 2px)
-        gap = 2.0
-        door_y = body_bottom - door_height + 1.5 - gap  # 1.5 adalah offset alas_y
-        door_rect = QRectF(door_x, door_y, door_width, door_height)
-
-        # Isi body rumah persegi panjang, tapi jangan isi area pintu (biar transparan)
-        painter.setBrush(QBrush(fill))
-        # Bagian atas body (di atas pintu)
-        if door_y > body_top:
-            top_rect = QRectF(body_left_x, body_top, body_width, door_y - body_top)
-            painter.drawRect(top_rect)
-        # Bagian kiri body (di samping kiri pintu)
-        if door_x > body_left_x:
-            left_rect = QRectF(body_left_x, door_y, door_x - body_left_x, body_bottom - door_y)
-            painter.drawRect(left_rect)
-        # Bagian kanan body (di samping kanan pintu)
-        right_x = door_x + door_width
-        if right_x < body_right_x:
-            right_rect = QRectF(right_x, door_y, body_right_x - right_x, body_bottom - door_y)
-            painter.drawRect(right_rect)
-        # Outline body persegi panjang
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
-        painter.drawRect(body_rect)
-        # Atap segitiga sama kaki tanpa alas
-        import math
-        # Konfigurasi sudut puncak dan kaki offset (agar identik)
-        theta_puncak_deg = 120
-        theta_puncak_rad = math.radians(theta_puncak_deg)
-
-        kaki_offset = 3  # Offset kaki kiri/kanan untuk segitiga atas saja
-
-        # Segitiga bawah (lama) - ujung tepat di dinding rumah
-        segitiga_left = body_left_x
-        segitiga_right = body_right_x
-        triangle_height = (triangle_base/2) / math.tan(theta_puncak_rad/2)
-        segitiga_top = body_top - triangle_height
-        # Titik-titik segitiga bawah (ujung tepat di dinding rumah)
-        p_left = QPointF(segitiga_left, body_top)
-        p_right = QPointF(segitiga_right, body_top)
-        p_top = QPointF((segitiga_left + segitiga_right) / 2, segitiga_top)
-
-        # Segitiga atas (baru)
-        gap_y = -2.5  # Jarak negatif lebih besar agar benar-benar menempel secara visual
-        triangle_base2 = triangle_base  # Alas sama agar menempel rapi
-        triangle_height2 = (triangle_base2/2) / math.tan(theta_puncak_rad/2)
-        segitiga2_left = (w - triangle_base2) / 2
-        segitiga2_right = segitiga2_left + triangle_base2
-        segitiga2_bottom = segitiga_top - gap_y
-        segitiga2_top = segitiga2_bottom - triangle_height2
-        # Titik-titik segitiga atas (pakai kaki_offset yang sama)
-        p2_left = QPointF(segitiga2_left - kaki_offset, segitiga2_bottom)
-        p2_right = QPointF(segitiga2_right + kaki_offset, segitiga2_bottom)
-        p2_top = QPointF((segitiga2_left + segitiga2_right) / 2, segitiga2_top)
-        # Gambar atap segitiga atas
-        if self.charging:
-            roof2_outline = QColor(80, 180, 255)  # Sama dengan atap lama saat charging
-        else:
-            roof2_outline = QColor(255, 255, 255)  # Sama dengan atap lama saat tidak charging
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(roof2_outline, 0.1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
-        # Hanya gambar dua sisi miring segitiga baru (tidak ada alas)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(roof2_outline, 0.9, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
-        painter.drawLine(p2_left, p2_top)
-        painter.drawLine(p2_top, p2_right)
-        # Isi atap segitiga sesuai status charging
-        if self.charging:
-            roof_fill = QColor(80, 180, 255)
-        else:
-            roof_fill = QColor(255, 255, 255)
-        painter.setBrush(QBrush(roof_fill))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawPolygon([p_left, p_top, p_right])
-        # Outline dua sisi miring atap (akan digambar ulang setelah garis dinding kanan)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
-        painter.drawLine(p_left, p_top)
-        painter.drawLine(p_top, p_right)
-        # Garis alas rumah: 8px lebih panjang dari body (4px ke kiri dan 4px ke kanan)
-        alas_offset = 4.0
-        alas_y = body_bottom + 1.5
-        left_bottom = QPointF(body_left_x - alas_offset, alas_y)
-        right_bottom = QPointF(body_right_x + alas_offset, alas_y)
-        # Potong garis dinding kiri hanya sampai ke kaki segitiga (p_left)
-        painter.drawLine(p_left, QPointF(body_left_x, body_top))
-        # Dinding kanan hanya dari body_right_x ke body_right_x, body_bottom (tidak ke p_right)
-        painter.drawLine(QPointF(body_right_x, body_top), QPointF(body_right_x, body_bottom))
-        # --- ULANGI OUTLINE ATAP SEGITIGA LAMA DI ATAS DINDING ---
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
-        painter.drawLine(p_left, p_top)
-        painter.drawLine(p_top, p_right)
-        # Garis alas rumah satu-satunya (tidak ada duplikasi)
-        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
-        painter.drawLine(left_bottom, right_bottom)
-        # Pintu di tengah bawah (hanya outline, tanpa fill apapun)
-        # Sudut pintu mengikuti kemiringan bawah body
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
-        painter.drawLine(door_rect.topLeft(), door_rect.topRight())  # atas
-        painter.drawLine(door_rect.topLeft(), door_rect.bottomLeft())  # kiri
-        painter.drawLine(door_rect.topRight(), door_rect.bottomRight())  # kanan
-        # Tidak ada sisi bawah, tidak ada fill, area dalam pintu transparan
-        painter.restore()
 
 class BackspaceButton(QWidget):
     """Custom backspace button with ⌫ icon in circular neumorphic style"""
@@ -276,7 +61,7 @@ class BackspaceButton(QWidget):
             self._scale_anim.stop()
             try:
                 self._scale_anim.valueChanged.disconnect()
-            except:
+            except (RuntimeError, TypeError):
                 pass
             self._scale_anim.deleteLater()
             self._scale_anim = None
@@ -295,7 +80,7 @@ class BackspaceButton(QWidget):
         if self._scale_anim is not None:
             try:
                 self._scale_anim.valueChanged.disconnect()
-            except:
+            except (RuntimeError, TypeError):
                 pass
             self._scale_anim = None
     
@@ -539,7 +324,7 @@ class BackButton(QWidget):
             self._scale_anim.stop()
             try:
                 self._scale_anim.valueChanged.disconnect()
-            except:
+            except (RuntimeError, TypeError):
                 pass
             self._scale_anim.deleteLater()
             self._scale_anim = None
@@ -558,7 +343,7 @@ class BackButton(QWidget):
         if self._scale_anim is not None:
             try:
                 self._scale_anim.valueChanged.disconnect()
-            except:
+            except (RuntimeError, TypeError):
                 pass
             self._scale_anim = None
     
@@ -693,40 +478,54 @@ class BackButton(QWidget):
             outline = QColor(255, 255, 255)
             fill = QColor(255, 255, 255)
         
-        # ===== GAMBAR HOME ICON PERSIS SEPERTI HomeLogoButton =====
         # Dimensi rumah - scaled untuk circular
-        margin_y = 22  # Centering vertical lebih tepat dalam button 56x56
-        roof_height = 4.5
         body_height = 6.5
         body_width = 16.0
+        icon_vertical_offset = 5.0
+        center_house_y = center_y
         
         # Center rumah SEMPURNA dalam circular (56x56, center: 28, 28)
         body_left_x = (w - body_width) / 2
         body_right_x = body_left_x + body_width
         
-        # Posisi atap dan body - centered vertically
-        roof_top = margin_y
-        roof_bottom = roof_top + roof_height
-        body_top = roof_bottom
-        body_bottom = body_top + body_height
-        
-        # Segitiga atap
+        # Geometri atap: alas bawah sama dengan body.
         import math
         triangle_base = body_width
-        triangle_height = (triangle_base/2) / math.tan(math.radians(60))  # 60 derajat angle
-        segitiga_top = roof_top - triangle_height + roof_height
+        theta_puncak_deg = 120
+        theta_puncak_rad = math.radians(theta_puncak_deg)
+        upper_roof_overhang = 2.0
+        upper_triangle_base = triangle_base + (upper_roof_overhang * 2)
+        gap_y = -1.8
+        triangle_height = (triangle_base / 2) / math.tan(theta_puncak_rad / 2)
+        triangle_height2 = (upper_triangle_base / 2) / math.tan(theta_puncak_rad / 2)
+
+        # Hitung posisi vertikal dari tinggi visual total ikon, agar center tepat di circular.
+        alas_gap = body_height * 0.15
+        top_offset = triangle_height + triangle_height2 + gap_y
+        bottom_offset = body_height + alas_gap
+        body_top = center_house_y + ((top_offset - bottom_offset) / 2) + icon_vertical_offset
+        body_bottom = body_top + body_height
+        segitiga_top = body_top - triangle_height
         p_left = QPointF(body_left_x, body_top)
         p_right = QPointF(body_right_x, body_top)
         p_top = QPointF((body_left_x + body_right_x) / 2, segitiga_top)
+
+        segitiga2_left = (w - upper_triangle_base) / 2
+        segitiga2_right = segitiga2_left + upper_triangle_base
+        segitiga2_bottom = segitiga_top - gap_y
+        segitiga2_top = segitiga2_bottom - triangle_height2
+        p2_left = QPointF(segitiga2_left, segitiga2_bottom)
+        p2_right = QPointF(segitiga2_right, segitiga2_bottom)
+        p2_top = QPointF((segitiga2_left + segitiga2_right) / 2, segitiga2_top)
         
         pen_width = 1.0
         painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
         
         # Hitung pintu
-        door_width = 5.5
-        door_height = 6.0
+        door_width = body_width * (8.5 / 24.9)
+        door_height = body_height * 0.95
         door_x = body_left_x + (body_width - door_width) / 2
-        door_y = body_bottom - door_height - 0.8
+        door_y = body_bottom - door_height - 0.5
         door_rect = QRectF(door_x, door_y, door_width, door_height)
         
         # Isi body rumah persegi panjang, tapi jangan isi area pintu (biar transparan)
@@ -753,6 +552,12 @@ class BackButton(QWidget):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
         painter.drawRect(body_rect)
+
+        # Outline segitiga atas
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(outline, 0.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.drawLine(p2_left, p2_top)
+        painter.drawLine(p2_top, p2_right)
         
         # Isi atap segitiga dengan fill color
         painter.setBrush(QBrush(fill))
@@ -766,8 +571,8 @@ class BackButton(QWidget):
         painter.drawLine(p_top, p_right)
         
         # Alas rumah
-        alas_offset = 2.5
-        alas_y = body_bottom + 0.8
+        alas_offset = body_width * (4.0 / 24.9)
+        alas_y = body_bottom + alas_gap
         left_bottom = QPointF(body_left_x - alas_offset, alas_y)
         right_bottom = QPointF(body_right_x + alas_offset, alas_y)
         painter.drawLine(left_bottom, right_bottom)
@@ -814,7 +619,7 @@ class VerticalStretchLabel(QWidget):
             self._scale_anim.stop()
             try:
                 self._scale_anim.valueChanged.disconnect()
-            except:
+            except (RuntimeError, TypeError):
                 pass
             self._scale_anim.deleteLater()
             self._scale_anim = None
@@ -832,7 +637,7 @@ class VerticalStretchLabel(QWidget):
         if self._scale_anim is not None:
             try:
                 self._scale_anim.valueChanged.disconnect()
-            except:
+            except (RuntimeError, TypeError):
                 pass
             self._scale_anim = None
 
@@ -966,7 +771,7 @@ class RoundLabel(QLabel):
             self._scale_anim.stop()
             try:
                 self._scale_anim.valueChanged.disconnect()
-            except:
+            except (RuntimeError, TypeError):
                 pass
             self._scale_anim.deleteLater()
             self._scale_anim = None
@@ -986,7 +791,7 @@ class RoundLabel(QLabel):
         if self._scale_anim is not None:
             try:
                 self._scale_anim.valueChanged.disconnect()
-            except:
+            except (RuntimeError, TypeError):
                 pass
             self._scale_anim = None
     
@@ -1159,15 +964,10 @@ class RoundLabel(QLabel):
         painter.restore()  # Restore painter state
         painter.end()
 
-from PySide6.QtCore import Qt, Signal, QRectF, QEasingCurve, QPropertyAnimation, Property, QEvent, QPointF
-from PySide6.QtGui import QPainter, QBrush, QPen, QColor, QRadialGradient, QMouseEvent, QPaintEvent
-from auth.login import authenticate  # type: ignore
-
-
 def authenticate_typed(username: str, password: str, session: Optional[object] = None) -> Optional[User]:
     return authenticate(username, password, session)
 # CustomUnlockIcon: Widget logo gembok unlock, identik dengan CustomLockIcon, hanya shackle kanan terbuka
-from PySide6.QtGui import QEnterEvent
+
 class CustomUnlockIcon(QWidget):
     def paintEvent(self, event: QPaintEvent):
         painter = QPainter(self)
@@ -1277,7 +1077,7 @@ class CustomUnlockIcon(QWidget):
             try:
                 old_anim.stop()
                 old_anim.valueChanged.disconnect()
-            except:
+            except (RuntimeError, TypeError):
                 pass
         
         self._scale_anim = QPropertyAnimation(self, b"scale")
@@ -1320,7 +1120,7 @@ class CustomUnlockIcon(QWidget):
             try:
                 old_anim.stop()
                 old_anim.valueChanged.disconnect()
-            except:
+            except (RuntimeError, TypeError):
                 pass
         
         self._shackle_anim = QPropertyAnimation(self, b"shackle_angle")
@@ -1356,7 +1156,7 @@ class CustomUnlockIcon(QWidget):
             try:
                 old_anim.stop()
                 old_anim.valueChanged.disconnect()
-            except:
+            except (RuntimeError, TypeError):
                 pass
         
         self._scale_anim = QPropertyAnimation(self, b"scale")
@@ -1861,9 +1661,6 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
     # Pastikan unlock_icon selalu di atas
     unlock_icon.raise_()
 
-    # Tambahkan HomeLogoButton di tengah bawah, tepat di bawah garis horizontal bawah
-    home_logo = HomeLogoButton(dialog)
-
     # Update charging status periodically with state caching to prevent lag
     from PySide6.QtCore import QTimer
     from typing import Dict, Any, Optional
@@ -1880,7 +1677,6 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
         if _charging_state['prev'] != charging:
             _charging_state['prev'] = charging
             unlock_icon.set_charging(charging)
-            home_logo.set_charging(charging)
             label_pin_entry.set_charging(charging)
             
             # Update keypad button colors
@@ -1909,22 +1705,12 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
 
 
 
-    def position_home_logo():
-        x = (dialog.width() - home_logo.width()) // 2
-        # Tempatkan HomeLogoButton sehingga puncak segitiga tepat di bawah garis horizontal bawah
-        # Turunkan puncak segitiga 7px di bawah garis horizontal bawah
-        # Turunkan puncak segitiga 14px di bawah garis horizontal bawah
-        y = int(dialog.height() - home_logo.height())  # Tempelkan HomeLogoButton ke bawah form
-        home_logo.move(x, y)
-    position_home_logo()
-    home_logo.show()
     # Reposisi otomatis saat resize
     orig_resize = dialog.resizeEvent if hasattr(dialog, 'resizeEvent') else None
     from PySide6.QtGui import QResizeEvent
     def resizeEvent(event: QResizeEvent) -> None:
         if orig_resize:
             orig_resize(event)
-        position_home_logo()
         position_security_label()
     dialog.resizeEvent = resizeEvent
     
@@ -1984,10 +1770,4 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
     dialog.keyPressEvent = keyPressEvent
     dialog.keyReleaseEvent = keyReleaseEvent
     
-    # (Optional) Tambahkan aksi klik home_logo
-    def on_home_logo_clicked():
-        dialog.hide()
-        show_lock()
-    home_logo.mousePressEvent = lambda event: (on_home_logo_clicked() if event.button() == Qt.MouseButton.LeftButton else QWidget.mousePressEvent(home_logo, event))
-
     dialog.exec()

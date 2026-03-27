@@ -2,6 +2,19 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Show DB Info",
+      "type": "shell",
+      "command": "code",
+      "args": ["-r", "${workspaceFolder}\\db_info.txt"],
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "presentation": {
+        "reveal": "never"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Alembic Current",
       "type": "shell",
       "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
@@ -43,6 +56,67 @@
         "--safe",
         "-m",
         "${input:alembicRevisionMessage}"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Python Lint (Ruff)",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "ruff",
+        "check",
+        "src/auth",
+        "src/database",
+        "src/main.py",
+        "src/ui/mainform.py",
+        "src/ui/userform.py",
+        "src/ui/webform.py",
+        "src/ui/battery_status.py",
+        "src/ui/boot.py",
+        "src/ui/login.py",
+        "src/ui/lock.py",
+        "scripts",
+        "tests"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Python Tests (Pytest)",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "pytest"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Python Tests (Coverage)",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "pytest"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Python Verify",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Python Lint (Ruff)",
+        "Python Tests (Pytest)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Python Verify (With Coverage)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Python Lint (Ruff)",
+        "Python Tests (Coverage)"
       ],
       "problemMatcher": []
     }

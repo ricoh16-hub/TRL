@@ -1,10 +1,16 @@
 .env
+db_info.txt
 *.log
 reset_*.log
 __pycache__/
 *.pyc
 *.pyo
 .venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # SQLite artifacts
 *.sqlite

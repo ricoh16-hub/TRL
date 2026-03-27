@@ -1,17 +1,19 @@
+from datetime import datetime
+from typing import Optional, Protocol, runtime_checkable
+
+from PySide6.QtCore import QEvent, QPointF, QPropertyAnimation, QRect, Qt, QTimer, Signal, QEasingCurve, Property
+from PySide6.QtGui import QBrush, QCloseEvent, QColor, QEnterEvent, QFont, QKeyEvent, QLinearGradient, QMouseEvent, QPaintEvent, QPainter, QPainterPath, QPen
+from PySide6.QtWidgets import QDialog, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QWidget
+
+
 def get_theme_color(charging: bool) -> str:
     """Return hex color string for charging or not charging state."""
     return "#50B4FF" if charging else "#FFFFFF"
-from typing import Optional, Protocol, runtime_checkable
+
+
 @runtime_checkable
 class BatteryWidgetProtocol(Protocol):
     charging: bool
-
-from PySide6.QtWidgets import QWidget, QHBoxLayout
-from PySide6.QtGui import QEnterEvent, QMouseEvent, QPaintEvent, QFont
-from PySide6.QtCore import QEvent, QTimer
-from PySide6.QtCore import Qt, QPropertyAnimation, QTimer, Signal, QRect, QEasingCurve, QEvent, QPointF
-from PySide6.QtGui import QPainter, QPaintEvent, QPen, QColor, QBrush, QEnterEvent, QMouseEvent, QKeyEvent, QLinearGradient, QCloseEvent, QPainterPath
-from datetime import datetime
 
 GLASS_STYLE = """
 QDialog {
@@ -39,11 +41,6 @@ def show_lock() -> bool:
     return result == QDialog.DialogCode.Accepted
 
 # --- WiFiLogoWidget (restored from backup/src/ui/lock.py) ---
-from PySide6.QtWidgets import QWidget
-from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QPainter, QPen, QColor, QBrush, QPaintEvent, QEnterEvent
-from typing import Optional
-
 class WiFiLogoWidget(QWidget):
     def __init__(self, parent: Optional[QWidget] = None, battery_widget: Optional[QWidget] = None):
         self.battery_widget: Optional[QWidget] = battery_widget
@@ -103,7 +100,6 @@ class WiFiLogoWidget(QWidget):
         # Jangan ubah ukuran widget, biarkan tetap agar posisi dot konsisten
         self.update()
 
-    from PySide6.QtCore import Property
     scale = Property(float, get_scale, set_scale)
 
     def _animate_scale(self, start: float, end: float):
@@ -369,11 +365,6 @@ class BatteryLogoWidget(QWidget):
     # scale = Property(float, get_scale, set_scale)
     scale = Property(float, get_scale, set_scale)
 
-from datetime import datetime
-from PySide6.QtWidgets import QDialog, QLabel, QWidget, QGraphicsDropShadowEffect
-from PySide6.QtCore import Qt, QTimer, Signal, QRect, QEasingCurve, QPropertyAnimation
-from PySide6.QtGui import QColor, QPainter, QPen, QBrush
-
 class CustomLockIcon(QWidget):
     def enterEvent(self, event: QEnterEvent):
         self._hovering = True
@@ -479,7 +470,6 @@ class CustomLockIcon(QWidget):
         self._scale = value
         self.update()
 
-    from PySide6.QtCore import Property
     scale = Property(float, get_scale, set_scale)
 
     def paintEvent(self, event: QPaintEvent):
@@ -557,16 +547,7 @@ class CustomLockIcon(QWidget):
         self.lock_color = color
         self.update()
 
-
-
-from typing import Optional
-from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QEnterEvent, QMouseEvent, QPaintEvent
-from PySide6.QtCore import QEvent
-
 class ChevronExitButton(QWidget):
-    from PySide6.QtCore import Property
-
     def get_scale(self) -> float:
         return getattr(self, '_scale', 1.0)
 
@@ -575,9 +556,6 @@ class ChevronExitButton(QWidget):
         self.update()
 
     scale = Property(float, get_scale, set_scale)
-
-
-    from PySide6.QtCore import Property
 
     def get_collapse_progress(self) -> float:
         return getattr(self, '_collapse_progress', 0.0)
@@ -1129,13 +1107,10 @@ QLabel {
     def show_login_form(self):
         try:
             self.hide()  # Sembunyikan form lock.py sebelum menampilkan LoginDialog
-            from typing import Callable, Optional
             from .login import show_login
             from PySide6.QtWidgets import QApplication
             app = QApplication.instance()
-            from .login import show_login
-            from typing import Callable, Optional
-            show_login_func: Callable[[QApplication, Optional[QWidget]], None] = show_login
+            show_login_func = show_login
             if isinstance(app, QApplication):
                 # Kirim self sebagai parent agar LoginDialog bisa menyesuaikan ukuran LockForm
                 if isinstance(self, LockForm):

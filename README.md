@@ -8,15 +8,30 @@ Aplikasi ini adalah aplikasi Python yang telah dioptimalkan dan dibersihkan dari
 
 1. Pastikan Python 3.10+ sudah terinstall.
 
-2. Install dependensi:
+2. Buat dan aktifkan virtual environment di root project.
 
-   ```bash
-   pip install -r requirements.txt
+   PowerShell:
+
+   ```powershell
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
    ```
 
-3. Siapkan PostgreSQL dan buat database, misalnya `GBR`.
+3. Install dependensi runtime yang sudah dipin:
 
-4. Set koneksi PostgreSQL.
+   ```bash
+   python -m pip install -r requirements.txt
+   ```
+
+   Untuk mesin pengembangan, install juga dependency dev:
+
+   ```bash
+   python -m pip install -r requirements-dev.txt
+   ```
+
+4. Siapkan PostgreSQL dan buat database, misalnya `GBR`.
+
+5. Set koneksi PostgreSQL.
 
    Best practice: pakai user database aplikasi khusus, bukan `postgres`.
 
@@ -43,11 +58,25 @@ Aplikasi ini adalah aplikasi Python yang telah dioptimalkan dan dibersihkan dari
    - Copy `.env.example` menjadi `.env`
    - Isi `DB_PASSWORD` dengan password app DB user yang benar
 
-5. Jalankan aplikasi:
+6. Jalankan aplikasi:
 
    ```bash
    python src/main.py
    ```
+
+Catatan:
+
+- `requirements.txt` berisi versi exact yang sudah tervalidasi di workspace ini agar lingkungan mesin lain tidak berubah otomatis.
+- `requirements-dev.txt` dipakai untuk kebutuhan pengembangan dan saat ini menambahkan `pytest` serta `ruff` dengan versi yang dipin.
+
+## Tooling Pengembangan
+
+- Jalankan lint dengan `python -m ruff check src/auth src/database src/main.py src/ui/mainform.py src/ui/userform.py src/ui/webform.py src/ui/battery_status.py src/ui/boot.py src/ui/login.py src/ui/lock.py scripts tests`.
+- Jalankan test dengan `python -m pytest`.
+- Test sekarang otomatis mengeluarkan report coverage terminal dan file `coverage.xml`.
+- VS Code task siap pakai: `Python Lint (Ruff)`, `Python Tests (Pytest)`, `Python Tests (Coverage)`, `Python Verify`, dan `Python Verify (With Coverage)`.
+- CI GitHub menjalankan lint dan test yang sama pada setiap `push` dan `pull_request`.
+- Scope lint sekarang sudah mencakup modul UI utama yang aktif dipakai aplikasi. Jika ada file backup/legacy lain di luar scope ini, pertahankan terpisah sampai benar-benar siap dirapikan.
 
 ## Koneksi Database (Multi User)
 
@@ -134,6 +163,27 @@ Aplikasi ini adalah aplikasi Python yang telah dioptimalkan dan dibersihkan dari
 - Jika password mengandung karakter khusus (`@`, `:`, `/`), pakai `DB_*` agar tidak perlu URL encoding manual.
 - Jika `.env` berubah, jalankan lagi `python src/main.py` atau `python -c "from src.database.models import test_connection; print(test_connection())"` untuk verifikasi.
 
+## Troubleshooting Environment
+
+- Jika import modul binary gagal, pastikan interpreter aktif mengarah ke workspace `.venv`, bukan Python global.
+- Untuk verifikasi interpreter aktif di PowerShell, jalankan `python -c "import sys; print(sys.executable)"` dan pastikan hasilnya menunjuk ke `.venv\Scripts\python.exe`.
+- Jika `.venv` terlihat korup parsial, perbaiki dengan reinstall dependency yang dipin:
+
+   ```powershell
+   python -m pip install --upgrade --force-reinstall --no-cache-dir -r requirements.txt
+   ```
+
+- Jika masalah tetap ada, hapus `.venv`, buat ulang environment, lalu install ulang:
+
+   ```powershell
+   Remove-Item -Recurse -Force .venv
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   python -m pip install -r requirements-dev.txt
+   ```
+
+- Setelah pemulihan environment, jalankan `python -m pip check` lalu uji startup dengan `python src/main.py`.
+
 ## Struktur Folder
 
 - src/ : Source code utama
@@ -142,7 +192,7 @@ Aplikasi ini adalah aplikasi Python yang telah dioptimalkan dan dibersihkan dari
 ## Catatan
 
 - Backup dan file sementara sudah dihapus.
-- Untuk pengembangan, gunakan virtual environment baru.
+- Untuk pengembangan, gunakan virtual environment workspace `.venv`.
 
 ## Kontak
 

@@ -3,7 +3,6 @@ import os
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QGraphicsDropShadowEffect
 from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtCore import Qt, QTimer, QRectF, QPointF
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QPainter, QColor, QPen, QConicalGradient, QRegion, QPainterPath, QRadialGradient, QPaintEvent
 
 class CircularProgress(QWidget):
@@ -61,7 +60,8 @@ class CircularProgress(QWidget):
             rect = QRectF(self.thickness, self.thickness, self.diameter-2*self.thickness, self.diameter-2*self.thickness)
             grad = QConicalGradient(rect.center(), -self.angle)
             # Kemewahan: gradasi biru aqua, platinum, royal blue, emas, putih
-            aqua = QColor(62,166,255); aqua.setAlpha(0)
+            aqua = QColor(62, 166, 255)
+            aqua.setAlpha(0)
             platinum = QColor(180,220,255)
             royal = QColor(60,120,255)
             gold = QColor(255,215,80)
