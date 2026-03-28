@@ -9,7 +9,10 @@ parallel = false
 [tool.coverage.report]
 skip_covered = false
 show_missing = true
-fail_under = 95
+fail_under = 99
+exclude_lines = [
+  "if __name__ == .__main__.:",
+]
 
 [tool.ruff]
 target-version = "py312"

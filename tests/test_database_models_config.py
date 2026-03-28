@@ -185,6 +185,15 @@ def test_validate_centralized_target_allows_strict_ssl(monkeypatch) -> None:
     db_models._validate_centralized_database_target()
 
 
+def test_validate_centralized_target_allows_when_ssl_not_required(monkeypatch) -> None:
+    monkeypatch.setenv("DB_CENTRAL_MODE", "1")
+    monkeypatch.setenv("DB_CENTRAL_REQUIRE_SSL", "0")
+    monkeypatch.setenv("DB_AUTO_MIGRATE", "0")
+    monkeypatch.setattr(db_models, "DATABASE_URL", "postgresql+psycopg2://u:p@db-server:5432/app")
+
+    db_models._validate_centralized_database_target()
+
+
 class _FakeSelectResult:
     def mappings(self):
         return self
@@ -391,6 +400,61 @@ def test_run_user_table_migration_skips_empty_password(monkeypatch) -> None:
 
     executed_sql = "\n".join(sql for sql, _ in fake_engine.connection.calls)
     assert "UPDATE users" not in executed_sql
+
+
+def test_run_user_table_migration_skips_password_nullable_change_when_column_missing(monkeypatch) -> None:
+    class _EmptySelectResult:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class _Conn:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, object] | None]] = []
+
+        def execute(self, statement, params=None):
+            sql = str(statement)
+            self.calls.append((sql, params))
+            if "SELECT id, password FROM users" in sql:
+                return _EmptySelectResult()
+            return None
+
+    class _Begin:
+        def __init__(self, conn: _Conn) -> None:
+            self._conn = conn
+
+        def __enter__(self):
+            return self._conn
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class _Engine:
+        def __init__(self) -> None:
+            self.connection = _Conn()
+
+        def begin(self):
+            return _Begin(self.connection)
+
+    class _Inspector:
+        @staticmethod
+        def get_table_names():
+            return ["users"]
+
+        @staticmethod
+        def get_columns(_table):
+            return [{"name": "id"}, {"name": "password_hash"}, {"name": "password_salt"}]
+
+    fake_engine = _Engine()
+    monkeypatch.setattr(db_models, "engine", fake_engine)
+    monkeypatch.setattr(db_models, "inspect", lambda _engine: _Inspector())
+
+    db_models._run_user_table_migration()
+
+    executed_sql = "\n".join(sql for sql, _ in fake_engine.connection.calls)
+    assert "ALTER COLUMN password DROP NOT NULL" not in executed_sql
 
 
 def test_init_db_handles_password_auth_failed(monkeypatch) -> None:

@@ -82,3 +82,68 @@ def test_authenticate_migrates_legacy_plaintext_password(monkeypatch) -> None:
     assert user.password is None
     assert isinstance(user.password_hash, str)
     assert isinstance(user.password_salt, str)
+
+
+def test_authenticate_returns_none_for_hashed_password_mismatch(monkeypatch) -> None:
+    salt, password_hash = login_module.create_password_hash("secret")
+    user = SimpleNamespace(
+        username="alice",
+        password=None,
+        password_hash=password_hash,
+        password_salt=salt,
+    )
+    fake_session = FakeSession(user)
+    monkeypatch.setattr(login_module, "Session", lambda: fake_session)
+
+    authenticated_user = login_module.authenticate("alice", "wrong-password")
+
+    assert authenticated_user is None
+    assert fake_session.closed is True
+    assert fake_session.committed is False
+
+
+def test_authenticate_returns_none_for_plaintext_password_mismatch(monkeypatch) -> None:
+    user = SimpleNamespace(
+        username="legacy-user",
+        password="secret",
+        password_hash=None,
+        password_salt=None,
+    )
+    fake_session = FakeSession(user)
+    monkeypatch.setattr(login_module, "Session", lambda: fake_session)
+
+    authenticated_user = login_module.authenticate("legacy-user", "wrong-password")
+
+    assert authenticated_user is None
+    assert fake_session.closed is True
+    assert fake_session.committed is False
+    assert user.password == "secret"
+    assert user.password_hash is None
+    assert user.password_salt is None
+
+
+def test_authenticate_with_external_session_does_not_close(monkeypatch) -> None:
+    salt, password_hash = login_module.create_password_hash("secret")
+    user = SimpleNamespace(
+        username="alice",
+        password=None,
+        password_hash=password_hash,
+        password_salt=salt,
+    )
+    fake_session = FakeSession(user)
+    monkeypatch.setattr(login_module, "Session", lambda: fake_session)
+
+    authenticated_user = login_module.authenticate("alice", "secret", session=fake_session)
+
+    assert authenticated_user is user
+    assert fake_session.closed is False
+
+
+def test_authenticate_unknown_user_with_external_session_does_not_close(monkeypatch) -> None:
+    fake_session = FakeSession(None)
+    monkeypatch.setattr(login_module, "Session", lambda: fake_session)
+
+    authenticated_user = login_module.authenticate("tidak-ada", "secret", session=fake_session)
+
+    assert authenticated_user is None
+    assert fake_session.closed is False
