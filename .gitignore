@@ -23,6 +23,9 @@ htmlcov/
 *.sqlite-journal
 sqlite-journal
 
+# Runtime debug output
+wifi_debug.txt
+
 # General local junk
 *.tmp
 *.bak
