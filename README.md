@@ -184,6 +184,20 @@ Catatan:
 
 - Setelah pemulihan environment, jalankan `python -m pip check` lalu uji startup dengan `python src/main.py`.
 
+## Troubleshooting VS Code AI Toolkit
+
+- Jika muncul diagnostic `File 'azure-ai-foundry.commandPalette.deployWorkflow' not found` pada agent `AIAgentExpert.agent.md`, jalankan patch repo ini agar file extension lokal diperbaiki ulang setelah update extension:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\scripts\fix_ai_toolkit_agent_link.ps1
+   ```
+
+- Untuk verifikasi tanpa mengubah file, gunakan:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\scripts\fix_ai_toolkit_agent_link.ps1 -DryRun
+   ```
+
 ## Struktur Folder
 
 - src/ : Source code utama
