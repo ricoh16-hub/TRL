@@ -15,6 +15,18 @@
       "problemMatcher": []
     },
     {
+      "label": "Fix AI Toolkit Agent Link",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\fix_ai_toolkit_agent_link.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
       "label": "Alembic Current",
       "type": "shell",
       "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
