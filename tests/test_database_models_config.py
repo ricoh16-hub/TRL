@@ -160,6 +160,31 @@ def test_validate_centralized_target_rejects_invalid_url(monkeypatch) -> None:
         db_models._validate_centralized_database_target()
 
 
+def test_validate_centralized_target_returns_when_mode_disabled(monkeypatch) -> None:
+    monkeypatch.setenv("DB_CENTRAL_MODE", "0")
+    monkeypatch.setattr(db_models, "DATABASE_URL", "postgresql+psycopg2://u:p@db-server:5432/app")
+
+    db_models._validate_centralized_database_target()
+
+
+def test_validate_centralized_target_rejects_empty_host(monkeypatch) -> None:
+    monkeypatch.setenv("DB_CENTRAL_MODE", "1")
+    monkeypatch.setattr(db_models, "DATABASE_URL", "postgresql+psycopg2://u:p@:5432/app")
+
+    with pytest.raises(RuntimeError, match="DB_HOST wajib diisi"):
+        db_models._validate_centralized_database_target()
+
+
+def test_validate_centralized_target_allows_strict_ssl(monkeypatch) -> None:
+    monkeypatch.setenv("DB_CENTRAL_MODE", "1")
+    monkeypatch.setenv("DB_CENTRAL_REQUIRE_SSL", "1")
+    monkeypatch.setenv("DB_AUTO_MIGRATE", "0")
+    monkeypatch.setenv("DB_SSLMODE", "require")
+    monkeypatch.setattr(db_models, "DATABASE_URL", "postgresql+psycopg2://u:p@db-server:5432/app")
+
+    db_models._validate_centralized_database_target()
+
+
 class _FakeSelectResult:
     def mappings(self):
         return self
@@ -224,6 +249,150 @@ def test_run_user_table_migration_updates_legacy_passwords(monkeypatch) -> None:
     assert "UPDATE users" in executed_sql
 
 
+def test_run_user_table_migration_returns_when_engine_none(monkeypatch) -> None:
+    monkeypatch.setattr(db_models, "engine", None)
+
+    db_models._run_user_table_migration()
+
+
+def test_run_user_table_migration_returns_when_users_table_missing(monkeypatch) -> None:
+    fake_engine = _FakeEngine()
+
+    class _Inspector:
+        @staticmethod
+        def get_table_names():
+            return ["other_table"]
+
+        @staticmethod
+        def get_columns(_table):
+            return [{"name": "id"}]
+
+    monkeypatch.setattr(db_models, "engine", fake_engine)
+    monkeypatch.setattr(db_models, "inspect", lambda _engine: _Inspector())
+
+    db_models._run_user_table_migration()
+
+    assert fake_engine.connection.calls == []
+
+
+def test_run_user_table_migration_skips_column_alterations_when_columns_exist(monkeypatch) -> None:
+    class _EmptySelectResult:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class _Conn:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, object] | None]] = []
+
+        def execute(self, statement, params=None):
+            sql = str(statement)
+            self.calls.append((sql, params))
+            if "SELECT id, password FROM users" in sql:
+                return _EmptySelectResult()
+            return None
+
+    class _Begin:
+        def __init__(self, conn: _Conn) -> None:
+            self._conn = conn
+
+        def __enter__(self):
+            return self._conn
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class _Engine:
+        def __init__(self) -> None:
+            self.connection = _Conn()
+
+        def begin(self):
+            return _Begin(self.connection)
+
+    class _Inspector:
+        @staticmethod
+        def get_table_names():
+            return ["users"]
+
+        @staticmethod
+        def get_columns(_table):
+            return [
+                {"name": "id"},
+                {"name": "password"},
+                {"name": "password_hash"},
+                {"name": "password_salt"},
+            ]
+
+    fake_engine = _Engine()
+    monkeypatch.setattr(db_models, "engine", fake_engine)
+    monkeypatch.setattr(db_models, "inspect", lambda _engine: _Inspector())
+
+    db_models._run_user_table_migration()
+
+    executed_sql = "\n".join(sql for sql, _ in fake_engine.connection.calls)
+    assert "ADD COLUMN password_hash" not in executed_sql
+    assert "ADD COLUMN password_salt" not in executed_sql
+    assert "ALTER COLUMN password DROP NOT NULL" in executed_sql
+
+
+def test_run_user_table_migration_skips_empty_password(monkeypatch) -> None:
+    class _SelectResult:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [{"id": 1, "password": ""}]
+
+    class _Conn:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, object] | None]] = []
+
+        def execute(self, statement, params=None):
+            sql = str(statement)
+            self.calls.append((sql, params))
+            if "SELECT id, password FROM users" in sql:
+                return _SelectResult()
+            return None
+
+    class _Begin:
+        def __init__(self, conn: _Conn) -> None:
+            self._conn = conn
+
+        def __enter__(self):
+            return self._conn
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class _Engine:
+        def __init__(self) -> None:
+            self.connection = _Conn()
+
+        def begin(self):
+            return _Begin(self.connection)
+
+    class _Inspector:
+        @staticmethod
+        def get_table_names():
+            return ["users"]
+
+        @staticmethod
+        def get_columns(_table):
+            return [{"name": "id"}, {"name": "password"}]
+
+    fake_engine = _Engine()
+    monkeypatch.setattr(db_models, "engine", fake_engine)
+    monkeypatch.setattr(db_models, "inspect", lambda _engine: _Inspector())
+    monkeypatch.setattr(db_models, "create_password_hash", lambda _pwd: ("salt", "hash"))
+
+    db_models._run_user_table_migration()
+
+    executed_sql = "\n".join(sql for sql, _ in fake_engine.connection.calls)
+    assert "UPDATE users" not in executed_sql
+
+
 def test_init_db_handles_password_auth_failed(monkeypatch) -> None:
     monkeypatch.setattr(db_models, "DATABASE_CONFIG_ERROR", "")
     monkeypatch.setattr(db_models, "DATABASE_CONFIG_SOURCE", "DB_*")
@@ -257,6 +426,22 @@ def test_init_db_handles_programming_error(monkeypatch) -> None:
         db_models.init_db()
 
 
+def test_init_db_handles_generic_operational_error(monkeypatch) -> None:
+    monkeypatch.setattr(db_models, "DATABASE_CONFIG_ERROR", "")
+    monkeypatch.setattr(db_models, "DATABASE_CONFIG_SOURCE", "DB_*")
+    monkeypatch.setattr(db_models, "DATABASE_URL", "postgresql+psycopg2://u:p@db:5432/app")
+    monkeypatch.setattr(db_models, "engine", object())
+    monkeypatch.setattr(db_models, "_validate_centralized_database_target", lambda: None)
+    monkeypatch.setattr(
+        db_models,
+        "test_connection",
+        lambda: (_ for _ in ()).throw(OperationalError("SELECT 1", {}, Exception("connection refused"))),
+    )
+
+    with pytest.raises(RuntimeError, match="Koneksi PostgreSQL gagal"):
+        db_models.init_db()
+
+
 def test_init_db_runs_create_all_and_migration_when_enabled(monkeypatch) -> None:
     called = {"create_all": False, "migrate": False}
 
@@ -281,3 +466,62 @@ def test_init_db_runs_create_all_and_migration_when_enabled(monkeypatch) -> None
 
     assert called["create_all"] is True
     assert called["migrate"] is True
+
+
+def test_init_db_skips_auto_migration_when_disabled(monkeypatch) -> None:
+    called = {"create_all": False, "migrate": False}
+
+    monkeypatch.setattr(db_models, "DATABASE_CONFIG_ERROR", "")
+    monkeypatch.setattr(db_models, "DATABASE_URL", "postgresql+psycopg2://u:p@db:5432/app")
+    monkeypatch.setattr(db_models, "engine", object())
+    monkeypatch.setattr(db_models, "_validate_centralized_database_target", lambda: None)
+    monkeypatch.setattr(db_models, "test_connection", lambda: True)
+    monkeypatch.setattr(db_models, "_auto_migrate_enabled", lambda: False)
+    monkeypatch.setattr(
+        db_models.Base.metadata,
+        "create_all",
+        lambda *, bind: called.__setitem__("create_all", bind is not None),
+    )
+    monkeypatch.setattr(
+        db_models,
+        "_run_user_table_migration",
+        lambda: called.__setitem__("migrate", True),
+    )
+
+    db_models.init_db()
+
+    assert called["create_all"] is False
+    assert called["migrate"] is False
+
+
+def test_test_connection_success(monkeypatch) -> None:
+    class _Conn:
+        def __init__(self) -> None:
+            self.executed: list[str] = []
+
+        def execute(self, statement):
+            self.executed.append(str(statement))
+
+    class _Context:
+        def __init__(self, conn: _Conn) -> None:
+            self._conn = conn
+
+        def __enter__(self):
+            return self._conn
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class _Engine:
+        def __init__(self) -> None:
+            self.conn = _Conn()
+
+        def connect(self):
+            return _Context(self.conn)
+
+    engine = _Engine()
+    monkeypatch.setattr(db_models, "DATABASE_URL", "postgresql+psycopg2://u:p@db:5432/app")
+    monkeypatch.setattr(db_models, "engine", engine)
+
+    assert db_models.test_connection() is True
+    assert engine.conn.executed == ["SELECT 1"]
