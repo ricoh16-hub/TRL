@@ -529,16 +529,19 @@ class BackButton(QWidget):
         # Body rumah
         body_rect = QRectF(body_left_x, body_top, body_width, body_height)
 
-        # Isi dinding kiri/kanan (putih/biru sesuai charging) tanpa stroke
+        # Isi body rumah (putih/biru) kecuali area pintu — NoPen agar tidak ada garis abu-abu
         painter.setBrush(QBrush(fill))
         painter.setPen(Qt.PenStyle.NoPen)
+        # Bagian atas pintu
+        if door_y > body_top:
+            painter.drawRect(QRectF(body_left_x, body_top, body_width, door_y - body_top))
+        # Dinding kiri pintu
         if door_x > body_left_x:
-            left_rect = QRectF(body_left_x, body_top, door_x - body_left_x, body_height)
-            painter.drawRect(left_rect)
+            painter.drawRect(QRectF(body_left_x, door_y, door_x - body_left_x, body_bottom - door_y))
+        # Dinding kanan pintu
         right_x = door_x + door_width
         if right_x < body_right_x:
-            right_rect = QRectF(right_x, body_top, body_right_x - right_x, body_height)
-            painter.drawRect(right_rect)
+            painter.drawRect(QRectF(right_x, door_y, body_right_x - right_x, body_bottom - door_y))
         
         # Outline body tanpa garis atas agar tidak terlihat garis abu-abu membentang
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -553,10 +556,13 @@ class BackButton(QWidget):
         painter.drawLine(p2_left, p2_top)
         painter.drawLine(p2_top, p2_right)
         
-        # Isi atap segitiga dengan fill color
+        # Isi atap segitiga dengan fill color — base diperluas ke body_top agar
+        # tidak ada sisi bawah segitiga yang ter-render sebagai garis abu-abu
+        p_fill_left = QPointF(body_left_x, body_top)
+        p_fill_right = QPointF(body_right_x, body_top)
         painter.setBrush(QBrush(fill))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawPolygon([p_left, p_top, p_right])
+        painter.drawPolygon([p_fill_left, p_top, p_fill_right])
         
         # Outline atap (segitiga)
         painter.setBrush(Qt.BrushStyle.NoBrush)
