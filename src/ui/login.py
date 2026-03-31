@@ -481,7 +481,8 @@ class BackButton(QWidget):
         # Dimensi rumah - scaled untuk circular
         body_height = 6.5
         body_width = 16.0
-        icon_vertical_offset = 5.0
+        main_roof_gap = 1.1
+        icon_vertical_offset = 0.0
         center_house_y = center_y
         
         # Center rumah SEMPURNA dalam circular (56x56, center: 28, 28)
@@ -493,30 +494,27 @@ class BackButton(QWidget):
         triangle_base = body_width
         theta_puncak_deg = 120
         theta_puncak_rad = math.radians(theta_puncak_deg)
-        upper_roof_overhang = 2.0
-        upper_triangle_base = triangle_base + (upper_roof_overhang * 2)
-        gap_y = -1.8
+        upper_roof_overhang = 1.3
+        # Secondary roof is drawn as a near-parallel outline of the main roof.
+        # These values control a tight visual spacing.
+        roof_outline_lift = 2.4
+        roof_outline_apex_extra = 1.0
         triangle_height = (triangle_base / 2) / math.tan(theta_puncak_rad / 2)
-        triangle_height2 = (upper_triangle_base / 2) / math.tan(theta_puncak_rad / 2)
 
         # Hitung posisi vertikal dari tinggi visual total ikon, agar center tepat di circular.
         alas_gap = body_height * 0.15
-        top_offset = triangle_height + triangle_height2 + gap_y
+        top_offset = triangle_height
         bottom_offset = body_height + alas_gap
         body_top = center_house_y + ((top_offset - bottom_offset) / 2) + icon_vertical_offset
         body_bottom = body_top + body_height
         segitiga_top = body_top - triangle_height
-        p_left = QPointF(body_left_x, body_top)
-        p_right = QPointF(body_right_x, body_top)
+        p_left = QPointF(body_left_x, body_top - main_roof_gap)
+        p_right = QPointF(body_right_x, body_top - main_roof_gap)
         p_top = QPointF((body_left_x + body_right_x) / 2, segitiga_top)
 
-        segitiga2_left = (w - upper_triangle_base) / 2
-        segitiga2_right = segitiga2_left + upper_triangle_base
-        segitiga2_bottom = segitiga_top - gap_y
-        segitiga2_top = segitiga2_bottom - triangle_height2
-        p2_left = QPointF(segitiga2_left, segitiga2_bottom)
-        p2_right = QPointF(segitiga2_right, segitiga2_bottom)
-        p2_top = QPointF((segitiga2_left + segitiga2_right) / 2, segitiga2_top)
+        p2_left = QPointF(p_left.x() - upper_roof_overhang, p_left.y() - roof_outline_lift)
+        p2_right = QPointF(p_right.x() + upper_roof_overhang, p_right.y() - roof_outline_lift)
+        p2_top = QPointF(p_top.x(), p_top.y() - roof_outline_lift - roof_outline_apex_extra)
         
         pen_width = 1.0
         painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
@@ -577,9 +575,7 @@ class BackButton(QWidget):
         right_bottom = QPointF(body_right_x + alas_offset, alas_y)
         painter.drawLine(left_bottom, right_bottom)
         
-        # Dinding vertikal kiri dan kanan
-        painter.drawLine(p_left, QPointF(body_left_x, body_top))
-        painter.drawLine(QPointF(body_right_x, body_top), p_right)
+        # Dinding vertikal kiri dan kanan dihilangkan agar ada gap visual antara atap dan bodi.
         
         # Pintu (hanya outline, tanpa fill)
         painter.setBrush(Qt.BrushStyle.NoBrush)
