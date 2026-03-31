@@ -526,30 +526,26 @@ class BackButton(QWidget):
         door_y = body_bottom - door_height - 0.5
         door_rect = QRectF(door_x, door_y, door_width, door_height)
         
-        # Isi body rumah persegi panjang, tapi jangan isi area pintu (biar transparan)
-        painter.setBrush(QBrush(fill))
+        # Body rumah
         body_rect = QRectF(body_left_x, body_top, body_width, body_height)
-        
-        # Bagian atas body (di atas pintu)
-        if door_y > body_top:
-            top_rect = QRectF(body_left_x, body_top, body_width, door_y - body_top)
-            painter.drawRect(top_rect)
-        
-        # Bagian kiri body (di samping kiri pintu)
+
+        # Isi dinding kiri/kanan (putih/biru sesuai charging) tanpa stroke
+        painter.setBrush(QBrush(fill))
+        painter.setPen(Qt.PenStyle.NoPen)
         if door_x > body_left_x:
-            left_rect = QRectF(body_left_x, door_y, door_x - body_left_x, body_bottom - door_y)
+            left_rect = QRectF(body_left_x, body_top, door_x - body_left_x, body_height)
             painter.drawRect(left_rect)
-        
-        # Bagian kanan body (di samping kanan pintu)
         right_x = door_x + door_width
         if right_x < body_right_x:
-            right_rect = QRectF(right_x, door_y, body_right_x - right_x, body_bottom - door_y)
+            right_rect = QRectF(right_x, body_top, body_right_x - right_x, body_height)
             painter.drawRect(right_rect)
         
-        # Outline body persegi panjang
+        # Outline body tanpa garis atas agar tidak terlihat garis abu-abu membentang
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
-        painter.drawRect(body_rect)
+        painter.drawLine(body_rect.topLeft(), body_rect.bottomLeft())
+        painter.drawLine(body_rect.topRight(), body_rect.bottomRight())
+        painter.drawLine(body_rect.bottomLeft(), body_rect.bottomRight())
 
         # Outline segitiga atas
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -575,7 +571,7 @@ class BackButton(QWidget):
         right_bottom = QPointF(body_right_x + alas_offset, alas_y)
         painter.drawLine(left_bottom, right_bottom)
         
-        # Dinding vertikal kiri dan kanan dihilangkan agar ada gap visual antara atap dan bodi.
+        # Dinding kiri/kanan tetap terisi; garis atas body sengaja tidak digambar.
         
         # Pintu (hanya outline, tanpa fill)
         painter.setBrush(Qt.BrushStyle.NoBrush)
