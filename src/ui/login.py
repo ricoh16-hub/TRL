@@ -479,9 +479,9 @@ class BackButton(QWidget):
             fill = QColor(255, 255, 255)
         
         # Dimensi rumah - scaled untuk circular
-        body_height = 6.5
+        body_height = 9.5
         body_width = 16.0
-        main_roof_gap = 1.1
+        main_roof_gap = 0.0
         icon_vertical_offset = 0.0
         center_house_y = center_y
         
@@ -502,7 +502,7 @@ class BackButton(QWidget):
         triangle_height = (triangle_base / 2) / math.tan(theta_puncak_rad / 2)
 
         # Hitung posisi vertikal dari tinggi visual total ikon, agar center tepat di circular.
-        alas_gap = body_height * 0.15
+        alas_gap = body_height * 0.27
         top_offset = triangle_height
         bottom_offset = body_height + alas_gap
         body_top = center_house_y + ((top_offset - bottom_offset) / 2) + icon_vertical_offset
@@ -511,7 +511,6 @@ class BackButton(QWidget):
         p_left = QPointF(body_left_x, body_top - main_roof_gap)
         p_right = QPointF(body_right_x, body_top - main_roof_gap)
         p_top = QPointF((body_left_x + body_right_x) / 2, segitiga_top)
-
         p2_left = QPointF(p_left.x() - upper_roof_overhang, p_left.y() - roof_outline_lift)
         p2_right = QPointF(p_right.x() + upper_roof_overhang, p_right.y() - roof_outline_lift)
         p2_top = QPointF(p_top.x(), p_top.y() - roof_outline_lift - roof_outline_apex_extra)
@@ -529,33 +528,35 @@ class BackButton(QWidget):
         # Body rumah
         body_rect = QRectF(body_left_x, body_top, body_width, body_height)
 
-        # Isi body rumah (putih/biru) kecuali area pintu — NoPen agar tidak ada garis abu-abu
+        # Fill rumah dibuat sebagai satu path utuh agar warna atap utama dan body merata.
+        from PySide6.QtGui import QPainterPath
+        house_fill_path = QPainterPath()
+        house_fill_path.setFillRule(Qt.FillRule.OddEvenFill)
+        house_fill_path.moveTo(body_left_x, body_bottom)
+        house_fill_path.lineTo(body_left_x, body_top)
+        house_fill_path.lineTo(p_top)
+        house_fill_path.lineTo(body_right_x, body_top)
+        house_fill_path.lineTo(body_right_x, body_bottom)
+        house_fill_path.closeSubpath()
+        house_fill_path.addRect(door_rect)
+
         painter.setBrush(QBrush(fill))
         painter.setPen(Qt.PenStyle.NoPen)
-        # Bagian atas pintu
-        if door_y > body_top:
-            painter.drawRect(QRectF(body_left_x, body_top, body_width, door_y - body_top))
-        # Dinding kiri pintu
-        if door_x > body_left_x:
-            painter.drawRect(QRectF(body_left_x, door_y, door_x - body_left_x, body_bottom - door_y))
-        # Dinding kanan pintu
-        right_x = door_x + door_width
-        if right_x < body_right_x:
-            painter.drawRect(QRectF(right_x, door_y, body_right_x - right_x, body_bottom - door_y))
+        painter.drawPath(house_fill_path)
         
         # Outline body tanpa garis atas agar tidak terlihat garis abu-abu membentang
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.setPen(QPen(fill, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
         painter.drawLine(body_rect.topLeft(), body_rect.bottomLeft())
         painter.drawLine(body_rect.topRight(), body_rect.bottomRight())
         painter.drawLine(body_rect.bottomLeft(), body_rect.bottomRight())
 
-        # Outline segitiga atas
+        # Outline segitiga atas kedua
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(outline, 0.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.setPen(QPen(outline, 0.55, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
         painter.drawLine(p2_left, p2_top)
         painter.drawLine(p2_top, p2_right)
-        
+
         # Isi atap segitiga dengan fill color — base diperluas ke body_top agar
         # tidak ada sisi bawah segitiga yang ter-render sebagai garis abu-abu
         p_fill_left = QPointF(body_left_x, body_top)
@@ -566,7 +567,7 @@ class BackButton(QWidget):
         
         # Outline atap (segitiga)
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.setPen(QPen(fill, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
         painter.drawLine(p_left, p_top)
         painter.drawLine(p_top, p_right)
         
@@ -575,6 +576,7 @@ class BackButton(QWidget):
         alas_y = body_bottom + alas_gap
         left_bottom = QPointF(body_left_x - alas_offset, alas_y)
         right_bottom = QPointF(body_right_x + alas_offset, alas_y)
+        painter.setPen(QPen(fill, 0.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
         painter.drawLine(left_bottom, right_bottom)
         
         # Dinding kiri/kanan tetap terisi; garis atas body sengaja tidak digambar.
@@ -1287,15 +1289,18 @@ class HomeButton(QWidget):
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
         w, h = self.width(), self.height()
         margin = 9
-        outline = QColor(255,255,255)
+        outline = QColor(255, 255, 255)
         # Atap segitiga (outline saja)
         roof_top = margin
         # roof_left dan roof_right dihapus karena tidak digunakan
         roof_bottom = h * 0.5
-        painter.setPen(QPen(outline, 3.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
-        painter.setBrush(QBrush())
+        pen = QPen(outline, 3.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
         # Dinding kotak (outline saja)
         body_top = roof_bottom
         body_height = h - body_top - margin
@@ -1305,12 +1310,22 @@ class HomeButton(QWidget):
         segitiga_left = body_rect.left()
         segitiga_right = body_rect.right()
         segitiga_top = roof_top
-        painter.drawPolygon([
-            QPointF(segitiga_left, body_rect.top()),
-            QPointF(w/2, segitiga_top),
-            QPointF(segitiga_right, body_rect.top())
-        ])
-        painter.drawRect(body_rect)
+        left_point = QPointF(segitiga_left, body_rect.top())
+        top_point = QPointF(w / 2, segitiga_top)
+        right_point = QPointF(segitiga_right, body_rect.top())
+        right_bottom = body_rect.bottomRight()
+        left_bottom = body_rect.bottomLeft()
+
+        # Draw a single contiguous outline to avoid seam artifacts at segment joins.
+        from PySide6.QtGui import QPainterPath
+        house_path = QPainterPath()
+        house_path.moveTo(left_point)
+        house_path.lineTo(top_point)
+        house_path.lineTo(right_point)
+        house_path.lineTo(right_bottom)
+        house_path.lineTo(left_bottom)
+        house_path.lineTo(left_point)
+        painter.drawPath(house_path)
 
 
 class LoginDialog(QDialog):
