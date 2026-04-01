@@ -1352,17 +1352,6 @@ class LoginDialog(QDialog):
 
     def paintEvent(self, event: QPaintEvent):
         super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        # Garis horizontal atas (56.75px dari atas, atau proporsional)
-        y_garis_atas = 56.75
-        # Garis horizontal bawah (56.75px dari bawah, atau proporsional)
-        y_garis_bawah = self.height() - 56.75
-        pen = QPen(QColor(255, 255, 255, 80), 1.2)
-        painter.setPen(pen)
-        painter.drawLine(0, int(y_garis_atas), self.width(), int(y_garis_atas))
-        painter.drawLine(0, int(y_garis_bawah), self.width(), int(y_garis_bawah))
-        painter.end()
 
     def get_scale(self):
         return getattr(self, '_scale', 1.0)
