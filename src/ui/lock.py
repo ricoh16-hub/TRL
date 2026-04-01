@@ -828,17 +828,6 @@ class AuthenticLockScreen(QDialog):
 
     def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
-        # Garis horizontal atas (seperti sebelumnya)
-        body_y = 36.75
-        body_height = 18
-        y_garis_atas = body_y + body_height + 2  # 56.75 dari atas
-        # Garis horizontal bawah (56.75 dari bawah)
-        y_garis_bawah = self.height() - 56.75
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QPen(QColor(255, 255, 255, 80), 1.2))
-        painter.drawLine(0, int(y_garis_atas), self.width(), int(y_garis_atas))  # Garis atas
-        painter.drawLine(0, int(y_garis_bawah), self.width(), int(y_garis_bawah))  # Garis bawah
 
     def cleanup(self) -> None:
         """Stop timers and clean up resources."""
@@ -1011,7 +1000,7 @@ QLabel {
         from PySide6.QtGui import QFont
         self.hour_label = TimeVerticalStretchLabel(
             parent=self,
-            font_size=160.0,
+            font_size=144.0,
             font_weight=QFont.Weight.ExtraLight,
             letter_spacing=15.0,
             vertical_scale=3.13,
@@ -1019,7 +1008,7 @@ QLabel {
         )
         self.minute_label = TimeVerticalStretchLabel(
             parent=self,
-            font_size=160.0,
+            font_size=144.0,
             font_weight=QFont.Weight.ExtraLight,
             letter_spacing=15.0,
             vertical_scale=3.13,
@@ -1210,9 +1199,10 @@ QLabel {
 
     def reposition_labels(self) -> None:
         gap_below_gembok = 18  # Turunkan label tanggal 10px lebih jauh dari gembok
-        gap_below_date = -166  # Jam overlap signifikan dengan label tanggal, diturunkan 3px lagi
+        gap_below_date = -156  # Lebih rapat lagi
+        vertical_offset_down = 24  # Turunkan blok tanggal + jam ke bawah
         # Posisi label tanggal tepat di bawah gembok
-        date_y = self.lock_icon.y() + self.lock_icon.height() + gap_below_gembok
+        date_y = self.lock_icon.y() + self.lock_icon.height() + gap_below_gembok + vertical_offset_down
         # Pusatkan label tanggal secara horizontal
         date_x = (self.width() - self.date_label.width()) // 2
         self.date_label.move(date_x, date_y)
