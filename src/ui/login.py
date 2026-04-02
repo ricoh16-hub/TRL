@@ -1644,8 +1644,8 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
         security_pin_top = unlock_icon.y() + unlock_icon.height() + 18 + security_vertical_offset
         security_pin_left = (dialog.width() - label_security_pin.width()) // 2
         label_security_pin.move(security_pin_left, security_pin_top)
-        # Kurangi sedikit jarak label Security Pin ke dot PIN
-        pin_entry_top = security_pin_top + label_security_pin.height() - 3
+        # Tambah jarak label Security Pin ke dot PIN
+        pin_entry_top = security_pin_top + label_security_pin.height() + 8
         pin_entry_left = (dialog.width() - label_pin_entry.width()) // 2
         label_pin_entry.move(pin_entry_left, pin_entry_top)
         # Kurangi jarak indikator PIN ke keypad agar lebih rapat
