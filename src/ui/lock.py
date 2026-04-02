@@ -1000,7 +1000,7 @@ QLabel {
         from PySide6.QtGui import QFont
         self.hour_label = TimeVerticalStretchLabel(
             parent=self,
-            font_size=129.96,
+            font_size=110.47,
             font_weight=QFont.Weight.ExtraLight,
             letter_spacing=15.0,
             vertical_scale=3.13,
@@ -1008,7 +1008,7 @@ QLabel {
         )
         self.minute_label = TimeVerticalStretchLabel(
             parent=self,
-            font_size=129.96,
+            font_size=110.47,
             font_weight=QFont.Weight.ExtraLight,
             letter_spacing=15.0,
             vertical_scale=3.13,
@@ -1201,12 +1201,13 @@ QLabel {
         gap_below_gembok = 18  # Turunkan label tanggal 10px lebih jauh dari gembok
         gap_below_date = -136  # Kurangi sedikit lagi jarak agar lebih rapat
         vertical_offset_down = 34  # Turunkan blok tanggal + jam ke bawah
+        time_offset_down = 28  # Turunkan jam besar ke bawah
         # Posisi label tanggal tepat di bawah gembok
         date_y = self.lock_icon.y() + self.lock_icon.height() + gap_below_gembok + vertical_offset_down
         # Pusatkan label tanggal secara horizontal
         date_x = (self.width() - self.date_label.width()) // 2
         self.date_label.move(date_x, date_y)
-        time_y = date_y + self.date_label.height() + gap_below_date
+        time_y = date_y + self.date_label.height() + gap_below_date + time_offset_down
         self.time_container.adjustSize()  # Pastikan ukuran jam sudah sesuai layout baru
         time_x = (self.width() - self.time_container.width()) // 2
         self.time_container.move(time_x, time_y)
