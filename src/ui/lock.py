@@ -1199,7 +1199,7 @@ QLabel {
 
     def reposition_labels(self) -> None:
         gap_below_gembok = 18  # Turunkan label tanggal 10px lebih jauh dari gembok
-        gap_below_date = -140  # Tambah jarak lagi agar tidak terlalu dekat
+        gap_below_date = -136  # Kurangi sedikit lagi jarak agar lebih rapat
         vertical_offset_down = 34  # Turunkan blok tanggal + jam ke bawah
         # Posisi label tanggal tepat di bawah gembok
         date_y = self.lock_icon.y() + self.lock_icon.height() + gap_below_gembok + vertical_offset_down
