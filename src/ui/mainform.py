@@ -3,10 +3,13 @@ from PySide6.QtCore import QPropertyAnimation, QEasingCurve, Qt
 from PySide6.QtGui import QColor
 import sys
 import os
-from typing import cast
+from typing import Optional, cast
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ui.userform import UserForm
 from ui.webform import WebForm
+
+
+_active_main_window: Optional["MainForm"] = None
 
 class MainForm(QMainWindow):
     """
@@ -92,7 +95,15 @@ class MainForm(QMainWindow):
     def get_shackle_angle(self):
         return getattr(self, '_shackle_angle', 180)
 
-def show_main_form(app: QApplication):
-    window = MainForm()
-    window.show()
-    app.exec()
+def show_main_form(app: QApplication) -> MainForm:
+    """Show main window without starting a second Qt event loop."""
+    global _active_main_window
+
+    if _active_main_window is not None and _active_main_window.isVisible():
+        _active_main_window.raise_()
+        _active_main_window.activateWindow()
+        return _active_main_window
+
+    _active_main_window = MainForm()
+    _active_main_window.show()
+    return _active_main_window

@@ -1,7 +1,10 @@
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
-from src.database.models import User
+try:
+    from database.models import User
+except ImportError:
+    from src.database.models import User
 
 try:
     from auth.passwords import create_password_hash, create_pin_hash, verify_pin_code
