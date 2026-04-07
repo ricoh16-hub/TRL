@@ -1,25 +1,40 @@
 from datetime import date
-from typing import Optional
+from typing import Optional, TypedDict
 
-from PySide6.QtCore import Property, QEvent, QPropertyAnimation, QEasingCurve, Qt
+from PySide6.QtCore import Property, QEvent, QPropertyAnimation, QEasingCurve, Qt, Signal
 from PySide6.QtGui import QColor, QEnterEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
     QFrame,
     QGraphicsDropShadowEffect,
     QGridLayout,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
+    QMessageBox,
     QPushButton,
+    QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 try:
-    from database.models import User
+    from database.models import Session, User
 except ImportError:
-    from src.database.models import User  # type: ignore[no-redef]
+    from src.database.models import Session, User  # type: ignore[no-redef]
+
+try:
+    from database.crud import delete_user, update_user
+except ImportError:
+    from src.database.crud import delete_user, update_user  # type: ignore[no-redef]
 
 _active_dashboard: Optional["DashboardForm"] = None
 
@@ -30,6 +45,14 @@ PAGE_BG = "#EFF3F8"
 CARD_BG = "#FFFFFF"
 TEXT_DARK = "#22324A"
 TEXT_SOFT = "#70829A"
+
+
+class UserRow(TypedDict):
+    id: int
+    username: str
+    nama: str
+    role: str
+    status: str
 
 
 def _apply_card_shadow(widget: QWidget) -> None:
@@ -89,9 +112,12 @@ class SectionCard(QFrame):
 
 
 class AnimatedNavItem(QLabel):
-    def __init__(self, text: str, active: bool = False) -> None:
+    clicked = Signal(str)
+
+    def __init__(self, text: str, active: bool = False, item_key: Optional[str] = None) -> None:
         super().__init__(text)
         self._active = active
+        self._item_key = item_key or text
         self._hover_progress = 0.0
         self._press_progress = 0.0
         self._hover_anim = QPropertyAnimation(self, b"hoverProgress")
@@ -167,7 +193,13 @@ class AnimatedNavItem(QLabel):
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         self._animate_press(0.0)
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self._item_key)
         super().mouseReleaseEvent(event)
+
+    def set_active(self, active: bool) -> None:
+        self._active = active
+        self._apply_style()
 
 
 class AnimatedHoverCard(QFrame):
@@ -345,10 +377,114 @@ class AnimatedActionButton(QPushButton):
         super().mouseReleaseEvent(event)
 
 
+class UserEditDialog(QDialog):
+    def __init__(
+        self,
+        username: str,
+        nama: str,
+        role: str,
+        status: str,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Edit User")
+        self.setModal(True)
+        self.resize(420, 220)
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        self._username_input = QLineEdit(username)
+        self._nama_input = QLineEdit(nama)
+
+        self._role_combo = QComboBox()
+        self._role_combo.addItems(["user", "admin"])
+        self._role_combo.setCurrentText(role.lower() if role.lower() in {"user", "admin"} else "user")
+
+        self._status_combo = QComboBox()
+        self._status_combo.addItems(["Aktif", "Nonaktif"])
+        self._status_combo.setCurrentText("Aktif" if status.lower() == "aktif" else "Nonaktif")
+
+        form.addRow("Username", self._username_input)
+        form.addRow("Nama", self._nama_input)
+        form.addRow("Role", self._role_combo)
+        form.addRow("Status", self._status_combo)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def data(self) -> dict[str, str]:
+        return {
+            "username": self._username_input.text().strip(),
+            "nama": self._nama_input.text().strip(),
+            "role": self._role_combo.currentText().strip().lower(),
+            "status": self._status_combo.currentText().strip().lower(),
+        }
+
+
+class UserAddDialog(QDialog):
+    """Dialog untuk menambahkan user baru"""
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Tambah User")
+        self.setModal(True)
+        self.resize(420, 300)
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        self._username_input = QLineEdit()
+        self._username_input.setPlaceholderText("Contoh: riko01")
+        
+        self._nama_input = QLineEdit()
+        self._nama_input.setPlaceholderText("Contoh: Riko Sinaga")
+        
+        self._password_input = QLineEdit()
+        self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._password_input.setPlaceholderText("Password untuk login")
+        
+        self._role_combo = QComboBox()
+        self._role_combo.addItems(["Admin", "Manager", "Staff"])
+        
+        self._status_combo = QComboBox()
+        self._status_combo.addItems(["Aktif", "Nonaktif"])
+
+        form.addRow("Username", self._username_input)
+        form.addRow("Nama", self._nama_input)
+        form.addRow("Password", self._password_input)
+        form.addRow("Role", self._role_combo)
+        form.addRow("Status", self._status_combo)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText("Simpan")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Batal")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def data(self) -> dict[str, str]:
+        return {
+            "username": self._username_input.text().strip(),
+            "nama": self._nama_input.text().strip(),
+            "password": self._password_input.text(),
+            "role": self._role_combo.currentText().strip().lower(),
+            "status": self._status_combo.currentText().strip().lower(),
+        }
+
+
 class DashboardForm(QMainWindow):
     def __init__(self, user: Optional[User] = None, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._user = user
+        self._nav_items: dict[str, AnimatedNavItem] = {}
+        self._users_table: Optional[QTableWidget] = None
+        self._search_username: Optional[QLineEdit] = None
+        self._role_filter: Optional[QComboBox] = None
+        self._all_users_rows: list[UserRow] = []
         self.setWindowTitle("Dashboard")
         self.resize(1360, 820)
         self.setMinimumSize(960, 600)
@@ -365,7 +501,7 @@ class DashboardForm(QMainWindow):
         content_row.setContentsMargins(0, 0, 0, 0)
         content_row.setSpacing(0)
         content_row.addWidget(self._build_sidebar())
-        content_row.addWidget(self._build_content(), 1)
+        content_row.addWidget(self._build_content_stack(), 1)
 
         body = QWidget()
         body.setLayout(content_row)
@@ -373,6 +509,15 @@ class DashboardForm(QMainWindow):
         root_layout.addWidget(self._build_footer())
 
         self.setCentralWidget(root)
+
+    def _build_content_stack(self) -> QWidget:
+        self._content_stack = QStackedWidget()
+        self._dashboard_overview_page = self._build_content()
+        self._management_user_page = self._build_management_users_page()
+        self._content_stack.addWidget(self._dashboard_overview_page)
+        self._content_stack.addWidget(self._management_user_page)
+        self._content_stack.setCurrentWidget(self._dashboard_overview_page)
+        return self._content_stack
 
     def _build_header(self) -> QWidget:
         header = QFrame()
@@ -419,27 +564,326 @@ class DashboardForm(QMainWindow):
         layout.setSpacing(10)
 
         menu_items = [
-            ("Dashboard", True),
-            ("Data Master", False),
-            ("Data Karyawan", False),
-            ("Data Divisi", False),
-            ("Data Blok", False),
-            ("Transaksi", False),
-            ("Input Kegiatan", False),
-            ("Absensi", False),
-            ("Panen", False),
-            ("Laporan", False),
-            ("Inventaris", False),
-            ("Pengaturan", False),
-            ("Manajemen User", False),
+            ("dashboard", "Dashboard"),
+            ("data_master", "Data Master"),
+            ("data_karyawan", "Data Karyawan"),
+            ("data_divisi", "Data Divisi"),
+            ("data_blok", "Data Blok"),
+            ("transaksi", "Transaksi"),
+            ("input_kegiatan", "Input Kegiatan"),
+            ("absensi", "Absensi"),
+            ("panen", "Panen"),
+            ("laporan", "Laporan"),
+            ("inventaris", "Inventaris"),
+            ("pengaturan", "Pengaturan"),
+            ("manajemen_user", "Manajemen User"),
         ]
 
-        for item_text, active in menu_items:
-            item = AnimatedNavItem(item_text, active=active)
+        for key, item_text in menu_items:
+            item = AnimatedNavItem(item_text, active=(key == "dashboard"), item_key=key)
+            item.clicked.connect(self._on_nav_clicked)
+            self._nav_items[key] = item
             layout.addWidget(item)
 
         layout.addStretch(1)
         return sidebar
+
+    def _on_nav_clicked(self, item_key: str) -> None:
+        for key, item in self._nav_items.items():
+            item.set_active(key == item_key)
+
+        if item_key == "manajemen_user":
+            self._content_stack.setCurrentWidget(self._management_user_page)
+            self._load_users_table()
+            return
+
+        self._content_stack.setCurrentWidget(self._dashboard_overview_page)
+
+    def _build_management_users_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(12)
+
+        title = QLabel("Manajemen User")
+        title.setStyleSheet(f"color: {TEXT_DARK}; font-size: 38px; font-weight: 800;")
+        layout.addWidget(title)
+
+        controls = QHBoxLayout()
+        controls.setSpacing(12)
+
+        self._search_username = QLineEdit()
+        self._search_username.setPlaceholderText("Cari Username...")
+        self._search_username.setFixedHeight(36)
+        self._search_username.setStyleSheet(
+            "QLineEdit { background: white; border: 1px solid #D7E0EA; border-radius: 8px; padding: 0 12px; font-size: 14px; }"
+        )
+        self._search_username.textChanged.connect(self._apply_user_filters)
+
+        filter_label = QLabel("Filter Role")
+        filter_label.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 14px; font-weight: 700;")
+
+        self._role_filter = QComboBox()
+        self._role_filter.addItem("All")
+        self._role_filter.setFixedHeight(36)
+        self._role_filter.setMinimumWidth(180)
+        self._role_filter.setStyleSheet(
+            "QComboBox { background: white; border: 1px solid #D7E0EA; border-radius: 8px; padding: 0 10px; font-size: 14px; }"
+        )
+        self._role_filter.currentTextChanged.connect(self._apply_user_filters)
+
+        add_user_btn = QPushButton("+ Tambah User")
+        add_user_btn.setFixedHeight(36)
+        add_user_btn.setMinimumWidth(140)
+        add_user_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        add_user_btn.setStyleSheet(
+            "QPushButton { background: #2559A6; color: white; border: none; border-radius: 8px; padding: 0 16px; font-size: 14px; font-weight: 700; }"
+            "QPushButton:hover { background: #1E4681; }"
+            "QPushButton:pressed { background: #163A58; }"
+        )
+        add_user_btn.clicked.connect(self._open_add_user_dialog)
+
+        controls.addWidget(self._search_username, 2)
+        controls.addStretch(1)
+        controls.addWidget(filter_label)
+        controls.addWidget(self._role_filter)
+        controls.addWidget(add_user_btn)
+        layout.addLayout(controls)
+
+        self._users_table = QTableWidget()
+        self._users_table.setColumnCount(6)
+        self._users_table.setHorizontalHeaderLabels(["No", "Username", "Nama", "Role", "Status", "Aksi"])
+        self._users_table.verticalHeader().setVisible(False)
+        self._users_table.setAlternatingRowColors(True)
+        self._users_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._users_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._users_table.setStyleSheet(
+            "QTableWidget { background: white; border: 1px solid #DCE5EF; border-radius: 10px; gridline-color: #E7EDF4; font-size: 14px; }"
+            "QHeaderView::section { background: #F2F6FB; color: #2D405C; font-size: 14px; font-weight: 700; border: none; border-right: 1px solid #E7EDF4; padding: 10px; }"
+            "QTableWidget::item { padding: 8px; color: #2D405C; }"
+            "QTableWidget::item:selected { background: #E7F1FF; color: #1F3F66; }"
+        )
+
+        header = self._users_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+
+        layout.addWidget(self._users_table, 1)
+        return page
+
+    def _load_users_table(self) -> None:
+        if self._users_table is None or self._role_filter is None:
+            return
+
+        session = Session()
+        try:
+            users = session.query(User).order_by(User.id.asc()).all()
+        finally:
+            session.close()
+
+        self._all_users_rows = []
+        role_values: set[str] = set()
+
+        for user in users:
+            user_id = int(getattr(user, "id", 0) or 0)
+            username = str(getattr(user, "username", "") or "")
+            nama = str(getattr(user, "nama", "") or "").strip()
+            role = str(getattr(user, "role", "user") or "user").strip()
+            status = str(getattr(user, "status", "aktif") or "aktif").strip().lower()
+            row: UserRow = {
+                "id": user_id,
+                "username": username,
+                "nama": nama or username.replace("_", " ").title(),
+                "role": role.capitalize(),
+                "status": "Aktif" if status == "aktif" else "Nonaktif",
+            }
+            self._all_users_rows.append(row)
+            role_values.add(role.capitalize())
+
+        self._role_filter.blockSignals(True)
+        self._role_filter.clear()
+        self._role_filter.addItem("All")
+        for value in sorted(role_values):
+            self._role_filter.addItem(value)
+        self._role_filter.blockSignals(False)
+
+        self._apply_user_filters()
+
+    def _apply_user_filters(self) -> None:
+        if self._users_table is None or self._search_username is None or self._role_filter is None:
+            return
+
+        search_value = self._search_username.text().strip().lower()
+        selected_role = self._role_filter.currentText().strip()
+
+        filtered_rows = [
+            row
+            for row in self._all_users_rows
+            if (not search_value or search_value in row["username"].lower())
+            and (selected_role == "All" or row["role"] == selected_role)
+        ]
+
+        self._users_table.setRowCount(len(filtered_rows))
+        for row_index, row in enumerate(filtered_rows, start=1):
+            self._users_table.setItem(row_index - 1, 0, QTableWidgetItem(str(row_index)))
+            self._users_table.setItem(row_index - 1, 1, QTableWidgetItem(str(row["username"])))
+            self._users_table.setItem(row_index - 1, 2, QTableWidgetItem(str(row["nama"])))
+            self._users_table.setItem(row_index - 1, 3, QTableWidgetItem(str(row["role"])))
+            status_value = str(row["status"])
+            status_item = QTableWidgetItem(status_value)
+            if status_value.lower() == "aktif":
+                status_item.setForeground(QColor("#2E7D32"))
+            else:
+                status_item.setForeground(QColor("#A63D40"))
+            self._users_table.setItem(row_index - 1, 4, status_item)
+
+            actions = QWidget()
+            actions_layout = QHBoxLayout(actions)
+            actions_layout.setContentsMargins(4, 2, 4, 2)
+            actions_layout.setSpacing(6)
+
+            edit_btn = QPushButton("Edit")
+            edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            edit_btn.setStyleSheet(
+                "QPushButton { background: #E8F1FF; color: #2559A6; border: 1px solid #C8DBF8; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 700; }"
+            )
+            row_id = row["id"]
+            edit_btn.clicked.connect(
+                lambda _checked=False, user_id=row_id: self._edit_user(user_id)
+            )
+
+            delete_btn = QPushButton("Hapus")
+            delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            delete_btn.setStyleSheet(
+                "QPushButton { background: #FEEBEC; color: #B5353A; border: 1px solid #F6C7CA; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 700; }"
+            )
+            row_username = row["username"]
+            delete_btn.clicked.connect(
+                lambda _checked=False, user_id=row_id, username=row_username: self._delete_user(user_id, username)
+            )
+
+            actions_layout.addWidget(edit_btn)
+            actions_layout.addWidget(delete_btn)
+            self._users_table.setCellWidget(row_index - 1, 5, actions)
+
+    def _edit_user(self, user_id: int) -> None:
+        session = Session()
+        try:
+            user = session.get(User, user_id)
+            if user is None:
+                QMessageBox.warning(self, "Data Tidak Ditemukan", "User tidak ditemukan.")
+                return
+
+            dialog = UserEditDialog(
+                username=str(getattr(user, "username", "") or ""),
+                nama=str(getattr(user, "nama", "") or ""),
+                role=str(getattr(user, "role", "user") or "user"),
+                status=str(getattr(user, "status", "aktif") or "aktif"),
+                parent=self,
+            )
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+
+            payload = dialog.data()
+            if not payload["username"]:
+                QMessageBox.warning(self, "Validasi", "Username tidak boleh kosong.")
+                return
+
+            update_user(
+                session,
+                user_id,
+                username=payload["username"],
+                nama=payload["nama"],
+                role=payload["role"],
+                status=payload["status"],
+            )
+        except ValueError as error:
+            QMessageBox.warning(self, "Validasi", str(error))
+            return
+        finally:
+            session.close()
+
+        self._load_users_table()
+
+    def _delete_user(self, user_id: int, username: str) -> None:
+        answer = QMessageBox.question(
+            self,
+            "Hapus User",
+            f"Hapus user '{username}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        session = Session()
+        try:
+            delete_user(session, user_id)
+        except ValueError as error:
+            QMessageBox.warning(self, "Gagal Hapus", str(error))
+            return
+        finally:
+            session.close()
+
+        self._load_users_table()
+
+    def _open_add_user_dialog(self) -> None:
+        """Buka dialog untuk menambah user baru"""
+        dialog = UserAddDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        
+        data = dialog.data()
+        
+        # Validasi
+        if not data["username"]:
+            QMessageBox.warning(self, "Validasi", "Username tidak boleh kosong.")
+            return
+        
+        if not data["nama"]:
+            QMessageBox.warning(self, "Validasi", "Nama tidak boleh kosong.")
+            return
+        
+        if not data["password"]:
+            QMessageBox.warning(self, "Validasi", "Password tidak boleh kosong.")
+            return
+        
+        self._add_user(data)
+
+    def _add_user(self, data: dict[str, str]) -> None:
+        """Tambahkan user baru ke database"""
+        session = Session()
+        try:
+            from database.crud import create_user
+            
+            create_user(
+                session,
+                username=data["username"],
+                nama=data["nama"],
+                password=data["password"],
+                role=data["role"],
+                status=data["status"],
+            )
+            self._load_users_table()
+            QMessageBox.information(
+                self,
+                "Berhasil",
+                f"User '{data['username']}' berhasil ditambahkan."
+            )
+        except ValueError as error:
+            QMessageBox.warning(self, "Validasi", str(error))
+            session.rollback()
+            return
+        except Exception as error:
+            QMessageBox.critical(self, "Error", f"Error: {error}")
+            session.rollback()
+            return
+        finally:
+            session.close()
 
     def _build_content(self) -> QWidget:
         content = QWidget()

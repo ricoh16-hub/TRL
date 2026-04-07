@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy.orm import Session
 try:
@@ -19,6 +20,13 @@ def _validate_pin_format(pin: str) -> str:
     return normalized_pin
 
 
+def _normalize_status(status: str) -> str:
+    normalized_status = status.strip().lower()
+    if normalized_status not in {"aktif", "nonaktif"}:
+        raise ValueError("Status harus Aktif atau Nonaktif.")
+    return normalized_status
+
+
 def _ensure_pin_unique(session: Session, pin: str, exclude_user_id: int | None = None) -> None:
     users = session.query(User).all()
     for existing_user in users:
@@ -30,19 +38,31 @@ def _ensure_pin_unique(session: Session, pin: str, exclude_user_id: int | None =
                 raise ValueError('PIN sudah dipakai user lain. Gunakan PIN berbeda.')
 
 
-def create_user(session: Session, username: str, password: str, role: str = 'user', pin: str = ''):
+def create_user(
+    session: Session,
+    username: str,
+    password: str,
+    role: str = 'user',
+    pin: str = '',
+    nama: str = '',
+    status: str = 'aktif',
+) -> User:
     username = username.strip()
+    nama = nama.strip()
     role = role.strip() or 'user'
+    normalized_status = _normalize_status(status)
     if not username:
         raise ValueError('Username tidak boleh kosong.')
 
     salt, password_hash = create_password_hash(password)
     user = User(
         username=username,
+        nama=nama or None,
         password=None,
         password_hash=password_hash,
         password_salt=salt,
         role=role,
+        status=normalized_status,
         updated_at=datetime.now(timezone.utc),
     )
 
@@ -57,10 +77,10 @@ def create_user(session: Session, username: str, password: str, role: str = 'use
     session.commit()
     return user
 
-def read_users(session: Session):
+def read_users(session: Session) -> list[User]:
     return session.query(User).all()
 
-def update_user(session: Session, user_id: int, **kwargs):
+def update_user(session: Session, user_id: int, **kwargs: Any) -> User:
     user = session.get(User, user_id)
     if user is None:
         raise ValueError('User tidak ditemukan.')
@@ -82,12 +102,18 @@ def update_user(session: Session, user_id: int, **kwargs):
         if key == 'role' and isinstance(value, str):
             value = value.strip() or 'user'
 
+        if key == 'nama' and isinstance(value, str):
+            value = value.strip() or None
+
+        if key == 'status' and isinstance(value, str):
+            value = _normalize_status(value)
+
         setattr(user, key, value)
     user.updated_at = datetime.now(timezone.utc)
     session.commit()
     return user
 
-def delete_user(session: Session, user_id: int):
+def delete_user(session: Session, user_id: int) -> None:
     user = session.get(User, user_id)
     if user is None:
         raise ValueError('User tidak ditemukan.')
@@ -95,7 +121,7 @@ def delete_user(session: Session, user_id: int):
     session.commit()
 
 
-def set_user_pin(session: Session, user_id: int, pin: str):
+def set_user_pin(session: Session, user_id: int, pin: str) -> User:
     user = session.get(User, user_id)
     if user is None:
         raise ValueError('User tidak ditemukan.')

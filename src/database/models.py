@@ -42,12 +42,14 @@ class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, nullable=False)
+    nama = Column(String, nullable=True)
     password = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)
     password_salt = Column(String, nullable=True)
     pin_hash = Column(String, nullable=True)
     pin_salt = Column(String, nullable=True)
     role = Column(String, default='user')
+    status = Column(String, nullable=False, server_default='aktif')
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
@@ -186,10 +188,15 @@ def _run_user_table_migration() -> None:
     existing_columns = {column["name"] for column in inspector.get_columns("users")}
 
     with engine.begin() as connection:
+        if "nama" not in existing_columns:
+            connection.execute(text("ALTER TABLE users ADD COLUMN nama VARCHAR"))
         if "password_hash" not in existing_columns:
             connection.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR"))
         if "password_salt" not in existing_columns:
             connection.execute(text("ALTER TABLE users ADD COLUMN password_salt VARCHAR"))
+        if "status" not in existing_columns:
+            connection.execute(text("ALTER TABLE users ADD COLUMN status VARCHAR DEFAULT 'aktif'"))
+            connection.execute(text("ALTER TABLE users ALTER COLUMN status SET NOT NULL"))
         if "password" in existing_columns:
             connection.execute(text("ALTER TABLE users ALTER COLUMN password DROP NOT NULL"))
 
