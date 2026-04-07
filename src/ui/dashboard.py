@@ -94,7 +94,7 @@ class DashboardForm(QMainWindow):
         self._user = user
         self.setWindowTitle("Dashboard")
         self.resize(1360, 820)
-        self.setMinimumSize(1180, 720)
+        self.setMinimumSize(960, 600)
 
         root = QWidget(self)
         root.setStyleSheet(f"background: {PAGE_BG};")
@@ -373,7 +373,7 @@ def show_dashboard(app: QApplication, user: Optional[User] = None) -> DashboardF
         return _active_dashboard
 
     _active_dashboard = DashboardForm(user=user)
-    _active_dashboard.show()
+    _active_dashboard.showMaximized()
     _active_dashboard.raise_()
     _active_dashboard.activateWindow()
     return _active_dashboard
