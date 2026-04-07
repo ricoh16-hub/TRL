@@ -1,8 +1,8 @@
 from datetime import date
 from typing import Optional
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Property, QEvent, QPropertyAnimation, QEasingCurve, Qt
+from PySide6.QtGui import QColor, QEnterEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -88,6 +88,263 @@ class SectionCard(QFrame):
         self.body_layout = layout
 
 
+class AnimatedNavItem(QLabel):
+    def __init__(self, text: str, active: bool = False) -> None:
+        super().__init__(text)
+        self._active = active
+        self._hover_progress = 0.0
+        self._press_progress = 0.0
+        self._hover_anim = QPropertyAnimation(self, b"hoverProgress")
+        self._hover_anim.setDuration(160)
+        self._hover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._press_anim = QPropertyAnimation(self, b"pressProgress")
+        self._press_anim.setDuration(110)
+        self._press_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.setFixedHeight(38)
+        self.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._apply_style()
+
+    def _animate_hover(self, target: float) -> None:
+        self._hover_anim.stop()
+        self._hover_anim.setStartValue(self._hover_progress)
+        self._hover_anim.setEndValue(target)
+        self._hover_anim.start()
+
+    def _apply_style(self) -> None:
+        depth = (self._hover_progress * 8.0) - (self._press_progress * 5.0)
+        if self._active:
+            pad = 18 + int(depth)
+            self.setStyleSheet(
+                f"background: {NAVY_SELECTED}; color: white; font-size: 14px; font-weight: 800;"
+                f"border-left: 4px solid #FFFFFF; padding-left: {pad}px;"
+            )
+            return
+
+        alpha = int((70 * self._hover_progress) + (35 * self._press_progress))
+        pad = 22 + int(depth)
+        self.setStyleSheet(
+            "color: white; font-size: 14px; font-weight: 600;"
+            f"background: rgba(255, 255, 255, {alpha});"
+            f"padding-left: {pad}px;"
+        )
+
+    def get_hover_progress(self) -> float:
+        return self._hover_progress
+
+    def set_hover_progress(self, value: float) -> None:
+        self._hover_progress = float(value)
+        self._apply_style()
+
+    hoverProgress = Property(float, get_hover_progress, set_hover_progress)
+
+    def _animate_press(self, target: float) -> None:
+        self._press_anim.stop()
+        self._press_anim.setStartValue(self._press_progress)
+        self._press_anim.setEndValue(target)
+        self._press_anim.start()
+
+    def get_press_progress(self) -> float:
+        return self._press_progress
+
+    def set_press_progress(self, value: float) -> None:
+        self._press_progress = float(value)
+        self._apply_style()
+
+    pressProgress = Property(float, get_press_progress, set_press_progress)
+
+    def enterEvent(self, event: QEnterEvent) -> None:
+        self._animate_hover(1.0)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: QEvent) -> None:
+        self._animate_hover(0.0)
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        self._animate_press(1.0)
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        self._animate_press(0.0)
+        super().mouseReleaseEvent(event)
+
+
+class AnimatedHoverCard(QFrame):
+    def __init__(self) -> None:
+        super().__init__()
+        self._hover_progress = 0.0
+        self._hover_anim = QPropertyAnimation(self, b"hoverProgress")
+        self._hover_anim.setDuration(180)
+        self._hover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        self._shadow = QGraphicsDropShadowEffect(self)
+        self._shadow.setBlurRadius(18)
+        self._shadow.setOffset(0, 4)
+        self._shadow.setColor(QColor(15, 30, 55, 45))
+        self.setGraphicsEffect(self._shadow)
+
+    def _animate_hover(self, target: float) -> None:
+        self._hover_anim.stop()
+        self._hover_anim.setStartValue(self._hover_progress)
+        self._hover_anim.setEndValue(target)
+        self._hover_anim.start()
+
+    def get_hover_progress(self) -> float:
+        return self._hover_progress
+
+    def set_hover_progress(self, value: float) -> None:
+        self._hover_progress = float(value)
+        blur = 18 + (10 * self._hover_progress)
+        offset = 4 + (3 * self._hover_progress)
+        alpha = 45 + int(30 * self._hover_progress)
+        self._shadow.setBlurRadius(blur)
+        self._shadow.setOffset(0, offset)
+        self._shadow.setColor(QColor(15, 30, 55, alpha))
+
+    hoverProgress = Property(float, get_hover_progress, set_hover_progress)
+
+    def enterEvent(self, event: QEnterEvent) -> None:
+        self._animate_hover(1.0)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: QEvent) -> None:
+        self._animate_hover(0.0)
+        super().leaveEvent(event)
+
+
+class AnimatedInfoCard(AnimatedHoverCard):
+    def __init__(self, icon: str, title: str, value: str, value_color: str) -> None:
+        super().__init__()
+        self.setStyleSheet(
+            f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
+        )
+        self.setMinimumHeight(120)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 14, 18, 14)
+        layout.setSpacing(8)
+
+        top = QHBoxLayout()
+        icon_label = QLabel(icon)
+        icon_label.setStyleSheet("font-size: 28px;")
+        title_label = QLabel(title)
+        title_label.setStyleSheet(f"color: {TEXT_DARK}; font-size: 13px; font-weight: 700;")
+        top.addWidget(icon_label)
+        top.addWidget(title_label)
+        top.addStretch()
+
+        value_label = QLabel(value)
+        value_label.setStyleSheet(f"color: {value_color}; font-size: 24px; font-weight: 800;")
+
+        layout.addLayout(top)
+        layout.addWidget(value_label)
+        layout.addStretch()
+
+
+class AnimatedSectionCard(AnimatedHoverCard):
+    def __init__(self, title: str) -> None:
+        super().__init__()
+        self.setStyleSheet(
+            f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(12)
+
+        title_label = QLabel(title)
+        title_label.setStyleSheet(f"color: {TEXT_DARK}; font-size: 14px; font-weight: 800;")
+        layout.addWidget(title_label)
+        self.body_layout = layout
+
+
+class AnimatedActionButton(QPushButton):
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self._hover_progress = 0.0
+        self._press_progress = 0.0
+
+        self._hover_anim = QPropertyAnimation(self, b"hoverProgress")
+        self._hover_anim.setDuration(150)
+        self._hover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        self._press_anim = QPropertyAnimation(self, b"pressProgress")
+        self._press_anim.setDuration(100)
+        self._press_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        self._shadow = QGraphicsDropShadowEffect(self)
+        self._shadow.setBlurRadius(16)
+        self._shadow.setOffset(0, 3)
+        self._shadow.setColor(QColor(120, 35, 25, 120))
+        self.setGraphicsEffect(self._shadow)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._apply_style()
+
+    def _apply_style(self) -> None:
+        darken = int((28 * self._hover_progress) + (52 * self._press_progress))
+        r = max(140, 217 - darken)
+        g = max(40, 74 - darken)
+        b = max(30, 56 - darken)
+        self.setStyleSheet(
+            f"QPushButton {{ background: rgb({r}, {g}, {b}); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; }}"
+        )
+
+        blur = 16 + (8 * self._hover_progress)
+        offset = 3 + (2 * self._hover_progress)
+        alpha = 120 + int(45 * self._hover_progress)
+        self._shadow.setBlurRadius(blur)
+        self._shadow.setOffset(0, offset)
+        self._shadow.setColor(QColor(120, 35, 25, alpha))
+
+    def _animate_hover(self, target: float) -> None:
+        self._hover_anim.stop()
+        self._hover_anim.setStartValue(self._hover_progress)
+        self._hover_anim.setEndValue(target)
+        self._hover_anim.start()
+
+    def _animate_press(self, target: float) -> None:
+        self._press_anim.stop()
+        self._press_anim.setStartValue(self._press_progress)
+        self._press_anim.setEndValue(target)
+        self._press_anim.start()
+
+    def get_hover_progress(self) -> float:
+        return self._hover_progress
+
+    def set_hover_progress(self, value: float) -> None:
+        self._hover_progress = float(value)
+        self._apply_style()
+
+    hoverProgress = Property(float, get_hover_progress, set_hover_progress)
+
+    def get_press_progress(self) -> float:
+        return self._press_progress
+
+    def set_press_progress(self, value: float) -> None:
+        self._press_progress = float(value)
+        self._apply_style()
+
+    pressProgress = Property(float, get_press_progress, set_press_progress)
+
+    def enterEvent(self, event: QEnterEvent) -> None:
+        self._animate_hover(1.0)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: QEvent) -> None:
+        self._animate_hover(0.0)
+        self._animate_press(0.0)
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        self._animate_press(1.0)
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        self._animate_press(0.0)
+        super().mouseReleaseEvent(event)
+
+
 class DashboardForm(QMainWindow):
     def __init__(self, user: Optional[User] = None, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -140,12 +397,8 @@ class DashboardForm(QMainWindow):
         user_info.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         user_info.setStyleSheet("color: white; font-size: 12px; font-weight: 600;")
 
-        logout_btn = QPushButton("Logout")
+        logout_btn = AnimatedActionButton("Logout")
         logout_btn.setFixedSize(108, 40)
-        logout_btn.setStyleSheet(
-            "QPushButton { background: #D94A38; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; }"
-            "QPushButton:hover { background: #BF3C2C; }"
-        )
         logout_btn.clicked.connect(self.close)
 
         layout.addWidget(brand)
@@ -182,18 +435,7 @@ class DashboardForm(QMainWindow):
         ]
 
         for item_text, active in menu_items:
-            item = QLabel(item_text)
-            item.setFixedHeight(38)
-            item.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            item.setContentsMargins(22, 0, 0, 0)
-            bg = NAVY_SELECTED if active else NAVY_SIDE
-            weight = 800 if active else 600
-            item.setStyleSheet(
-                f"background: {bg}; color: white; font-size: 14px; font-weight: {weight};"
-                "border-left: 4px solid #FFFFFF; padding-left: 18px;"
-                if active
-                else "background: transparent; color: white; font-size: 14px; font-weight: 600; padding-left: 22px;"
-            )
+            item = AnimatedNavItem(item_text, active=active)
             layout.addWidget(item)
 
         layout.addStretch(1)
@@ -208,24 +450,24 @@ class DashboardForm(QMainWindow):
         top_cards = QGridLayout()
         top_cards.setHorizontalSpacing(16)
         top_cards.setVerticalSpacing(16)
-        top_cards.addWidget(InfoCard("🏭", "Total Produksi", "52,300 Kg", "#1D4ED8"), 0, 0)
-        top_cards.addWidget(InfoCard("✅", "Kehadiran Hari Ini", "85 Hadir", "#5BAE44"), 0, 1)
-        top_cards.addWidget(InfoCard("⚙", "Status Pekerjaan", "5 Tugas Berjalan", "#5BAE44"), 0, 2)
-        top_cards.addWidget(InfoCard("🔔", "Notifikasi", "2 Pesan Baru", "#D94A38"), 0, 3)
+        top_cards.addWidget(AnimatedInfoCard("🏭", "Total Produksi", "52,300 Kg", "#1D4ED8"), 0, 0)
+        top_cards.addWidget(AnimatedInfoCard("✅", "Kehadiran Hari Ini", "85 Hadir", "#5BAE44"), 0, 1)
+        top_cards.addWidget(AnimatedInfoCard("⚙", "Status Pekerjaan", "5 Tugas Berjalan", "#5BAE44"), 0, 2)
+        top_cards.addWidget(AnimatedInfoCard("🔔", "Notifikasi", "2 Pesan Baru", "#D94A38"), 0, 3)
         layout.addLayout(top_cards)
 
         main_grid = QGridLayout()
         main_grid.setHorizontalSpacing(16)
         main_grid.setVerticalSpacing(16)
 
-        production = SectionCard("Grafik Produksi")
+        production = AnimatedSectionCard("Grafik Produksi")
         production.body_layout.addWidget(self._make_chart_placeholder())
         production.body_layout.addStretch(1)
 
-        attendance = SectionCard("Absensi Karyawan")
+        attendance = AnimatedSectionCard("Absensi Karyawan")
         attendance.body_layout.addWidget(self._make_attendance_placeholder())
 
-        tasks = SectionCard("Pekerjaan Hari Ini")
+        tasks = AnimatedSectionCard("Pekerjaan Hari Ini")
         for task_text, badge_text, badge_color in [
             ("Perawatan Blok A1", "Sedang Berlangsung", "#D7E8F8"),
             ("Panen Blok C3", "Dalam Proses", "#F7D7D6"),
@@ -233,7 +475,7 @@ class DashboardForm(QMainWindow):
         ]:
             tasks.body_layout.addWidget(self._make_task_row(task_text, badge_text, badge_color))
 
-        notifications = SectionCard("Notifikasi")
+        notifications = AnimatedSectionCard("Notifikasi")
         for line in [
             "Pesan: Laporan harian sudah diupdate.",
             "Reminder: Rapat evaluasi jam 14.00.",
