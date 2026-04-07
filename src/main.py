@@ -2,12 +2,11 @@ import os
 # Nonaktifkan log warning Qt (termasuk DPI awareness)
 os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.qpa.*=false"
 from pathlib import Path
-# Entry point aplikasi CRUD Database SQL Python
 from PySide6.QtWidgets import QApplication
 import sys
-from ui.boot import show_boot
 from ui.lock import show_lock
 from ui.login import show_login
+from ui.dashboard import show_dashboard
 from database.models import init_db
 
 
@@ -61,17 +60,25 @@ def _best_effort_sync_app_privileges() -> None:
 
 def main():
     """
-    Entry point utama aplikasi CRUD Database SQL Python.
-    Menampilkan boot screen, lock screen, dan login screen secara berurutan.
+    Entry point utama aplikasi.
+    Alur: lock -> login -> jika PIN benar tampilkan dashboard.
     """
     app_instance = QApplication.instance()
     app = app_instance if isinstance(app_instance, QApplication) else QApplication(sys.argv)
     try:
         _best_effort_sync_app_privileges()
         init_db()
-        show_boot()
-        if show_lock():
-            show_login(app)
+        if not show_lock():
+            return
+
+        authenticated_user = show_login(app)
+        if authenticated_user is None:
+            return
+
+        dashboard = show_dashboard(app, authenticated_user)
+        dashboard.raise_()
+        dashboard.activateWindow()
+        app.exec()
     except RuntimeError as error:
         print(f"[ERROR] {error}")
         raise SystemExit(1)

@@ -1432,7 +1432,7 @@ class PINDotWidget(QWidget):
             painter.drawEllipse(int(x), int(y), dot_size, dot_size)
 
 _active_login_dialog = None
-def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
+def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[User]:
     global _active_login_dialog
     # Tutup dialog login yang masih aktif jika ada
     if _active_login_dialog is not None:
@@ -1691,8 +1691,8 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
         original_mouse_press = widget.mousePressEvent
         def handler(event: QMouseEvent) -> None:
             if event.button() == Qt.MouseButton.LeftButton:
-                dialog.hide()
-                show_lock()
+                # Sementara nonaktifkan jalur balik ke lock screen.
+                set_pin_value("")
             original_mouse_press(event)
         return handler
     
@@ -1743,10 +1743,9 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
     position_security_label()
 
     dialog.setLayout(layout)
-    from ui.lock import show_lock
     def on_unlock_clicked():
-        dialog.hide()
-        show_lock()
+        # Sementara nonaktifkan jalur balik ke lock screen.
+        set_pin_value("")
     unlock_icon.clicked.connect(on_unlock_clicked)
     # Pastikan unlock_icon selalu di atas
     unlock_icon.raise_()
@@ -1852,15 +1851,12 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
                 back_widget = dialog.keypad_map['back']
                 if back_widget:
                     back_widget.trigger_release_animation()
-                    # Execute back action
-                    dialog.hide()
-                    show_lock()
         QDialog.keyReleaseEvent(dialog, event)
     
     dialog.keyPressEvent = keyPressEvent
     dialog.keyReleaseEvent = keyReleaseEvent
     
-    result = dialog.exec()
-    if result == QDialog.DialogCode.Accepted and dialog.authenticated_user is not None:
-        from ui.mainform import show_main_form
-        show_main_form(app)
+    dialog.exec()
+    if dialog.authenticated_user is not None:
+        return dialog.authenticated_user
+    return None

@@ -670,8 +670,6 @@ class ChevronExitButton(QWidget):
                     win = self.window()
                     if win:
                         win.close()
-                    from PySide6.QtWidgets import QApplication
-                    QApplication.quit()
                 self._collapse_anim.finished.connect(on_finished)
             self._collapse_anim.start()
         super().mousePressEvent(event)
@@ -1095,20 +1093,9 @@ QLabel {
         self.chevron_exit.raise_()
     def show_login_form(self):
         try:
-            self.hide()  # Sembunyikan form lock.py sebelum menampilkan LoginDialog
-            from .login import show_login
-            from PySide6.QtWidgets import QApplication
-            app = QApplication.instance()
-            show_login_func = show_login
-            if isinstance(app, QApplication):
-                # Kirim self sebagai parent agar LoginDialog bisa menyesuaikan ukuran LockForm
-                if isinstance(self, LockForm):
-                    show_login_func(app, self)
-                else:
-                    show_login_func(app, None)
-            else:
-                print("[ERROR] QApplication instance not found.")
-                return
+            # Alur sederhana: klik gembok menutup lock screen,
+            # lalu main.py akan membuka form login.
+            self.accept()
         except Exception as e:
             import traceback
             print("[ERROR] show_login_form exception:", e)
