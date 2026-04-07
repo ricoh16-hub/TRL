@@ -45,6 +45,8 @@ class User(Base):
     password = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)
     password_salt = Column(String, nullable=True)
+    pin_hash = Column(String, nullable=True)
+    pin_salt = Column(String, nullable=True)
     role = Column(String, default='user')
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

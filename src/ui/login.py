@@ -1,7 +1,7 @@
 from importlib import import_module
 from typing import Callable, Optional, Union, cast
 from database.models import User
-from PySide6.QtWidgets import QWidget, QDialog, QVBoxLayout, QGridLayout, QLabel, QGraphicsDropShadowEffect, QToolTip, QApplication
+from PySide6.QtWidgets import QWidget, QDialog, QVBoxLayout, QGridLayout, QLabel, QGraphicsDropShadowEffect, QToolTip, QApplication, QMessageBox
 from PySide6.QtCore import Qt, Signal, QRectF, QEasingCurve, QPropertyAnimation, Property, QEvent, QPointF
 from PySide6.QtGui import QPainter, QBrush, QPen, QColor, QRadialGradient, QMouseEvent, QPaintEvent, QEnterEvent, QKeyEvent, QCloseEvent
 from PySide6.QtCore import QRect
@@ -10,6 +10,7 @@ from PySide6.QtGui import QLinearGradient
 from ui.lock import BatteryLogoWidget, KeyCapWidget, GearIconWidget, WiFiLogoWidget
 
 AuthenticateFn = Callable[[str, str, object | None], User | None]
+VerifyPinFn = Callable[[str], User | None]
 
 try:
     _authenticate = import_module("auth.login").authenticate
@@ -17,6 +18,13 @@ except ImportError:
     _authenticate = import_module("src.auth.login").authenticate
 
 authenticate = cast(AuthenticateFn, _authenticate)
+
+try:
+    _verify_pin_import = import_module("auth.login").verify_pin
+except ImportError:
+    _verify_pin_import = import_module("src.auth.login").verify_pin
+
+_verify_pin = cast(VerifyPinFn, _verify_pin_import)
 
 QSS_LABEL_STYLE = """
 QLabel[charging="true"] {
@@ -1345,6 +1353,7 @@ class LoginDialog(QDialog):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.unlock_icon: Optional[CustomUnlockIcon] = None
+        self.authenticated_user: Optional[User] = None
         self.security_pin_logged: bool = False
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
         # Hilangkan efek transparan dan animasi opacity agar background solid
@@ -1544,7 +1553,11 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
     # Entry PIN (label_pin_entry) langsung di bawah Security Pin
     label_pin_entry = PINDotWidget(dialog)
     MAX_PIN_LENGTH = 6
+    MAX_PIN_ATTEMPTS = 5
+    LOCKOUT_SECONDS = 30
     _pin_value = ""
+    failed_attempts = 0
+    pin_locked_out = False
 
     def set_pin_value(value: str) -> None:
         nonlocal _pin_value
@@ -1554,15 +1567,89 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
 
     def append_digit(digit: str) -> None:
         """Tambah digit ke PIN jika belum 6 digit"""
-        nonlocal _pin_value
+        nonlocal _pin_value, pin_locked_out
+        if pin_locked_out:
+            return
         if len(_pin_value) < MAX_PIN_LENGTH and digit.isdigit():
             set_pin_value(_pin_value + digit)
+            if len(_pin_value) == MAX_PIN_LENGTH:
+                from PySide6.QtCore import QTimer
+                QTimer.singleShot(120, submit_pin)
     
     def delete_last_digit() -> None:
         """Hapus digit terakhir dari PIN"""
-        nonlocal _pin_value
+        nonlocal _pin_value, pin_locked_out
+        if pin_locked_out:
+            return
         if len(_pin_value) > 0:
             set_pin_value(_pin_value[:-1])
+
+    def shake_error() -> None:
+        """Animasi getar kiri-kanan pada PIN dot widget sebagai feedback salah."""
+        orig_x = label_pin_entry.x()
+        orig_y = label_pin_entry.y()
+        offsets = [8, -8, 6, -6, 4, -4, 0]
+        delay = 0
+        for offset in offsets:
+            def _move(ox: int = orig_x, off: int = offset) -> None:
+                label_pin_entry.move(ox + off, orig_y)
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(delay, _move)
+            delay += 50
+
+    def reset_pin_lockout() -> None:
+        """Buka kembali percobaan PIN setelah cooldown selesai."""
+        nonlocal failed_attempts, pin_locked_out
+        pin_locked_out = False
+        failed_attempts = 0
+        set_pin_value("")
+        QMessageBox.information(
+            dialog,
+            "PIN Aktif Kembali",
+            "Silakan coba lagi. Percobaan PIN direset.",
+        )
+
+    def submit_pin() -> None:
+        """Verifikasi PIN 6 digit. Buka MainForm jika benar, shake+clear jika salah."""
+        nonlocal _pin_value, failed_attempts, pin_locked_out
+        if pin_locked_out:
+            return
+
+        try:
+            user = _verify_pin(_pin_value)
+        except RuntimeError as error:
+            QMessageBox.critical(dialog, "Database Error", str(error))
+            set_pin_value("")
+            return
+
+        if user is not None:
+            dialog.authenticated_user = user
+            dialog.accept()
+        else:
+            failed_attempts += 1
+            shake_error()
+            from PySide6.QtCore import QTimer
+            if failed_attempts >= MAX_PIN_ATTEMPTS:
+                pin_locked_out = True
+                set_pin_value("")
+                QMessageBox.warning(
+                    dialog,
+                    "PIN Terkunci Sementara",
+                    f"Percobaan PIN salah sudah 5 kali. Coba lagi dalam {LOCKOUT_SECONDS} detik.",
+                )
+                QTimer.singleShot(LOCKOUT_SECONDS * 1000, reset_pin_lockout)
+                return
+
+            sisa_coba = MAX_PIN_ATTEMPTS - failed_attempts
+            QTimer.singleShot(400, lambda: set_pin_value(""))
+            QTimer.singleShot(
+                420,
+                lambda: QMessageBox.warning(
+                    dialog,
+                    "PIN Salah",
+                    f"PIN salah. Sisa percobaan: {sisa_coba}.",
+                ),
+            )
 
     set_pin_value("")
     label_security_pin.show()
@@ -1773,4 +1860,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
     dialog.keyPressEvent = keyPressEvent
     dialog.keyReleaseEvent = keyReleaseEvent
     
-    dialog.exec()
+    result = dialog.exec()
+    if result == QDialog.DialogCode.Accepted and dialog.authenticated_user is not None:
+        from ui.mainform import show_main_form
+        show_main_form(app)

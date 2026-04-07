@@ -27,3 +27,18 @@ def create_password_hash(password: str) -> Tuple[str, str]:
     salt = generate_salt()
     password_hash = hash_password(password, salt)
     return salt, password_hash
+
+
+def create_pin_hash(pin: str) -> Tuple[str, str]:
+    if not pin or not pin.isdigit() or len(pin) != 6:
+        raise ValueError("PIN harus tepat 6 digit angka.")
+
+    salt = generate_salt()
+    pin_hash = hash_password(pin, salt)
+    return salt, pin_hash
+
+
+def verify_pin_code(pin: str, salt: str, stored_hash: str) -> bool:
+    if not pin or not pin.isdigit() or len(pin) != 6:
+        return False
+    return verify_password(pin, salt, stored_hash)
