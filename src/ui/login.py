@@ -1649,7 +1649,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> None:
         pin_entry_left = (dialog.width() - label_pin_entry.width()) // 2
         label_pin_entry.move(pin_entry_left, pin_entry_top)
         # Kurangi jarak indikator PIN ke keypad agar lebih rapat
-        keypad_top = pin_entry_top + label_pin_entry.height() + 48
+        keypad_top = pin_entry_top + label_pin_entry.height() + 28
         keypad_left = (dialog.width() - pin_grid_container.width()) // 2
         pin_grid_container.move(keypad_left, keypad_top)
     
