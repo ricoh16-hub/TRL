@@ -4,6 +4,8 @@ os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.qpa.*=false"
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
 import sys
+from ui.boot import show_boot
+from ui.lock import show_lock
 from ui.login import show_login
 from ui.credentials_login import show_credentials_login
 from ui.dashboard import show_dashboard
@@ -68,6 +70,9 @@ def main():
     try:
         _best_effort_sync_app_privileges()
         init_db()
+        show_boot()
+        if not show_lock():
+            return
         pin_user = show_login(app)
         if pin_user is None:
             return
