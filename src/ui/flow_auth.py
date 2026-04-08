@@ -171,7 +171,7 @@ def authenticate_credentials_step(
             return None
 
         status = str(getattr(user, "status", "aktif") or "aktif").lower()
-        if status in {"locked", "suspended", "nonaktif"}:
+        if status in {"locked", "suspended", "nonaktif", "inactive"}:
             _save_login_attempt(session, user_id=user_id, success=False, ip_address=ip_address)
             _save_audit_log(session, user_id=user_id, action="login_rejected", description=f"status akun: {status}", ip_address=ip_address)
             session.commit()

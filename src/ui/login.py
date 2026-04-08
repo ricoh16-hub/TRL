@@ -7,7 +7,7 @@ from PySide6.QtGui import QPainter, QBrush, QPen, QColor, QRadialGradient, QMous
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QLinearGradient
 # Import widgets from lock.py
-from ui.lock import BatteryLogoWidget, KeyCapWidget, GearIconWidget, WiFiLogoWidget
+from ui.lock import BatteryLogoWidget, KeyCapWidget, GearIconWidget, WiFiLogoWidget, show_lock
 
 AuthenticateFn = Callable[[str, str, object | None], User | None]
 VerifyPinFn = Callable[[str], User | None]
@@ -1354,6 +1354,7 @@ class LoginDialog(QDialog):
         super().__init__(parent)
         self.unlock_icon: Optional[CustomUnlockIcon] = None
         self.authenticated_user: Optional[User] = None
+        self.request_back_to_lock: bool = False
         self.security_pin_logged: bool = False
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
         # Hilangkan efek transparan dan animasi opacity agar background solid
@@ -1691,8 +1692,9 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
         original_mouse_press = widget.mousePressEvent
         def handler(event: QMouseEvent) -> None:
             if event.button() == Qt.MouseButton.LeftButton:
-                # Sementara nonaktifkan jalur balik ke lock screen.
                 set_pin_value("")
+                dialog.request_back_to_lock = True
+                dialog.reject()
             original_mouse_press(event)
         return handler
     
@@ -1744,8 +1746,9 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
 
     dialog.setLayout(layout)
     def on_unlock_clicked():
-        # Sementara nonaktifkan jalur balik ke lock screen.
         set_pin_value("")
+        dialog.request_back_to_lock = True
+        dialog.reject()
     unlock_icon.clicked.connect(on_unlock_clicked)
     # Pastikan unlock_icon selalu di atas
     unlock_icon.raise_()
@@ -1824,10 +1827,8 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
                     backspace_widget.trigger_press_animation()
         # Handle Escape untuk back ke lock.py
         elif event.key() == Qt.Key.Key_Escape:
-            if 'back' in dialog.keypad_map:
-                back_widget = dialog.keypad_map['back']
-                if back_widget:
-                    back_widget.trigger_press_animation()
+            dialog.request_back_to_lock = True
+            dialog.reject()
         QDialog.keyPressEvent(dialog, event)
     
     def keyReleaseEvent(event: QKeyEvent) -> None:
@@ -1857,6 +1858,13 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     dialog.keyReleaseEvent = keyReleaseEvent
     
     dialog.exec()
+    _active_login_dialog = None
+
+    if dialog.request_back_to_lock:
+        if show_lock():
+            return show_login(app, parent)
+        return None
+
     if dialog.authenticated_user is not None:
         return dialog.authenticated_user
     return None
