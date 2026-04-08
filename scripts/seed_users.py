@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import sys
 from datetime import datetime, timezone
+from typing import TypedDict
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -36,7 +37,78 @@ from src.database.models import (
 )
 
 
-ROLES: list[dict[str, str | int]] = [
+class RoleDict(TypedDict):
+    """Type definition for role data."""
+
+    id: int
+    role_name: str
+    description: str
+
+
+class PermissionDict(TypedDict):
+    """Type definition for permission data."""
+
+    id: int
+    permission_name: str
+
+
+class UserDict(TypedDict):
+    """Type definition for user data."""
+
+    id: int
+    full_name: str
+    username: str
+    email: str
+    phone: str
+    status: str
+    role_id: int
+    created_at: str
+
+
+class CredentialDict(TypedDict):
+    """Type definition for user credentials."""
+
+    id: int
+    user_id: int
+    password_plain: str
+    pin_plain: str
+    failed_attempts: int
+
+
+class LoginAttemptDict(TypedDict):
+    """Type definition for login attempt data."""
+
+    id: int
+    user_id: int
+    ip_address: str
+    success: bool
+    attempt_time: str
+
+
+class UserSessionDict(TypedDict):
+    """Type definition for user session data."""
+
+    id: int
+    user_id: int
+    access_token: str
+    ip_address: str
+    user_agent: str
+    expired_at: str
+
+
+class AuditLogDict(TypedDict):
+    """Type definition for audit log data."""
+
+    id: int
+    user_id: int
+    action: str
+    action_type: str
+    description: str
+    ip_address: str
+    created_at: str
+
+
+ROLES: list[RoleDict] = [
     {"id": 1, "role_name": "Super Admin", "description": "Akses penuh sistem"},
     {"id": 2, "role_name": "Admin", "description": "Kelola user & data"},
     {"id": 3, "role_name": "Manager", "description": "Monitoring & laporan"},
@@ -44,7 +116,7 @@ ROLES: list[dict[str, str | int]] = [
     {"id": 5, "role_name": "Viewer", "description": "Hanya melihat"},
 ]
 
-PERMISSIONS: list[dict[str, str | int]] = [
+PERMISSIONS: list[PermissionDict] = [
     {"id": 1, "permission_name": "create_user"},
     {"id": 2, "permission_name": "edit_user"},
     {"id": 3, "permission_name": "delete_user"},
@@ -63,7 +135,7 @@ ROLE_PERMISSIONS: list[tuple[int, int]] = [
     (5, 6), (5, 8),
 ]
 
-USERS: list[dict[str, str | int]] = [
+USERS: list[UserDict] = [
     {
         "id": 1,
         "full_name": "Riko Sinaga",
@@ -117,7 +189,7 @@ USERS: list[dict[str, str | int]] = [
 ]
 
 # Tetap 6 digit angka sesuai syarat.
-USER_CREDENTIALS: list[dict[str, str | int]] = [
+USER_CREDENTIALS: list[CredentialDict] = [
     {
         "id": 1,
         "user_id": 1,
@@ -155,7 +227,7 @@ USER_CREDENTIALS: list[dict[str, str | int]] = [
     },
 ]
 
-LOGIN_ATTEMPTS: list[dict[str, str | int | bool]] = [
+LOGIN_ATTEMPTS: list[LoginAttemptDict] = [
     {"id": 1, "user_id": 1, "ip_address": "192.168.1.1", "success": True, "attempt_time": "2026-04-01T08:00:00"},
     {"id": 2, "user_id": 2, "ip_address": "192.168.1.2", "success": False, "attempt_time": "2026-04-01T08:55:00"},
     {"id": 3, "user_id": 2, "ip_address": "192.168.1.2", "success": True, "attempt_time": "2026-04-01T09:00:00"},
@@ -163,13 +235,13 @@ LOGIN_ATTEMPTS: list[dict[str, str | int | bool]] = [
     {"id": 5, "user_id": 5, "ip_address": "192.168.1.5", "success": False, "attempt_time": "2026-03-30T06:55:00"},
 ]
 
-USER_SESSIONS: list[dict[str, str | int]] = [
+USER_SESSIONS: list[UserSessionDict] = [
     {"id": 1, "user_id": 1, "access_token": "token123", "ip_address": "192.168.1.1", "user_agent": "Chrome", "expired_at": "2026-04-01T12:00:00"},
     {"id": 2, "user_id": 2, "access_token": "token234", "ip_address": "192.168.1.2", "user_agent": "Firefox", "expired_at": "2026-04-01T13:00:00"},
     {"id": 3, "user_id": 3, "access_token": "token345", "ip_address": "192.168.1.3", "user_agent": "Edge", "expired_at": "2026-04-01T14:00:00"},
 ]
 
-AUDIT_LOGS: list[dict[str, str | int]] = [
+AUDIT_LOGS: list[AuditLogDict] = [
     {
         "id": 1,
         "user_id": 1,
