@@ -681,7 +681,13 @@ class DashboardForm(QMainWindow):
 
         session = Session()
         try:
-            users = session.query(User).order_by(User.id.asc()).all()
+            # CRITICAL: Pre-load role_links before closing session to prevent DetachedInstanceError
+            # when accessing user.role property later
+            from sqlalchemy.orm import selectinload
+            users = session.query(User).options(selectinload(User.role_links)).order_by(User.id.asc()).all()
+            # Prime all role values while session is still open
+            for user in users:
+                getattr(user, "role", None)  # Force evaluation of role property before detach
         finally:
             session.close()
 

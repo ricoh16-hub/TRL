@@ -115,7 +115,7 @@ def main():
                 print(f"✗ Error menambahkan {user_data['username']}: {e}")
                 session.rollback()
 
-        print(f"\n✓ Ringkasan:")
+        print("\n✓ Ringkasan:")
         print(f"  - Ditambahkan: {added_count}")
         print(f"  - Sudah ada: {skipped_count}")
         print(f"  - Total: {len(SAMPLE_USERS)}")

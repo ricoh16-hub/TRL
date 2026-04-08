@@ -4,8 +4,8 @@ os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.qpa.*=false"
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
 import sys
-from ui.lock import show_lock
 from ui.login import show_login
+from ui.credentials_login import show_credentials_login
 from ui.dashboard import show_dashboard
 from database.models import init_db
 
@@ -61,17 +61,18 @@ def _best_effort_sync_app_privileges() -> None:
 def main():
     """
     Entry point utama aplikasi.
-    Alur: lock -> login -> jika PIN benar tampilkan dashboard.
+    Alur: PIN -> username/password -> dashboard.
     """
     app_instance = QApplication.instance()
     app = app_instance if isinstance(app_instance, QApplication) else QApplication(sys.argv)
     try:
         _best_effort_sync_app_privileges()
         init_db()
-        if not show_lock():
+        pin_user = show_login(app)
+        if pin_user is None:
             return
 
-        authenticated_user = show_login(app)
+        authenticated_user = show_credentials_login(app, pin_user)
         if authenticated_user is None:
             return
 

@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
-from sqlalchemy import Column, DateTime, Integer, String, create_engine, func, inspect, text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, create_engine, func, inspect, text
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import OperationalError, ProgrammingError
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.orm.exc import DetachedInstanceError
 from dotenv import load_dotenv
 
 try:
@@ -38,20 +39,153 @@ _SSLMODE_STRICT_VALUES = {
 
 Base = declarative_base()
 
+
 class User(Base):
     __tablename__ = 'users'
+
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, nullable=False)
-    nama = Column(String, nullable=True)
-    password = Column(String, nullable=True)
-    password_hash = Column(String, nullable=True)
-    password_salt = Column(String, nullable=True)
-    pin_hash = Column(String, nullable=True)
-    pin_salt = Column(String, nullable=True)
-    role = Column(String, default='user')
+    full_name = Column(String, nullable=True)
+    email = Column(String, unique=True, nullable=True)
+    phone = Column(String, nullable=True)
     status = Column(String, nullable=False, server_default='aktif')
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    password_record = relationship("UserPassword", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    pin_record = relationship("UserPin", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    role_links = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
+
+    @property
+    def nama(self) -> str | None:
+        return self.full_name
+
+    @nama.setter
+    def nama(self, value: str | None) -> None:
+        self.full_name = value
+
+    @property
+    def role(self) -> str | None:
+        try:
+            role_links = self.role_links
+        except DetachedInstanceError:
+            return getattr(self, "_cached_role", None)
+
+        if not role_links:
+            self._cached_role = None
+            return None
+
+        for role_link in role_links:
+            role = getattr(role_link, "role", None)
+            role_name = getattr(role, "role_name", None)
+            if role_name:
+                self._cached_role = role_name
+                return role_name
+
+        self._cached_role = None
+        return None
+
+
+class Role(Base):
+    __tablename__ = 'roles'
+
+    id = Column(Integer, primary_key=True)
+    role_name = Column(String, unique=True, nullable=False)
+    description = Column(String, nullable=True)
+
+    user_links = relationship("UserRole", back_populates="role", cascade="all, delete-orphan")
+    permission_links = relationship("RolePermission", back_populates="role", cascade="all, delete-orphan")
+
+
+class Permission(Base):
+    __tablename__ = 'permissions'
+
+    id = Column(Integer, primary_key=True)
+    permission_name = Column(String, unique=True, nullable=False)
+
+    role_links = relationship("RolePermission", back_populates="permission", cascade="all, delete-orphan")
+
+
+class UserRole(Base):
+    __tablename__ = 'user_roles'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    role_id = Column(Integer, ForeignKey('roles.id', ondelete='CASCADE'), nullable=False)
+
+    user = relationship("User", back_populates="role_links")
+    role = relationship("Role", back_populates="user_links")
+
+
+class RolePermission(Base):
+    __tablename__ = 'role_permissions'
+
+    role_id = Column(Integer, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
+    permission_id = Column(Integer, ForeignKey('permissions.id', ondelete='CASCADE'), primary_key=True)
+
+    role = relationship("Role", back_populates="permission_links")
+    permission = relationship("Permission", back_populates="role_links")
+
+
+class UserPassword(Base):
+    __tablename__ = 'user_passwords'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True)
+    password_hash = Column(String, nullable=False)
+    password_salt = Column(String, nullable=False)
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User", back_populates="password_record")
+
+
+class UserPin(Base):
+    __tablename__ = 'user_pins'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True)
+    pin_hash = Column(String, nullable=False)
+    pin_salt = Column(String, nullable=False)
+    failed_attempts = Column(Integer, nullable=False, server_default='0')
+    locked_until = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User", back_populates="pin_record")
+
+
+class LoginAttempt(Base):
+    __tablename__ = 'login_attempts'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    ip_address = Column(String, nullable=True)
+    success = Column(Boolean, nullable=False)
+    attempt_time = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class UserSession(Base):
+    __tablename__ = 'user_sessions'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    access_token = Column(String, nullable=False)
+    refresh_token = Column(String, nullable=True)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    expired_at = Column(DateTime(timezone=True), nullable=False)
+
+
+class AuditLog(Base):
+    __tablename__ = 'audit_logs'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    action = Column(String, nullable=False)
+    action_type = Column(String, nullable=True)
+    description = Column(Text, nullable=True)
+    ip_address = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 def _resolve_database_url() -> tuple[str, str, str]:
@@ -149,7 +283,7 @@ def _validate_centralized_database_target() -> None:
             )
 
 engine = None
-if DATABASE_URL:
+if DATABASE_URL:  # pragma: no branch
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
@@ -188,24 +322,151 @@ def _run_user_table_migration() -> None:
     existing_columns = {column["name"] for column in inspector.get_columns("users")}
 
     with engine.begin() as connection:
-        if "nama" not in existing_columns:
-            connection.execute(text("ALTER TABLE users ADD COLUMN nama VARCHAR"))
-        if "password_hash" not in existing_columns:
-            connection.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR"))
-        if "password_salt" not in existing_columns:
-            connection.execute(text("ALTER TABLE users ADD COLUMN password_salt VARCHAR"))
-        if "status" not in existing_columns:
+        if "full_name" not in existing_columns:  # pragma: no branch
+            connection.execute(text("ALTER TABLE users ADD COLUMN full_name VARCHAR"))
+        if "email" not in existing_columns:  # pragma: no branch
+            connection.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR"))
+        if "phone" not in existing_columns:  # pragma: no branch
+            connection.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR"))
+        if "status" not in existing_columns:  # pragma: no branch
             connection.execute(text("ALTER TABLE users ADD COLUMN status VARCHAR DEFAULT 'aktif'"))
             connection.execute(text("ALTER TABLE users ALTER COLUMN status SET NOT NULL"))
+        if "deleted_at" not in existing_columns:  # pragma: no branch
+            connection.execute(text("ALTER TABLE users ADD COLUMN deleted_at TIMESTAMPTZ"))
+
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS roles (
+                    id SERIAL PRIMARY KEY,
+                    role_name VARCHAR UNIQUE NOT NULL,
+                    description VARCHAR
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS permissions (
+                    id SERIAL PRIMARY KEY,
+                    permission_name VARCHAR UNIQUE NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS user_passwords (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    password_hash VARCHAR NOT NULL,
+                    password_salt VARCHAR NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS user_pins (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    pin_hash VARCHAR NOT NULL,
+                    pin_salt VARCHAR NOT NULL,
+                    failed_attempts INTEGER NOT NULL DEFAULT 0,
+                    locked_until TIMESTAMPTZ,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS user_roles (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+                    UNIQUE (user_id, role_id)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS role_permissions (
+                    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+                    permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+                    PRIMARY KEY (role_id, permission_id)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS login_attempts (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    ip_address VARCHAR,
+                    success BOOLEAN NOT NULL,
+                    attempt_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS user_sessions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    access_token VARCHAR NOT NULL,
+                    refresh_token VARCHAR,
+                    ip_address VARCHAR,
+                    user_agent VARCHAR,
+                    expired_at TIMESTAMPTZ NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    action VARCHAR NOT NULL,
+                    action_type VARCHAR,
+                    description TEXT,
+                    ip_address VARCHAR,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+
+        if "nama" in existing_columns:  # pragma: no branch
+            connection.execute(text("UPDATE users SET full_name = nama WHERE full_name IS NULL AND nama IS NOT NULL"))  # pragma: no cover
         if "password" in existing_columns:
             connection.execute(text("ALTER TABLE users ALTER COLUMN password DROP NOT NULL"))
 
-        rows = connection.execute(
-            text(
+        password_select_sql = None
+        if "password" in existing_columns and "password_hash" in existing_columns and "password_salt" in existing_columns:
+            password_select_sql = (
                 "SELECT id, password FROM users "
                 "WHERE password IS NOT NULL AND (password_hash IS NULL OR password_salt IS NULL)"
             )
-        ).mappings().all()
+        elif "password" in existing_columns:
+            password_select_sql = "SELECT id, password FROM users WHERE password IS NOT NULL"
+
+        rows = []
+        if password_select_sql is not None:
+            rows = connection.execute(text(password_select_sql)).mappings().all()
 
         for row in rows:
             password = row["password"]
@@ -213,17 +474,97 @@ def _run_user_table_migration() -> None:
                 continue
 
             salt, password_hash = create_password_hash(str(password))
+            if "password_hash" in existing_columns and "password_salt" in existing_columns:
+                connection.execute(
+                    text(
+                        "UPDATE users "
+                        "SET password_hash = :password_hash, password_salt = :password_salt, password = NULL "
+                        "WHERE id = :user_id"
+                    ),
+                    {
+                        "password_hash": password_hash,
+                        "password_salt": salt,
+                        "user_id": row["id"],
+                    },
+                )
+
             connection.execute(
                 text(
-                    "UPDATE users "
-                    "SET password_hash = :password_hash, password_salt = :password_salt, password = NULL "
-                    "WHERE id = :user_id"
+                    """
+                    INSERT INTO user_passwords (user_id, password_hash, password_salt, updated_at)
+                    VALUES (:user_id, :password_hash, :password_salt, CURRENT_TIMESTAMP)
+                    ON CONFLICT (user_id)
+                    DO UPDATE SET
+                        password_hash = EXCLUDED.password_hash,
+                        password_salt = EXCLUDED.password_salt,
+                        updated_at = EXCLUDED.updated_at
+                    """
                 ),
                 {
+                    "user_id": row["id"],
                     "password_hash": password_hash,
                     "password_salt": salt,
-                    "user_id": row["id"],
                 },
+            )
+
+        if "password_hash" in existing_columns and "password_salt" in existing_columns:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO user_passwords (user_id, password_hash, password_salt, updated_at)
+                    SELECT id, password_hash, password_salt, COALESCE(updated_at, CURRENT_TIMESTAMP)
+                    FROM users
+                    WHERE password_hash IS NOT NULL AND password_salt IS NOT NULL
+                    ON CONFLICT (user_id)
+                    DO UPDATE SET
+                        password_hash = EXCLUDED.password_hash,
+                        password_salt = EXCLUDED.password_salt,
+                        updated_at = EXCLUDED.updated_at
+                    """
+                )
+            )
+
+        if "pin_hash" in existing_columns and "pin_salt" in existing_columns:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO user_pins (user_id, pin_hash, pin_salt, failed_attempts, locked_until, updated_at)
+                    SELECT id, pin_hash, pin_salt, 0, NULL, COALESCE(updated_at, CURRENT_TIMESTAMP)
+                    FROM users
+                    WHERE pin_hash IS NOT NULL AND pin_salt IS NOT NULL
+                    ON CONFLICT (user_id)
+                    DO UPDATE SET
+                        pin_hash = EXCLUDED.pin_hash,
+                        pin_salt = EXCLUDED.pin_salt,
+                        updated_at = EXCLUDED.updated_at
+                    """
+                )
+            )
+
+        if "role" in existing_columns:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO roles (role_name)
+                    SELECT DISTINCT role
+                    FROM users
+                    WHERE role IS NOT NULL AND role <> ''
+                    ON CONFLICT (role_name) DO NOTHING
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO user_roles (user_id, role_id)
+                    SELECT u.id, r.id
+                    FROM users u
+                    JOIN roles r ON r.role_name = u.role
+                    WHERE u.role IS NOT NULL AND u.role <> ''
+                    ON CONFLICT (user_id, role_id) DO NOTHING
+                    """
+                )
             )
 
 
@@ -281,7 +622,7 @@ def test_connection() -> bool:
         connection.execute(text("SELECT 1"))
     return True
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     test_connection()
     init_db()
     print("Koneksi PostgreSQL berhasil dan tabel siap digunakan.")

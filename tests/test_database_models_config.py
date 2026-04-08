@@ -1,5 +1,6 @@
 import pytest
 from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlalchemy.orm.exc import DetachedInstanceError
 
 from src.database import models as db_models
 
@@ -252,10 +253,9 @@ def test_run_user_table_migration_updates_legacy_passwords(monkeypatch) -> None:
     db_models._run_user_table_migration()
 
     executed_sql = "\n".join(sql for sql, _ in fake_engine.connection.calls)
-    assert "ADD COLUMN password_hash" in executed_sql
-    assert "ADD COLUMN password_salt" in executed_sql
+    assert "ADD COLUMN full_name" in executed_sql
     assert "ALTER COLUMN password DROP NOT NULL" in executed_sql
-    assert "UPDATE users" in executed_sql
+    assert "INSERT INTO user_passwords" in executed_sql
 
 
 def test_run_user_table_migration_returns_when_engine_none(monkeypatch) -> None:
@@ -341,8 +341,7 @@ def test_run_user_table_migration_skips_column_alterations_when_columns_exist(mo
     db_models._run_user_table_migration()
 
     executed_sql = "\n".join(sql for sql, _ in fake_engine.connection.calls)
-    assert "ADD COLUMN password_hash" not in executed_sql
-    assert "ADD COLUMN password_salt" not in executed_sql
+    assert "ADD COLUMN full_name" in executed_sql
     assert "ALTER COLUMN password DROP NOT NULL" in executed_sql
 
 
@@ -399,7 +398,8 @@ def test_run_user_table_migration_skips_empty_password(monkeypatch) -> None:
     db_models._run_user_table_migration()
 
     executed_sql = "\n".join(sql for sql, _ in fake_engine.connection.calls)
-    assert "UPDATE users" not in executed_sql
+    assert "SET password_hash = :password_hash" not in executed_sql
+    assert "VALUES (:user_id, :password_hash, :password_salt, CURRENT_TIMESTAMP)" not in executed_sql
 
 
 def test_run_user_table_migration_skips_password_nullable_change_when_column_missing(monkeypatch) -> None:
@@ -455,6 +455,178 @@ def test_run_user_table_migration_skips_password_nullable_change_when_column_mis
 
     executed_sql = "\n".join(sql for sql, _ in fake_engine.connection.calls)
     assert "ALTER COLUMN password DROP NOT NULL" not in executed_sql
+
+
+def test_user_properties_map_full_name_and_role_links() -> None:
+    user = db_models.User(username="alice", full_name="Alice Doe")
+
+    assert user.nama == "Alice Doe"
+
+    user.nama = "Alice Smith"
+
+    assert user.full_name == "Alice Smith"
+    assert user.role is None
+
+    role = db_models.Role(role_name="admin")
+    user.role_links = [db_models.UserRole(role=role)]
+
+    assert user.role == "admin"
+
+
+def test_user_role_property_skips_empty_role_entries() -> None:
+    user = db_models.User(username="bob", full_name="Bob")
+    user.role_links = [db_models.UserRole(role=None), db_models.UserRole(role=db_models.Role(role_name="manager"))]
+
+    assert user.role == "manager"
+
+
+def test_user_role_property_uses_cached_value_when_detached() -> None:
+    user = db_models.User(username="cached-user", full_name="Cached User")
+    user._cached_role = "admin"
+
+    class _DetachedDescriptor:
+        def __get__(self, _instance, _owner):
+            raise DetachedInstanceError("detached")
+
+    original_descriptor = db_models.User.role_links
+    db_models.User.role_links = _DetachedDescriptor()
+    try:
+        assert user.role == "admin"
+    finally:
+        db_models.User.role_links = original_descriptor
+
+
+def test_user_role_property_returns_none_when_links_have_no_role_name() -> None:
+    user = db_models.User(username="no-role-name", full_name="No Role")
+    user.role_links = [db_models.UserRole(role=db_models.Role(role_name=None))]
+
+    assert user.role is None
+
+
+def test_run_user_table_migration_syncs_nama_pin_and_role(monkeypatch) -> None:
+    class _EmptySelectResult:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class _Conn:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, object] | None]] = []
+
+        def execute(self, statement, params=None):
+            sql = str(statement)
+            self.calls.append((sql, params))
+            if "SELECT id, password FROM users" in sql:
+                return _EmptySelectResult()
+            return None
+
+    class _Begin:
+        def __init__(self, conn: _Conn) -> None:
+            self._conn = conn
+
+        def __enter__(self):
+            return self._conn
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class _Engine:
+        def __init__(self) -> None:
+            self.connection = _Conn()
+
+        def begin(self):
+            return _Begin(self.connection)
+
+    class _Inspector:
+        @staticmethod
+        def get_table_names():
+            return ["users"]
+
+        @staticmethod
+        def get_columns(_table):
+            return [
+                {"name": "id"},
+                {"name": "full_name"},
+                {"name": "nama"},
+                {"name": "pin_hash"},
+                {"name": "pin_salt"},
+                {"name": "role"},
+            ]
+
+    fake_engine = _Engine()
+    monkeypatch.setattr(db_models, "engine", fake_engine)
+    monkeypatch.setattr(db_models, "inspect", lambda _engine: _Inspector())
+
+    db_models._run_user_table_migration()
+
+    executed_sql = "\n".join(sql for sql, _ in fake_engine.connection.calls)
+    assert "UPDATE users SET full_name = nama" in executed_sql
+    assert "INSERT INTO user_pins" in executed_sql
+    assert "INSERT INTO roles" in executed_sql
+    assert "INSERT INTO user_roles" in executed_sql
+
+
+def test_run_user_table_migration_updates_legacy_password_columns_when_present(monkeypatch) -> None:
+    class _SelectResult:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [{"id": 1, "password": "legacy"}]
+
+    class _Conn:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, object] | None]] = []
+
+        def execute(self, statement, params=None):
+            sql = str(statement)
+            self.calls.append((sql, params))
+            if "SELECT id, password FROM users" in sql:
+                return _SelectResult()
+            return None
+
+    class _Begin:
+        def __init__(self, conn: _Conn) -> None:
+            self._conn = conn
+
+        def __enter__(self):
+            return self._conn
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class _Engine:
+        def __init__(self) -> None:
+            self.connection = _Conn()
+
+        def begin(self):
+            return _Begin(self.connection)
+
+    class _Inspector:
+        @staticmethod
+        def get_table_names():
+            return ["users"]
+
+        @staticmethod
+        def get_columns(_table):
+            return [
+                {"name": "id"},
+                {"name": "password"},
+                {"name": "password_hash"},
+                {"name": "password_salt"},
+            ]
+
+    fake_engine = _Engine()
+    monkeypatch.setattr(db_models, "engine", fake_engine)
+    monkeypatch.setattr(db_models, "inspect", lambda _engine: _Inspector())
+    monkeypatch.setattr(db_models, "create_password_hash", lambda _pwd: ("salt", "hash"))
+
+    db_models._run_user_table_migration()
+
+    executed_sql = "\n".join(sql for sql, _ in fake_engine.connection.calls)
+    assert "SET password_hash = :password_hash, password_salt = :password_salt, password = NULL" in executed_sql
 
 
 def test_init_db_handles_password_auth_failed(monkeypatch) -> None:

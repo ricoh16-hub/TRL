@@ -1,4 +1,3 @@
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QLabel, 
@@ -9,7 +8,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.models import Session
-from database.crud import create_user, read_users, update_user, delete_user, set_user_pin
+from database.crud import create_user, read_users, update_user, delete_user
 
 
 class AddUserDialog(QDialog):

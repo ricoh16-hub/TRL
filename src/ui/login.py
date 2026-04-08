@@ -20,9 +20,9 @@ except ImportError:
 authenticate = cast(AuthenticateFn, _authenticate)
 
 try:
-    _verify_pin_import = import_module("auth.login").verify_pin
+    _verify_pin_import = import_module("ui.flow_auth").verify_pin_step
 except ImportError:
-    _verify_pin_import = import_module("src.auth.login").verify_pin
+    _verify_pin_import = import_module("src.ui.flow_auth").verify_pin_step
 
 _verify_pin = cast(VerifyPinFn, _verify_pin_import)
 
