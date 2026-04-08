@@ -100,9 +100,8 @@ def verify_pin_step(pin: str, ip_address: str | None = None) -> Optional[User]:
             locked_until_raw = getattr(pin_record, "locked_until", None)
             locked_until = locked_until_raw if isinstance(locked_until_raw, datetime) else None
             if locked_until is not None and locked_until > _utc_now():
-                _save_login_attempt(session, user_id=user_id, success=False, ip_address=ip_address)
-                session.commit()
-                return None
+                # Skip locked account and continue checking other PIN records.
+                continue
 
             pin_hash = _as_str(getattr(pin_record, "pin_hash", None))
             pin_salt = _as_str(getattr(pin_record, "pin_salt", None))
@@ -124,18 +123,6 @@ def verify_pin_step(pin: str, ip_address: str | None = None) -> Optional[User]:
 
                 getattr(user, "role", None)
                 return user
-
-            failed_attempts = _as_int(getattr(pin_record, "failed_attempts", 0)) or 0
-            next_failed_attempts = failed_attempts + 1
-            pin_record.failed_attempts = next_failed_attempts
-            if next_failed_attempts >= 5:
-                pin_record.locked_until = _utc_now() + timedelta(minutes=5)
-                _save_audit_log(session, user_id=user_id, action="pin_locked", description="PIN gagal >= 5x", ip_address=ip_address)
-
-            _save_login_attempt(session, user_id=user_id, success=False, ip_address=ip_address)
-            _save_audit_log(session, user_id=user_id, action="pin_failed", description="PIN tidak valid", ip_address=ip_address)
-            session.commit()
-            return None
 
         _save_login_attempt(session, user_id=None, success=False, ip_address=ip_address)
         _save_audit_log(session, user_id=None, action="pin_failed", description="PIN tidak cocok untuk user manapun", ip_address=ip_address)

@@ -448,7 +448,7 @@ def test_authenticate_primes_role_before_internal_session_closes(monkeypatch) ->
         @property
         def role(self):
             self.role_accessed = True
-            return "admin"
+            return "Administrator"
 
     user = RoleAwareUser()
     fake_session = FakeSession(user)

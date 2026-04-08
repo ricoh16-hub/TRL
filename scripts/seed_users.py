@@ -109,11 +109,10 @@ class AuditLogDict(TypedDict):
 
 
 ROLES: list[RoleDict] = [
-    {"id": 1, "role_name": "Super Admin", "description": "Akses penuh sistem"},
-    {"id": 2, "role_name": "Admin", "description": "Kelola user & data"},
-    {"id": 3, "role_name": "Manager", "description": "Monitoring & laporan"},
-    {"id": 4, "role_name": "Staff", "description": "Input data"},
-    {"id": 5, "role_name": "Viewer", "description": "Hanya melihat"},
+    {"id": 1, "role_name": "Superior", "description": "Akses penuh sistem"},
+    {"id": 2, "role_name": "Administrator", "description": "Kelola user & data"},
+    {"id": 3, "role_name": "Operator", "description": "Input operasional"},
+    {"id": 4, "role_name": "Auditor", "description": "Monitoring & audit"},
 ]
 
 PERMISSIONS: list[PermissionDict] = [
@@ -129,10 +128,9 @@ PERMISSIONS: list[PermissionDict] = [
 
 ROLE_PERMISSIONS: list[tuple[int, int]] = [
     (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8),
-    (2, 1), (2, 2), (2, 4), (2, 6), (2, 8),
-    (3, 5), (3, 6), (3, 8),
-    (4, 5), (4, 8),
-    (5, 6), (5, 8),
+    (2, 1), (2, 2), (2, 4), (2, 5), (2, 6), (2, 8),
+    (3, 5), (3, 8),
+    (4, 6), (4, 8),
 ]
 
 USERS: list[UserDict] = [
@@ -163,7 +161,7 @@ USERS: list[UserDict] = [
         "email": "budi@mail.com",
         "phone": "0813333333",
         "status": "active",
-        "role_id": 3,
+        "role_id": 2,
         "created_at": "2026-01-03T00:00:00",
     },
     {
@@ -173,7 +171,7 @@ USERS: list[UserDict] = [
         "email": "siti@mail.com",
         "phone": "0814444444",
         "status": "active",
-        "role_id": 4,
+        "role_id": 2,
         "created_at": "2026-01-04T00:00:00",
     },
     {
@@ -183,7 +181,7 @@ USERS: list[UserDict] = [
         "email": "joko@mail.com",
         "phone": "0815555555",
         "status": "inactive",
-        "role_id": 5,
+        "role_id": 4,
         "created_at": "2026-01-05T00:00:00",
     },
     {
@@ -406,6 +404,12 @@ def _insert_credentials(session: Session) -> None:
                 updated_at=_dt("2026-04-01T00:00:00"),
             )
         )
+
+        # Simpan plaintext untuk kebutuhan tampilan panel manajemen user.
+        user_obj = session.get(User, row["user_id"])
+        if user_obj is not None:
+            user_obj.password_plaintext = row["password_plain"]
+            user_obj.pin_plaintext = row["pin_plain"]
 
 
 def _insert_activity(session: Session) -> None:

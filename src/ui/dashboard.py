@@ -1,4 +1,6 @@
 from datetime import date
+import secrets
+import string
 from typing import Optional, TypedDict
 
 from PySide6.QtCore import Property, QEvent, QPropertyAnimation, QEasingCurve, Qt, Signal
@@ -27,14 +29,19 @@ from PySide6.QtWidgets import (
 )
 
 try:
-    from database.models import Session, User
+    from database.models import AuditLog, Session, User, UserRole
 except ImportError:
-    from src.database.models import Session, User  # type: ignore[no-redef]
+    from src.database.models import AuditLog, Session, User, UserRole  # type: ignore[no-redef]
 
 try:
-    from database.crud import delete_user, update_user
+    from database.crud import CANONICAL_ROLES, delete_user, normalize_role_name, set_user_pin, update_user
 except ImportError:
-    from src.database.crud import delete_user, update_user  # type: ignore[no-redef]
+    from src.database.crud import CANONICAL_ROLES, delete_user, normalize_role_name, set_user_pin, update_user  # type: ignore[no-redef]
+
+try:
+    from auth.passwords import verify_password, verify_pin_code
+except ImportError:
+    from src.auth.passwords import verify_password, verify_pin_code  # type: ignore[no-redef]
 
 _active_dashboard: Optional["DashboardForm"] = None
 
@@ -46,13 +53,21 @@ CARD_BG = "#FFFFFF"
 TEXT_DARK = "#22324A"
 TEXT_SOFT = "#70829A"
 
+TEMP_PASSWORD_LENGTH = 12
+
 
 class UserRow(TypedDict):
     id: int
     username: str
-    nama: str
+    full_name: str
+    email: str
+    phone: str
     role: str
     status: str
+    password_value: str
+    pin_value: str
+    created_at: str
+    updated_at: str
 
 
 def _apply_card_shadow(widget: QWidget) -> None:
@@ -377,6 +392,60 @@ class AnimatedActionButton(QPushButton):
         super().mouseReleaseEvent(event)
 
 
+class ChangePasswordDialog(QDialog):
+    """Dialog untuk mengganti password dan PIN user sendiri"""
+
+    def __init__(self, username: str, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Ganti Password")
+        self.setModal(True)
+        self.resize(420, 280)
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        title = QLabel(f"Ganti Password dan PIN\nUser: {username}")
+        title.setStyleSheet(f"color: {TEXT_DARK}; font-size: 14px; font-weight: 700;")
+        layout.addWidget(title)
+
+        self._old_password_input = QLineEdit()
+        self._old_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._old_password_input.setPlaceholderText("Masukkan password lama")
+
+        self._new_password_input = QLineEdit()
+        self._new_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._new_password_input.setPlaceholderText("Masukkan password baru")
+
+        self._old_pin_input = QLineEdit()
+        self._old_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._old_pin_input.setPlaceholderText("Masukkan PIN lama (6 digit)")
+        self._old_pin_input.setMaxLength(6)
+
+        self._new_pin_input = QLineEdit()
+        self._new_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._new_pin_input.setPlaceholderText("Masukkan PIN baru (6 digit)")
+        self._new_pin_input.setMaxLength(6)
+
+        form.addRow("Password Lama", self._old_password_input)
+        form.addRow("Password Baru", self._new_password_input)
+        form.addRow("PIN Lama", self._old_pin_input)
+        form.addRow("PIN Baru", self._new_pin_input)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def data(self) -> dict[str, str]:
+        return {
+            "old_password": self._old_password_input.text(),
+            "new_password": self._new_password_input.text(),
+            "old_pin": self._old_pin_input.text().strip(),
+            "new_pin": self._new_pin_input.text().strip(),
+        }
+
+
 class UserEditDialog(QDialog):
     def __init__(
         self,
@@ -384,12 +453,14 @@ class UserEditDialog(QDialog):
         nama: str,
         role: str,
         status: str,
+        current_password: str = "",
+        current_pin: str = "",
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Edit User")
         self.setModal(True)
-        self.resize(420, 220)
+        self.resize(460, 360)
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
@@ -398,17 +469,48 @@ class UserEditDialog(QDialog):
         self._nama_input = QLineEdit(nama)
 
         self._role_combo = QComboBox()
-        self._role_combo.addItems(["user", "admin"])
-        self._role_combo.setCurrentText(role.lower() if role.lower() in {"user", "admin"} else "user")
+        self._role_combo.addItems(list(CANONICAL_ROLES))
+        try:
+            normalized_role = normalize_role_name(role)
+        except ValueError:
+            normalized_role = "Operator"
+        self._role_combo.setCurrentText(normalized_role)
 
         self._status_combo = QComboBox()
         self._status_combo.addItems(["Aktif", "Nonaktif"])
-        self._status_combo.setCurrentText("Aktif" if status.lower() == "aktif" else "Nonaktif")
+        normalized_status = status.strip().lower()
+        self._status_combo.setCurrentText("Aktif" if normalized_status in {"aktif", "active"} else "Nonaktif")
+
+        self._old_password_input = QLineEdit()
+        self._old_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._old_password_input.setPlaceholderText("Isi jika ingin ganti password")
+        if current_password:
+            self._old_password_input.setText(current_password)
+
+        self._new_password_input = QLineEdit()
+        self._new_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._new_password_input.setPlaceholderText("Password baru")
+
+        self._old_pin_input = QLineEdit()
+        self._old_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._old_pin_input.setPlaceholderText("PIN lama (6 digit)")
+        self._old_pin_input.setMaxLength(6)
+        if current_pin:
+            self._old_pin_input.setText(current_pin)
+
+        self._new_pin_input = QLineEdit()
+        self._new_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._new_pin_input.setPlaceholderText("PIN baru (6 digit)")
+        self._new_pin_input.setMaxLength(6)
 
         form.addRow("Username", self._username_input)
         form.addRow("Nama", self._nama_input)
         form.addRow("Role", self._role_combo)
         form.addRow("Status", self._status_combo)
+        form.addRow("Password Lama", self._old_password_input)
+        form.addRow("Password Baru", self._new_password_input)
+        form.addRow("PIN Lama", self._old_pin_input)
+        form.addRow("PIN Baru", self._new_pin_input)
         layout.addLayout(form)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
@@ -422,16 +524,20 @@ class UserEditDialog(QDialog):
             "nama": self._nama_input.text().strip(),
             "role": self._role_combo.currentText().strip().lower(),
             "status": self._status_combo.currentText().strip().lower(),
+            "old_password": self._old_password_input.text(),
+            "new_password": self._new_password_input.text(),
+            "old_pin": self._old_pin_input.text().strip(),
+            "new_pin": self._new_pin_input.text().strip(),
         }
 
 
 class UserAddDialog(QDialog):
-    """Dialog untuk menambahkan user baru"""
+    """Dialog untuk menambahkan user baru (password dan PIN auto-generate)"""
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Tambah User")
         self.setModal(True)
-        self.resize(420, 300)
+        self.resize(420, 260)
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
@@ -442,22 +548,22 @@ class UserAddDialog(QDialog):
         self._nama_input = QLineEdit()
         self._nama_input.setPlaceholderText("Contoh: Riko Sinaga")
         
-        self._password_input = QLineEdit()
-        self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._password_input.setPlaceholderText("Password untuk login")
-        
         self._role_combo = QComboBox()
-        self._role_combo.addItems(["Admin", "Manager", "Staff"])
+        self._role_combo.addItems(list(CANONICAL_ROLES))
+        self._role_combo.setCurrentText("Operator")
         
         self._status_combo = QComboBox()
         self._status_combo.addItems(["Aktif", "Nonaktif"])
 
         form.addRow("Username", self._username_input)
         form.addRow("Nama", self._nama_input)
-        form.addRow("Password", self._password_input)
         form.addRow("Role", self._role_combo)
         form.addRow("Status", self._status_combo)
         layout.addLayout(form)
+        
+        info_label = QLabel("Password dan PIN akan otomatis di-generate.")
+        info_label.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 12px; font-style: italic;")
+        layout.addWidget(info_label)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Save).setText("Simpan")
@@ -470,7 +576,7 @@ class UserAddDialog(QDialog):
         return {
             "username": self._username_input.text().strip(),
             "nama": self._nama_input.text().strip(),
-            "password": self._password_input.text(),
+            "password": "",  # Will be auto-generated
             "role": self._role_combo.currentText().strip().lower(),
             "status": self._status_combo.currentText().strip().lower(),
         }
@@ -510,6 +616,10 @@ class DashboardForm(QMainWindow):
 
         self.setCentralWidget(root)
 
+    def _build_temp_password(self, length: int = TEMP_PASSWORD_LENGTH) -> str:
+        alphabet = string.ascii_letters + string.digits
+        return "".join(secrets.choice(alphabet) for _ in range(length))
+
     def _build_content_stack(self) -> QWidget:
         self._content_stack = QStackedWidget()
         self._dashboard_overview_page = self._build_content()
@@ -536,11 +646,19 @@ class DashboardForm(QMainWindow):
         title.setStyleSheet("color: white; font-size: 22px; font-weight: 800;")
 
         username = self._user.username if self._user is not None else "User"
-        role = getattr(self._user, "role", "user") if self._user is not None else "user"
+        raw_role = str(getattr(self._user, "role", "Operator") or "Operator") if self._user is not None else "Operator"
+        try:
+            role = normalize_role_name(raw_role)
+        except ValueError:
+            role = raw_role
         date_text = date.today().strftime("%d %B %Y")
-        user_info = QLabel(f"User: {username}  |  Level: {str(role).title()}\nTanggal: {date_text}")
+        user_info = QLabel(f"User: {username}  |  Level: {role}\nTanggal: {date_text}")
         user_info.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         user_info.setStyleSheet("color: white; font-size: 12px; font-weight: 600;")
+
+        change_password_btn = AnimatedActionButton("Ganti Password")
+        change_password_btn.setFixedSize(140, 40)
+        change_password_btn.clicked.connect(self._open_change_password_dialog)
 
         logout_btn = AnimatedActionButton("Logout")
         logout_btn.setFixedSize(108, 40)
@@ -551,6 +669,7 @@ class DashboardForm(QMainWindow):
         layout.addWidget(title)
         layout.addStretch(1)
         layout.addWidget(user_info)
+        layout.addWidget(change_password_btn)
         layout.addWidget(logout_btn)
         return header
 
@@ -651,26 +770,53 @@ class DashboardForm(QMainWindow):
         layout.addLayout(controls)
 
         self._users_table = QTableWidget()
-        self._users_table.setColumnCount(6)
-        self._users_table.setHorizontalHeaderLabels(["No", "Username", "Nama", "Role", "Status", "Aksi"])
+        self._users_table.setColumnCount(12)
+        self._users_table.setHorizontalHeaderLabels(
+            [
+                "ID",
+                "Username",
+                "Nama",
+                "Email",
+                "Telepon",
+                "Role",
+                "Status",
+                "Password",
+                "PIN",
+                "Dibuat",
+                "Diupdate",
+                "Aksi",
+            ]
+        )
         self._users_table.verticalHeader().setVisible(False)
+        self._users_table.verticalHeader().setDefaultSectionSize(38)
         self._users_table.setAlternatingRowColors(True)
         self._users_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._users_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._users_table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        self._users_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._users_table.setWordWrap(False)
+        self._users_table.setTextElideMode(Qt.TextElideMode.ElideRight)
         self._users_table.setStyleSheet(
-            "QTableWidget { background: white; border: 1px solid #DCE5EF; border-radius: 10px; gridline-color: #E7EDF4; font-size: 14px; }"
-            "QHeaderView::section { background: #F2F6FB; color: #2D405C; font-size: 14px; font-weight: 700; border: none; border-right: 1px solid #E7EDF4; padding: 10px; }"
-            "QTableWidget::item { padding: 8px; color: #2D405C; }"
+            "QTableWidget { background: white; border: 1px solid #DCE5EF; border-radius: 10px; gridline-color: #E7EDF4; font-size: 15px; }"
+            "QHeaderView::section { background: #F2F6FB; color: #2D405C; font-size: 15px; font-weight: 700; border: none; border-right: 1px solid #E7EDF4; padding: 10px; }"
+            "QTableWidget::item { padding: 9px; color: #2D405C; }"
             "QTableWidget::item:selected { background: #E7F1FF; color: #1F3F66; }"
         )
 
         header = self._users_table.horizontalHeader()
+        header.setMinimumSectionSize(88)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(10, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(11, QHeaderView.ResizeMode.ResizeToContents)
 
         layout.addWidget(self._users_table, 1)
         return page
@@ -679,12 +825,30 @@ class DashboardForm(QMainWindow):
         if self._users_table is None or self._role_filter is None:
             return
 
+        def _fmt_dt(value: object) -> str:
+            if value is None:
+                return "-"
+            text = str(value).replace("T", " ")
+            formatted = text.split("+", 1)[0]
+            if len(formatted) >= 16:
+                return formatted[:16]
+            return formatted
+
         session = Session()
         try:
             # CRITICAL: Pre-load role_links before closing session to prevent DetachedInstanceError
             # when accessing user.role property later
             from sqlalchemy.orm import selectinload
-            users = session.query(User).options(selectinload(User.role_links)).order_by(User.id.asc()).all()
+            users = (
+                session.query(User)
+                .options(
+                    selectinload(User.role_links).selectinload(UserRole.role),
+                    selectinload(User.password_record),
+                    selectinload(User.pin_record),
+                )
+                .order_by(User.id.asc())
+                .all()
+            )
             # Prime all role values while session is still open
             for user in users:
                 getattr(user, "role", None)  # Force evaluation of role property before detach
@@ -697,25 +861,50 @@ class DashboardForm(QMainWindow):
         for user in users:
             user_id = int(getattr(user, "id", 0) or 0)
             username = str(getattr(user, "username", "") or "")
-            nama = str(getattr(user, "nama", "") or "").strip()
-            role = str(getattr(user, "role", "user") or "user").strip()
+            full_name = str(getattr(user, "full_name", "") or "").strip()
+            email = str(getattr(user, "email", "") or "").strip()
+            phone = str(getattr(user, "phone", "") or "").strip()
+            raw_role = str(getattr(user, "role", "Operator") or "Operator").strip()
+            try:
+                normalized_role = normalize_role_name(raw_role)
+            except ValueError:
+                normalized_role = raw_role
             status = str(getattr(user, "status", "aktif") or "aktif").strip().lower()
+            created_at = _fmt_dt(getattr(user, "created_at", None))
+            updated_at = _fmt_dt(getattr(user, "updated_at", None))
+            password_record = getattr(user, "password_record", None)
+            pin_record = getattr(user, "pin_record", None)
+            password_plaintext = str(getattr(user, "password_plaintext", None) or "").strip()
+            pin_plaintext = str(getattr(user, "pin_plaintext", None) or "").strip()
             row: UserRow = {
                 "id": user_id,
                 "username": username,
-                "nama": nama or username.replace("_", " ").title(),
-                "role": role.capitalize(),
-                "status": "Aktif" if status == "aktif" else "Nonaktif",
+                "full_name": full_name or username.replace("_", " ").title(),
+                "email": email or "-",
+                "phone": phone or "-",
+                "role": normalized_role,
+                "status": "Aktif" if status in {"aktif", "active"} else "Nonaktif",
+                "password_value": password_plaintext if password_plaintext else ("✓ CONFIGURED" if getattr(password_record, "password_hash", None) else "-"),
+                "pin_value": pin_plaintext if pin_plaintext else ("✓ CONFIGURED" if getattr(pin_record, "pin_hash", None) else "-"),
+                "created_at": created_at,
+                "updated_at": updated_at,
             }
             self._all_users_rows.append(row)
-            role_values.add(role.capitalize())
+            role_values.add(normalized_role)
 
         self._role_filter.blockSignals(True)
         self._role_filter.clear()
         self._role_filter.addItem("All")
         for value in sorted(role_values):
             self._role_filter.addItem(value)
+        self._role_filter.setCurrentText("All")
         self._role_filter.blockSignals(False)
+
+        # Always show full table content when this page is opened/reloaded.
+        if self._search_username is not None:
+            self._search_username.blockSignals(True)
+            self._search_username.clear()
+            self._search_username.blockSignals(False)
 
         self._apply_user_filters()
 
@@ -734,18 +923,25 @@ class DashboardForm(QMainWindow):
         ]
 
         self._users_table.setRowCount(len(filtered_rows))
-        for row_index, row in enumerate(filtered_rows, start=1):
-            self._users_table.setItem(row_index - 1, 0, QTableWidgetItem(str(row_index)))
-            self._users_table.setItem(row_index - 1, 1, QTableWidgetItem(str(row["username"])))
-            self._users_table.setItem(row_index - 1, 2, QTableWidgetItem(str(row["nama"])))
-            self._users_table.setItem(row_index - 1, 3, QTableWidgetItem(str(row["role"])))
+        for row_index, row in enumerate(filtered_rows):
+            self._users_table.setItem(row_index, 0, QTableWidgetItem(str(row["id"])))
+            self._users_table.setItem(row_index, 1, QTableWidgetItem(str(row["username"])))
+            self._users_table.setItem(row_index, 2, QTableWidgetItem(str(row["full_name"])))
+            self._users_table.setItem(row_index, 3, QTableWidgetItem(str(row["email"])))
+            self._users_table.setItem(row_index, 4, QTableWidgetItem(str(row["phone"])))
+            self._users_table.setItem(row_index, 5, QTableWidgetItem(str(row["role"])))
             status_value = str(row["status"])
             status_item = QTableWidgetItem(status_value)
+            status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if status_value.lower() == "aktif":
                 status_item.setForeground(QColor("#2E7D32"))
             else:
                 status_item.setForeground(QColor("#A63D40"))
-            self._users_table.setItem(row_index - 1, 4, status_item)
+            self._users_table.setItem(row_index, 6, status_item)
+            self._users_table.setItem(row_index, 7, QTableWidgetItem(str(row["password_value"])))
+            self._users_table.setItem(row_index, 8, QTableWidgetItem(str(row["pin_value"])))
+            self._users_table.setItem(row_index, 9, QTableWidgetItem(str(row["created_at"])))
+            self._users_table.setItem(row_index, 10, QTableWidgetItem(str(row["updated_at"])))
 
             actions = QWidget()
             actions_layout = QHBoxLayout(actions)
@@ -758,8 +954,18 @@ class DashboardForm(QMainWindow):
                 "QPushButton { background: #E8F1FF; color: #2559A6; border: 1px solid #C8DBF8; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 700; }"
             )
             row_id = row["id"]
+            row_role = str(row["role"])
+            row_status = str(row["status"])
+            row_password = str(row["password_value"])
+            row_pin = str(row["pin_value"])
             edit_btn.clicked.connect(
-                lambda _checked=False, user_id=row_id: self._edit_user(user_id)
+                lambda _checked=False, user_id=row_id, role_value=row_role, status_value=row_status, password_value=row_password, pin_value=row_pin: self._edit_user(
+                    user_id,
+                    role_value,
+                    status_value,
+                    password_value,
+                    pin_value,
+                )
             )
 
             delete_btn = QPushButton("Hapus")
@@ -774,9 +980,16 @@ class DashboardForm(QMainWindow):
 
             actions_layout.addWidget(edit_btn)
             actions_layout.addWidget(delete_btn)
-            self._users_table.setCellWidget(row_index - 1, 5, actions)
+            self._users_table.setCellWidget(row_index, 11, actions)
 
-    def _edit_user(self, user_id: int) -> None:
+    def _edit_user(
+        self,
+        user_id: int,
+        fallback_role: str = "Operator",
+        fallback_status: str = "Aktif",
+        fallback_password: str = "",
+        fallback_pin: str = "",
+    ) -> None:
         session = Session()
         try:
             user = session.get(User, user_id)
@@ -784,11 +997,29 @@ class DashboardForm(QMainWindow):
                 QMessageBox.warning(self, "Data Tidak Ditemukan", "User tidak ditemukan.")
                 return
 
+            raw_role = str(getattr(user, "role", "") or "").strip()
+            role_value = raw_role if raw_role else fallback_role
+
+            raw_status = str(getattr(user, "status", "") or "").strip()
+            status_value = raw_status if raw_status else fallback_status
+
+            raw_password = str(getattr(user, "password_plaintext", "") or "").strip()
+            password_value = raw_password if raw_password else fallback_password
+            if password_value in {"-", "✓ CONFIGURED"}:
+                password_value = ""
+
+            raw_pin = str(getattr(user, "pin_plaintext", "") or "").strip()
+            pin_value = raw_pin if raw_pin else fallback_pin
+            if pin_value in {"-", "✓ CONFIGURED"}:
+                pin_value = ""
+
             dialog = UserEditDialog(
                 username=str(getattr(user, "username", "") or ""),
                 nama=str(getattr(user, "nama", "") or ""),
-                role=str(getattr(user, "role", "user") or "user"),
-                status=str(getattr(user, "status", "aktif") or "aktif"),
+                role=role_value,
+                status=status_value,
+                current_password=password_value,
+                current_pin=pin_value,
                 parent=self,
             )
             if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -799,6 +1030,41 @@ class DashboardForm(QMainWindow):
                 QMessageBox.warning(self, "Validasi", "Username tidak boleh kosong.")
                 return
 
+            old_password = str(payload.get("old_password", "") or "")
+            new_password = str(payload.get("new_password", "") or "")
+            old_pin = str(payload.get("old_pin", "") or "")
+            new_pin = str(payload.get("new_pin", "") or "")
+
+            if new_password and not old_password:
+                QMessageBox.warning(self, "Validasi", "Isi Password Lama untuk mengganti password.")
+                return
+
+            if new_pin and not old_pin:
+                QMessageBox.warning(self, "Validasi", "Isi PIN Lama untuk mengganti PIN.")
+                return
+
+            if new_password:
+                password_record = getattr(user, "password_record", None)
+                stored_salt = str(getattr(password_record, "password_salt", "") or "")
+                stored_hash = str(getattr(password_record, "password_hash", "") or "")
+                if not stored_salt or not stored_hash:
+                    QMessageBox.warning(self, "Validasi", "Password lama belum tersedia untuk user ini.")
+                    return
+                if not verify_password(old_password, stored_salt, stored_hash):
+                    QMessageBox.warning(self, "Validasi", "Password lama tidak sesuai.")
+                    return
+
+            if new_pin:
+                pin_record = getattr(user, "pin_record", None)
+                stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
+                stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
+                if not stored_pin_salt or not stored_pin_hash:
+                    QMessageBox.warning(self, "Validasi", "PIN lama belum tersedia untuk user ini.")
+                    return
+                if not verify_pin_code(old_pin, stored_pin_salt, stored_pin_hash):
+                    QMessageBox.warning(self, "Validasi", "PIN lama tidak sesuai.")
+                    return
+
             update_user(
                 session,
                 user_id,
@@ -806,7 +1072,11 @@ class DashboardForm(QMainWindow):
                 nama=payload["nama"],
                 role=payload["role"],
                 status=payload["status"],
+                password=new_password,
             )
+
+            if new_pin:
+                set_user_pin(session, user_id, new_pin)
         except ValueError as error:
             QMessageBox.warning(self, "Validasi", str(error))
             return
@@ -837,6 +1107,116 @@ class DashboardForm(QMainWindow):
 
         self._load_users_table()
 
+    def _open_change_password_dialog(self) -> None:
+        """Buka dialog untuk user mengganti password dan PIN mereka sendiri"""
+        if self._user is None:
+            QMessageBox.warning(self, "Error", "User tidak ditemukan.")
+            return
+
+        dialog = ChangePasswordDialog(
+            username=str(getattr(self._user, "username", "") or "User"),
+            parent=self
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        payload = dialog.data()
+        old_password = str(payload.get("old_password", "") or "")
+        new_password = str(payload.get("new_password", "") or "")
+        old_pin = str(payload.get("old_pin", "") or "")
+        new_pin = str(payload.get("new_pin", "") or "")
+
+        # Validasi: both old dan new harus diisi jika ingin mengganti
+        if new_password and not old_password:
+            QMessageBox.warning(self, "Validasi", "Isi Password Lama untuk mengganti password.")
+            return
+
+        if new_pin and not old_pin:
+            QMessageBox.warning(self, "Validasi", "Isi PIN Lama untuk mengganti PIN.")
+            return
+
+        if old_password and not new_password:
+            QMessageBox.warning(self, "Validasi", "Isi Password Baru jika mengisi Password Lama.")
+            return
+
+        if old_pin and not new_pin:
+            QMessageBox.warning(self, "Validasi", "Isi PIN Baru jika mengisi PIN Lama.")
+            return
+
+        # Validasi: minimal ada satu yang akan diubah
+        if not (old_password or old_pin):
+            QMessageBox.warning(self, "Validasi", "Minimal ganti password atau PIN.")
+            return
+
+        user_id = int(getattr(self._user, "id", 0) or 0)
+        session = Session()
+        try:
+            # Reload user untuk pastikan data fresh
+            user = session.get(User, user_id)
+            if user is None:
+                QMessageBox.warning(self, "Error", "User tidak ditemukan di database.")
+                return
+
+            # Verifikasi password lama
+            if old_password:
+                password_record = getattr(user, "password_record", None)
+                stored_salt = str(getattr(password_record, "password_salt", "") or "")
+                stored_hash = str(getattr(password_record, "password_hash", "") or "")
+                if not stored_salt or not stored_hash:
+                    QMessageBox.warning(self, "Validasi", "Password lama belum tersedia.")
+                    return
+                if not verify_password(old_password, stored_salt, stored_hash):
+                    QMessageBox.warning(self, "Validasi", "Password lama tidak sesuai.")
+                    return
+
+            # Verifikasi PIN lama
+            if old_pin:
+                pin_record = getattr(user, "pin_record", None)
+                stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
+                stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
+                if not stored_pin_salt or not stored_pin_hash:
+                    QMessageBox.warning(self, "Validasi", "PIN lama belum tersedia.")
+                    return
+                if not verify_pin_code(old_pin, stored_pin_salt, stored_pin_hash):
+                    QMessageBox.warning(self, "Validasi", "PIN lama tidak sesuai.")
+                    return
+
+            # Update password
+            if new_password:
+                update_user(session, user_id, password=new_password)
+
+            # Update PIN
+            if new_pin:
+                set_user_pin(session, user_id, new_pin)
+
+            # Audit log
+            session.add(
+                AuditLog(
+                    user_id=user_id,
+                    action="self_change_password",
+                    action_type="security",
+                    description="mengubah password dan/atau PIN sendiri",
+                    ip_address=None,
+                )
+            )
+            session.commit()
+            
+            QMessageBox.information(
+                self,
+                "Berhasil",
+                "Password dan/atau PIN berhasil diubah.\nAnda akan logout, silakan login kembali.",
+            )
+            # Logout setelah password berubah untuk keamanan
+            self.close()
+        except ValueError as error:
+            QMessageBox.warning(self, "Validasi", str(error))
+            session.rollback()
+        except Exception as error:
+            QMessageBox.critical(self, "Error", f"Gagal mengubah password/PIN: {error}")
+            session.rollback()
+        finally:
+            session.close()
+
     def _open_add_user_dialog(self) -> None:
         """Buka dialog untuk menambah user baru"""
         dialog = UserAddDialog(self)
@@ -854,31 +1234,39 @@ class DashboardForm(QMainWindow):
             QMessageBox.warning(self, "Validasi", "Nama tidak boleh kosong.")
             return
         
-        if not data["password"]:
-            QMessageBox.warning(self, "Validasi", "Password tidak boleh kosong.")
-            return
-        
         self._add_user(data)
 
     def _add_user(self, data: dict[str, str]) -> None:
-        """Tambahkan user baru ke database"""
+        """Tambahkan user baru ke database dengan password dan PIN otomatis"""
+        # Generate password dan PIN
+        generated_password = self._build_temp_password()
+        generated_pin = "".join(secrets.choice(string.digits) for _ in range(6))
+        
         session = Session()
         try:
             from database.crud import create_user
             
-            create_user(
+            user = create_user(
                 session,
                 username=data["username"],
                 nama=data["nama"],
-                password=data["password"],
+                password=generated_password,
                 role=data["role"],
                 status=data["status"],
             )
+            
+            # Set PIN untuk user baru
+            created_user_id = int(getattr(user, "id", 0) or 0)
+            set_user_pin(session, created_user_id, generated_pin)
+            
             self._load_users_table()
             QMessageBox.information(
                 self,
-                "Berhasil",
-                f"User '{data['username']}' berhasil ditambahkan."
+                "User Baru Berhasil Dibuat",
+                f"User '{data['username']}' berhasil ditambahkan.\n\n"
+                f"Password: {generated_password}\n"
+                f"PIN: {generated_pin}\n\n"
+                f"Catat kredensial ini sekarang (hanya ditampilkan sekali)."
             )
         except ValueError as error:
             QMessageBox.warning(self, "Validasi", str(error))

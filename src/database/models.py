@@ -49,6 +49,8 @@ class User(Base):
     email = Column(String, unique=True, nullable=True)
     phone = Column(String, nullable=True)
     status = Column(String, nullable=False, server_default='aktif')
+    password_plaintext = Column(String, nullable=True)  # Temporary plaintext storage (for display only)
+    pin_plaintext = Column(String, nullable=True)  # Temporary plaintext storage (for display only)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)

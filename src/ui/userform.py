@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.models import Session
-from database.crud import create_user, read_users, update_user, delete_user
+from database.crud import CANONICAL_ROLES, create_user, delete_user, normalize_role_name, read_users, update_user
 
 
 class AddUserDialog(QDialog):
@@ -50,7 +50,8 @@ class AddUserDialog(QDialog):
         
         # Role (ComboBox)
         self.role_combo = QComboBox()
-        self.role_combo.addItems(["Admin", "Manager", "Staff"])
+        self.role_combo.addItems(list(CANONICAL_ROLES))
+        self.role_combo.setCurrentText("Operator")
         layout.addRow("Role:", self.role_combo)
         
         # Status (ComboBox)
@@ -76,7 +77,12 @@ class AddUserDialog(QDialog):
             self.username_input.setReadOnly(True)  # Username tidak bisa diubah
             self.nama_input.setText(self.user_data.get("nama", ""))
             self.pin_input.setText("")  # PIN tidak ditampilkan saat edit
-            self.role_combo.setCurrentText(self.user_data.get("role", "Staff"))
+            role_value = str(self.user_data.get("role", "Operator") or "Operator")
+            try:
+                role_value = normalize_role_name(role_value)
+            except ValueError:
+                role_value = "Operator"
+            self.role_combo.setCurrentText(role_value)
             status_text = "Aktif" if self.user_data.get("status", "aktif").lower() == "aktif" else "Nonaktif"
             self.status_combo.setCurrentText(status_text)
     
@@ -207,7 +213,7 @@ class UserForm(QWidget):
                 "id": user.id,
                 "username": user.username,
                 "nama": user.nama or "",
-                "role": user.role or "Staff",
+                "role": normalize_role_name(user.role or "Operator"),
                 "status": user.status or "aktif",
             }
             
@@ -235,7 +241,7 @@ class UserForm(QWidget):
                 username=data["username"],
                 nama=data.get("nama", ""),
                 password=data["password"],
-                role=data.get("role", "Staff"),
+                role=data.get("role", "Operator"),
                 pin=data.get("pin", ""),
                 status=data.get("status", "aktif"),
             )
@@ -258,7 +264,7 @@ class UserForm(QWidget):
                 session,
                 user_id,
                 nama=data.get("nama", ""),
-                role=data.get("role", "Staff"),
+                role=data.get("role", "Operator"),
                 status=data.get("status", "aktif"),
             )
             self.refresh_table()

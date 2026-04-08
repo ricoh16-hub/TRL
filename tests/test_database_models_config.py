@@ -467,22 +467,22 @@ def test_user_properties_map_full_name_and_role_links() -> None:
     assert user.full_name == "Alice Smith"
     assert user.role is None
 
-    role = db_models.Role(role_name="admin")
+    role = db_models.Role(role_name="Administrator")
     user.role_links = [db_models.UserRole(role=role)]
 
-    assert user.role == "admin"
+    assert user.role == "Administrator"
 
 
 def test_user_role_property_skips_empty_role_entries() -> None:
     user = db_models.User(username="bob", full_name="Bob")
-    user.role_links = [db_models.UserRole(role=None), db_models.UserRole(role=db_models.Role(role_name="manager"))]
+    user.role_links = [db_models.UserRole(role=None), db_models.UserRole(role=db_models.Role(role_name="Operator"))]
 
-    assert user.role == "manager"
+    assert user.role == "Operator"
 
 
 def test_user_role_property_uses_cached_value_when_detached() -> None:
     user = db_models.User(username="cached-user", full_name="Cached User")
-    user._cached_role = "admin"
+    user._cached_role = "Administrator"
 
     class _DetachedDescriptor:
         def __get__(self, _instance, _owner):
@@ -491,7 +491,7 @@ def test_user_role_property_uses_cached_value_when_detached() -> None:
     original_descriptor = db_models.User.role_links
     db_models.User.role_links = _DetachedDescriptor()
     try:
-        assert user.role == "admin"
+        assert user.role == "Administrator"
     finally:
         db_models.User.role_links = original_descriptor
 

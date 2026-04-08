@@ -8,6 +8,26 @@ try:
 except ImportError:
     from src.database.models import Role, User, UserPassword, UserPin, UserRole
 
+CANONICAL_ROLES: tuple[str, ...] = (
+    "Superior",
+    "Administrator",
+    "Operator",
+    "Auditor",
+)
+
+ROLE_MAPPING: dict[str, str] = {
+    "super admin": "Superior",
+    "superadmin": "Superior",
+    "superior": "Superior",
+    "admin": "Administrator",
+    "administrator": "Administrator",
+    "manager": "Administrator",
+    "staff": "Administrator",
+    "operator": "Operator",
+    "viewer": "Auditor",
+    "auditor": "Auditor",
+}
+
 try:
     from auth.passwords import create_password_hash, create_pin_hash, verify_pin_code
 except ImportError:
@@ -19,6 +39,15 @@ def _validate_pin_format(pin: str) -> str:
     if not normalized_pin.isdigit() or len(normalized_pin) != 6:
         raise ValueError('PIN harus tepat 6 digit angka.')
     return normalized_pin
+
+
+def normalize_role_name(role_name: str) -> str:
+    normalized_key = " ".join(role_name.strip().lower().split())
+    mapped_role = ROLE_MAPPING.get(normalized_key)
+    if mapped_role is None:
+        supported = ", ".join(CANONICAL_ROLES)
+        raise ValueError(f"Role tidak valid. Gunakan salah satu: {supported}.")
+    return mapped_role
 
 
 def _normalize_status(status: str) -> str:
@@ -40,8 +69,8 @@ def _ensure_pin_unique(session: Session, pin: str, exclude_user_id: int | None =
         if exclude_user_id is not None and existing_user.id == exclude_user_id:
             continue
 
-        pin_hash = existing_user.pin_hash
-        pin_salt = existing_user.pin_salt
+        pin_hash = str(getattr(existing_user, 'pin_hash', '') or '')
+        pin_salt = str(getattr(existing_user, 'pin_salt', '') or '')
 
         pin_record = pin_records.get(existing_user.id)
         if pin_record is not None:
@@ -53,10 +82,10 @@ def _ensure_pin_unique(session: Session, pin: str, exclude_user_id: int | None =
 
 
 def _get_or_create_role(session: Session, role_name: str) -> Role:
-    role_name = role_name.strip() or 'user'
-    role = session.query(Role).filter_by(role_name=role_name).first()
+    normalized_role_name = normalize_role_name(role_name)
+    role = session.query(Role).filter_by(role_name=normalized_role_name).first()
     if role is None:
-        role = Role(role_name=role_name)
+        role = Role(role_name=normalized_role_name)
         session.add(role)
         session.flush()
     return role
@@ -113,41 +142,46 @@ def create_user(
     session: Session,
     username: str,
     password: str,
-    role: str = 'user',
+    role: str = 'Operator',
     pin: str = '',
     nama: str = '',
     status: str = 'aktif',
 ) -> User:
     username = username.strip()
     nama = nama.strip()
-    role = role.strip() or 'user'
+    normalized_role = normalize_role_name(role)
     normalized_status = _normalize_status(status)
     if not username:
         raise ValueError('Username tidak boleh kosong.')
 
     salt, password_hash = create_password_hash(password)
+    password_plaintext = password
     user = User(
         username=username,
         full_name=nama or None,
+        password_plaintext=password_plaintext,
         status=normalized_status,
         updated_at=datetime.now(timezone.utc),
     )
 
     pin_payload: tuple[str, str] | None = None
+    normalized_pin_value: str | None = None
 
     if pin.strip():
         normalized_pin = _validate_pin_format(pin)
         _ensure_pin_unique(session, normalized_pin)
         pin_salt, pin_hash = create_pin_hash(normalized_pin)
         pin_payload = (pin_hash, pin_salt)
+        normalized_pin_value = normalized_pin
 
     session.add(user)
     session.flush()
 
     _upsert_password_record(session, user, password_hash, salt)
-    _sync_user_role(session, user, role)
+    _sync_user_role(session, user, normalized_role)
     if pin_payload is not None:
         _upsert_pin_record(session, user, pin_payload[0], pin_payload[1])
+        user.pin_plaintext = normalized_pin_value
 
     session.commit()
     return user
@@ -173,6 +207,7 @@ def update_user(session: Session, user_id: int, **kwargs: Any) -> User:
             if value:
                 salt, password_hash = create_password_hash(value)
                 _upsert_password_record(session, user, password_hash, salt)
+                user.password_plaintext = str(value)
             continue
 
         if key == 'username' and isinstance(value, str):
@@ -181,8 +216,9 @@ def update_user(session: Session, user_id: int, **kwargs: Any) -> User:
                 raise ValueError('Username tidak boleh kosong.')
 
         if key == 'role' and isinstance(value, str):
-            value = value.strip() or 'user'
-            _sync_user_role(session, user, value)
+            normalized_role = normalize_role_name(value)
+            _sync_user_role(session, user, normalized_role)
+            continue
 
         if key == 'nama' and isinstance(value, str):
             value = value.strip() or None
@@ -218,6 +254,7 @@ def set_user_pin(session: Session, user_id: int, pin: str) -> User:
     _ensure_pin_unique(session, normalized_pin, exclude_user_id=user_id)
     pin_salt, pin_hash = create_pin_hash(normalized_pin)
     _upsert_pin_record(session, user, pin_hash, pin_salt)
+    user.pin_plaintext = normalized_pin
     user.updated_at = datetime.now(timezone.utc)
     session.commit()
     return user
