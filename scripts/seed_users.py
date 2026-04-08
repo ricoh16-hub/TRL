@@ -186,6 +186,16 @@ USERS: list[UserDict] = [
         "role_id": 5,
         "created_at": "2026-01-05T00:00:00",
     },
+    {
+        "id": 6,
+        "full_name": "Test User",
+        "username": "test",
+        "email": "test@mail.com",
+        "phone": "0816666666",
+        "status": "active",
+        "role_id": 1,
+        "created_at": "2026-04-08T00:00:00",
+    },
 ]
 
 # Tetap 6 digit angka sesuai syarat.
@@ -224,6 +234,13 @@ USER_CREDENTIALS: list[CredentialDict] = [
         "password_plain": "joko123",
         "pin_plain": "567567",
         "failed_attempts": 5,
+    },
+    {
+        "id": 6,
+        "user_id": 6,
+        "password_plain": "test123",
+        "pin_plain": "123456",
+        "failed_attempts": 0,
     },
 ]
 
