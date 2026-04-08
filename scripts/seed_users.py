@@ -15,6 +15,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -26,7 +27,7 @@ from src.database.models import (
     Permission,
     Role,
     RolePermission,
-    Session,
+    Session as SessionMaker,
     User,
     UserPassword,
     UserPin,
@@ -35,7 +36,7 @@ from src.database.models import (
 )
 
 
-ROLES = [
+ROLES: list[dict[str, str | int]] = [
     {"id": 1, "role_name": "Super Admin", "description": "Akses penuh sistem"},
     {"id": 2, "role_name": "Admin", "description": "Kelola user & data"},
     {"id": 3, "role_name": "Manager", "description": "Monitoring & laporan"},
@@ -43,7 +44,7 @@ ROLES = [
     {"id": 5, "role_name": "Viewer", "description": "Hanya melihat"},
 ]
 
-PERMISSIONS = [
+PERMISSIONS: list[dict[str, str | int]] = [
     {"id": 1, "permission_name": "create_user"},
     {"id": 2, "permission_name": "edit_user"},
     {"id": 3, "permission_name": "delete_user"},
@@ -54,7 +55,7 @@ PERMISSIONS = [
     {"id": 8, "permission_name": "access_dashboard"},
 ]
 
-ROLE_PERMISSIONS = [
+ROLE_PERMISSIONS: list[tuple[int, int]] = [
     (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8),
     (2, 1), (2, 2), (2, 4), (2, 6), (2, 8),
     (3, 5), (3, 6), (3, 8),
@@ -62,7 +63,7 @@ ROLE_PERMISSIONS = [
     (5, 6), (5, 8),
 ]
 
-USERS = [
+USERS: list[dict[str, str | int]] = [
     {
         "id": 1,
         "full_name": "Riko Sinaga",
@@ -116,7 +117,7 @@ USERS = [
 ]
 
 # Tetap 6 digit angka sesuai syarat.
-USER_CREDENTIALS = [
+USER_CREDENTIALS: list[dict[str, str | int]] = [
     {
         "id": 1,
         "user_id": 1,
@@ -154,7 +155,7 @@ USER_CREDENTIALS = [
     },
 ]
 
-LOGIN_ATTEMPTS = [
+LOGIN_ATTEMPTS: list[dict[str, str | int | bool]] = [
     {"id": 1, "user_id": 1, "ip_address": "192.168.1.1", "success": True, "attempt_time": "2026-04-01T08:00:00"},
     {"id": 2, "user_id": 2, "ip_address": "192.168.1.2", "success": False, "attempt_time": "2026-04-01T08:55:00"},
     {"id": 3, "user_id": 2, "ip_address": "192.168.1.2", "success": True, "attempt_time": "2026-04-01T09:00:00"},
@@ -162,13 +163,13 @@ LOGIN_ATTEMPTS = [
     {"id": 5, "user_id": 5, "ip_address": "192.168.1.5", "success": False, "attempt_time": "2026-03-30T06:55:00"},
 ]
 
-USER_SESSIONS = [
+USER_SESSIONS: list[dict[str, str | int]] = [
     {"id": 1, "user_id": 1, "access_token": "token123", "ip_address": "192.168.1.1", "user_agent": "Chrome", "expired_at": "2026-04-01T12:00:00"},
     {"id": 2, "user_id": 2, "access_token": "token234", "ip_address": "192.168.1.2", "user_agent": "Firefox", "expired_at": "2026-04-01T13:00:00"},
     {"id": 3, "user_id": 3, "access_token": "token345", "ip_address": "192.168.1.3", "user_agent": "Edge", "expired_at": "2026-04-01T14:00:00"},
 ]
 
-AUDIT_LOGS = [
+AUDIT_LOGS: list[dict[str, str | int]] = [
     {
         "id": 1,
         "user_id": 1,
@@ -358,7 +359,7 @@ def _insert_activity(session: Session) -> None:
 
 
 def main() -> None:
-    session = Session()
+    session = SessionMaker()
     try:
         _clear_tables(session)
         _insert_roles_permissions(session)
