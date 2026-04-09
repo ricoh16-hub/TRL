@@ -482,7 +482,7 @@ class UserEditDialog(QDialog):
         self._status_combo.setCurrentText("Aktif" if normalized_status in {"aktif", "active"} else "Nonaktif")
 
         self._old_password_input = QLineEdit()
-        self._old_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._old_password_input.setEchoMode(QLineEdit.EchoMode.Normal)
         self._old_password_input.setPlaceholderText("Isi jika ingin ganti password")
         if current_password:
             self._old_password_input.setText(current_password)
@@ -492,7 +492,7 @@ class UserEditDialog(QDialog):
         self._new_password_input.setPlaceholderText("Password baru")
 
         self._old_pin_input = QLineEdit()
-        self._old_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._old_pin_input.setEchoMode(QLineEdit.EchoMode.Normal)
         self._old_pin_input.setPlaceholderText("PIN lama (6 digit)")
         self._old_pin_input.setMaxLength(6)
         if current_pin:
@@ -508,8 +508,8 @@ class UserEditDialog(QDialog):
         form.addRow("Role", self._role_combo)
         form.addRow("Status", self._status_combo)
         form.addRow("Password Lama", self._old_password_input)
-        form.addRow("Password Baru", self._new_password_input)
         form.addRow("PIN Lama", self._old_pin_input)
+        form.addRow("Password Baru", self._new_password_input)
         form.addRow("PIN Baru", self._new_pin_input)
         layout.addLayout(form)
 

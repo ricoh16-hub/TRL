@@ -86,7 +86,14 @@ def main():
         dashboard.activateWindow()
         app.exec()
     except RuntimeError as error:
-        print(f"[ERROR] {error}")
+        print(f"[ERROR] RuntimeError: {error}")
+        import traceback
+        traceback.print_exc()
+        raise SystemExit(1)
+    except Exception as error:
+        print(f"[ERROR] {type(error).__name__}: {error}")
+        import traceback
+        traceback.print_exc()
         raise SystemExit(1)
     except KeyboardInterrupt:
         print("[INFO] Proses dihentikan manual. Keluar dengan elegan.")
