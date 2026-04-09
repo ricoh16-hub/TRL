@@ -54,6 +54,7 @@ TEXT_DARK = "#22324A"
 TEXT_SOFT = "#70829A"
 
 TEMP_PASSWORD_LENGTH = 12
+CHARGING_ACCENT = "#50B4FF"
 
 
 class UserRow(TypedDict):
@@ -76,6 +77,43 @@ def _apply_card_shadow(widget: QWidget) -> None:
     shadow.setOffset(0, 4)
     shadow.setColor(QColor(15, 30, 55, 45))
     widget.setGraphicsEffect(shadow)
+
+
+def _get_battery_info() -> Optional[dict[str, object]]:
+    try:
+        from ui.battery_status import get_battery_info
+    except ImportError:
+        try:
+            from src.ui.battery_status import get_battery_info
+        except ImportError:
+            return None
+    return get_battery_info()
+
+
+def _resolve_charging_state(info: Optional[dict[str, object]]) -> bool:
+    return bool(info.get("charging")) if info else False
+
+
+def _charging_theme_palette(charging: bool) -> dict[str, str]:
+    if charging:
+        return {
+            "accent": CHARGING_ACCENT,
+            "hover": "#3AA8F5",
+            "pressed": "#2A96E0",
+            "badge_bg": "rgba(80, 180, 255, 0.14)",
+            "badge_border": "rgba(80, 180, 255, 0.34)",
+            "badge_text": CHARGING_ACCENT,
+            "badge_label": "Charging Mode",
+        }
+    return {
+        "accent": NAVY_TOP,
+        "hover": NAVY_SELECTED,
+        "pressed": "#0e2847",
+        "badge_bg": "rgba(22, 58, 105, 0.08)",
+        "badge_border": "rgba(22, 58, 105, 0.18)",
+        "badge_text": NAVY_TOP,
+        "badge_label": "Standard Mode",
+    }
 
 
 class InfoCard(QFrame):
@@ -475,11 +513,36 @@ class UserEditDialog(QDialog):
         self._header_bar.setStyleSheet(f"background: {NAVY_TOP}; border-radius: 2px;")
         main_layout.addWidget(self._header_bar)
 
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
+        header_row.setSpacing(12)
+
+        header_block = QVBoxLayout()
+        header_block.setContentsMargins(0, 0, 0, 0)
+        header_block.setSpacing(4)
+
         header_label = QLabel("Edit Data User")
         header_label.setStyleSheet(
             f"color: {TEXT_DARK}; font-size: 18px; font-weight: 900;"
         )
-        main_layout.addWidget(header_label)
+        header_subtitle = QLabel(
+            "Kelola identitas, kredensial lama, dan pembaruan akses dalam satu panel."
+        )
+        header_subtitle.setWordWrap(True)
+        header_subtitle.setStyleSheet(
+            f"color: {TEXT_SOFT}; font-size: 12px; font-weight: 500;"
+        )
+        header_block.addWidget(header_label)
+        header_block.addWidget(header_subtitle)
+
+        self._theme_badge = QLabel("Standard Mode")
+        self._theme_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._theme_badge.setMinimumWidth(118)
+        self._theme_badge.setFixedHeight(30)
+
+        header_row.addLayout(header_block, 1)
+        header_row.addWidget(self._theme_badge, 0, Qt.AlignmentFlag.AlignTop)
+        main_layout.addLayout(header_row)
 
         # --- Section: Informasi User ---
         info_card = QFrame()
@@ -559,6 +622,10 @@ class UserEditDialog(QDialog):
         old_form.addRow(self._row_label("Password Lama"), self._old_password_input)
         old_form.addRow(self._row_label("PIN Lama"), self._old_pin_input)
         old_inner.addLayout(old_form)
+        old_hint = QLabel("Ditampilkan apa adanya agar proses verifikasi dan rotasi lebih cepat.")
+        old_hint.setWordWrap(True)
+        old_hint.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 11px;")
+        old_inner.addWidget(old_hint)
         main_layout.addWidget(old_card)
 
         # --- Section: Ubah Kredensial ---
@@ -590,6 +657,10 @@ class UserEditDialog(QDialog):
         new_form.addRow(self._row_label("Password Baru"), self._new_password_input)
         new_form.addRow(self._row_label("PIN Baru"), self._new_pin_input)
         new_inner.addLayout(new_form)
+        new_hint = QLabel("Kosongkan field baru jika user tidak memerlukan perubahan kredensial.")
+        new_hint.setWordWrap(True)
+        new_hint.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 11px;")
+        new_inner.addWidget(new_hint)
         main_layout.addWidget(new_card)
 
         main_layout.addStretch()
@@ -695,22 +766,27 @@ class UserEditDialog(QDialog):
             QPushButton:pressed {{ background: {pressed}; }}
         """
 
+    def _badge_style(self, bg: str, border: str, text: str) -> str:
+        return f"""
+            QLabel {{
+                background: {bg};
+                color: {text};
+                border: 1px solid {border};
+                border-radius: 15px;
+                font-size: 11px;
+                font-weight: 700;
+                padding: 0 10px;
+            }}
+        """
+
     def _update_charging_theme(self) -> None:
-        try:
-            from ui.battery_status import get_battery_info
-        except ImportError:
-            try:
-                from src.ui.battery_status import get_battery_info
-            except ImportError:
-                return
-        info = get_battery_info()
-        charging = bool(info.get("charging")) if info else False
+        info = _get_battery_info()
+        charging = _resolve_charging_state(info)
         if charging == self._charging:
             return
         self._charging = charging
-        accent = "#50B4FF" if charging else NAVY_TOP
-        hover_accent = "#3AA8F5" if charging else NAVY_SELECTED
-        pressed_accent = "#2A96E0" if charging else "#0e2847"
+        palette = _charging_theme_palette(charging)
+        accent = palette["accent"]
         self._header_bar.setStyleSheet(
             f"background: {accent}; border-radius: 2px;"
         )
@@ -721,8 +797,16 @@ class UserEditDialog(QDialog):
         self._info_title.setStyleSheet(title_css)
         self._old_title.setStyleSheet(title_css)
         self._new_title.setStyleSheet(title_css)
+        self._theme_badge.setText(palette["badge_label"])
+        self._theme_badge.setStyleSheet(
+            self._badge_style(
+                palette["badge_bg"],
+                palette["badge_border"],
+                palette["badge_text"],
+            )
+        )
         self._btn_save.setStyleSheet(
-            self._save_btn_style(accent, hover_accent, pressed_accent)
+            self._save_btn_style(accent, palette["hover"], palette["pressed"])
         )
 
     def data(self) -> dict[str, str]:
