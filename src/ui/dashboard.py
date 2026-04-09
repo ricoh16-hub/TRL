@@ -3,7 +3,7 @@ import secrets
 import string
 from typing import Optional, TypedDict
 
-from PySide6.QtCore import Property, QEvent, QPropertyAnimation, QEasingCurve, Qt, Signal
+from PySide6.QtCore import Property, QEvent, QPropertyAnimation, QEasingCurve, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QEnterEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -460,63 +460,270 @@ class UserEditDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Edit User")
         self.setModal(True)
-        self.resize(460, 360)
+        self.resize(520, 660)
+        self._charging: Optional[bool] = None
 
-        layout = QVBoxLayout(self)
-        form = QFormLayout()
+        self.setStyleSheet(f"QDialog {{ background: {PAGE_BG}; }}")
 
-        self._username_input = QLineEdit(username)
-        self._nama_input = QLineEdit(nama)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(24, 20, 24, 20)
+        main_layout.setSpacing(14)
 
+        # --- Accent bar ---
+        self._header_bar = QFrame()
+        self._header_bar.setFixedHeight(4)
+        self._header_bar.setStyleSheet(f"background: {NAVY_TOP}; border-radius: 2px;")
+        main_layout.addWidget(self._header_bar)
+
+        header_label = QLabel("Edit Data User")
+        header_label.setStyleSheet(
+            f"color: {TEXT_DARK}; font-size: 18px; font-weight: 900;"
+        )
+        main_layout.addWidget(header_label)
+
+        # --- Section: Informasi User ---
+        info_card = QFrame()
+        info_card.setStyleSheet(
+              f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
+        )
+        _apply_card_shadow(info_card)
+        info_inner = QVBoxLayout(info_card)
+        info_inner.setContentsMargins(20, 14, 20, 14)
+        info_inner.setSpacing(10)
+
+        self._info_title = QLabel("Informasi User")
+        self._info_title.setStyleSheet(
+            f"color: {NAVY_TOP}; font-size: 12px; font-weight: 800;"
+            " border: none; background: transparent;"
+        )
+        info_inner.addWidget(self._info_title)
+
+        info_form = QFormLayout()
+        info_form.setSpacing(8)
+        self._username_input = self._make_field(username)
+        self._nama_input = self._make_field(nama)
         self._role_combo = QComboBox()
         self._role_combo.addItems(list(CANONICAL_ROLES))
+        self._role_combo.setFixedHeight(36)
+        self._role_combo.setStyleSheet(self._combo_style())
         try:
             normalized_role = normalize_role_name(role)
         except ValueError:
             normalized_role = "Operator"
         self._role_combo.setCurrentText(normalized_role)
-
         self._status_combo = QComboBox()
         self._status_combo.addItems(["Aktif", "Nonaktif"])
+        self._status_combo.setFixedHeight(36)
+        self._status_combo.setStyleSheet(self._combo_style())
         normalized_status = status.strip().lower()
-        self._status_combo.setCurrentText("Aktif" if normalized_status in {"aktif", "active"} else "Nonaktif")
+        self._status_combo.setCurrentText(
+            "Aktif" if normalized_status in {"aktif", "active"} else "Nonaktif"
+        )
+        info_form.addRow(self._row_label("Username"), self._username_input)
+        info_form.addRow(self._row_label("Nama Lengkap"), self._nama_input)
+        info_form.addRow(self._row_label("Role"), self._role_combo)
+        info_form.addRow(self._row_label("Status"), self._status_combo)
+        info_inner.addLayout(info_form)
+        main_layout.addWidget(info_card)
 
-        self._old_password_input = QLineEdit()
+        # --- Section: Kredensial Saat Ini ---
+        old_card = QFrame()
+        old_card.setStyleSheet(
+              f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
+        )
+        _apply_card_shadow(old_card)
+        old_inner = QVBoxLayout(old_card)
+        old_inner.setContentsMargins(20, 14, 20, 14)
+        old_inner.setSpacing(10)
+
+        self._old_title = QLabel("Kredensial Saat Ini")
+        self._old_title.setStyleSheet(
+            f"color: {NAVY_TOP}; font-size: 12px; font-weight: 800;"
+            " border: none; background: transparent;"
+        )
+        old_inner.addWidget(self._old_title)
+
+        old_form = QFormLayout()
+        old_form.setSpacing(8)
+        self._old_password_input = self._make_field()
         self._old_password_input.setEchoMode(QLineEdit.EchoMode.Normal)
         self._old_password_input.setPlaceholderText("Isi jika ingin ganti password")
         if current_password:
             self._old_password_input.setText(current_password)
-
-        self._new_password_input = QLineEdit()
-        self._new_password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._new_password_input.setPlaceholderText("Password baru")
-
-        self._old_pin_input = QLineEdit()
+        self._old_pin_input = self._make_field()
         self._old_pin_input.setEchoMode(QLineEdit.EchoMode.Normal)
         self._old_pin_input.setPlaceholderText("PIN lama (6 digit)")
         self._old_pin_input.setMaxLength(6)
         if current_pin:
             self._old_pin_input.setText(current_pin)
+        old_form.addRow(self._row_label("Password Lama"), self._old_password_input)
+        old_form.addRow(self._row_label("PIN Lama"), self._old_pin_input)
+        old_inner.addLayout(old_form)
+        main_layout.addWidget(old_card)
 
-        self._new_pin_input = QLineEdit()
+        # --- Section: Ubah Kredensial ---
+        new_card = QFrame()
+        new_card.setStyleSheet(
+              f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
+        )
+        _apply_card_shadow(new_card)
+        new_inner = QVBoxLayout(new_card)
+        new_inner.setContentsMargins(20, 14, 20, 14)
+        new_inner.setSpacing(10)
+
+        self._new_title = QLabel("Ubah Kredensial")
+        self._new_title.setStyleSheet(
+            f"color: {NAVY_TOP}; font-size: 12px; font-weight: 800;"
+            " border: none; background: transparent;"
+        )
+        new_inner.addWidget(self._new_title)
+
+        new_form = QFormLayout()
+        new_form.setSpacing(8)
+        self._new_password_input = self._make_field()
+        self._new_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._new_password_input.setPlaceholderText("Password baru (kosongkan jika tidak diubah)")
+        self._new_pin_input = self._make_field()
         self._new_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._new_pin_input.setPlaceholderText("PIN baru (6 digit)")
+        self._new_pin_input.setPlaceholderText("PIN baru 6 digit (kosongkan jika tidak diubah)")
         self._new_pin_input.setMaxLength(6)
+        new_form.addRow(self._row_label("Password Baru"), self._new_password_input)
+        new_form.addRow(self._row_label("PIN Baru"), self._new_pin_input)
+        new_inner.addLayout(new_form)
+        main_layout.addWidget(new_card)
 
-        form.addRow("Username", self._username_input)
-        form.addRow("Nama", self._nama_input)
-        form.addRow("Role", self._role_combo)
-        form.addRow("Status", self._status_combo)
-        form.addRow("Password Lama", self._old_password_input)
-        form.addRow("PIN Lama", self._old_pin_input)
-        form.addRow("Password Baru", self._new_password_input)
-        form.addRow("PIN Baru", self._new_pin_input)
-        layout.addLayout(form)
+        main_layout.addStretch()
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        # --- Buttons ---
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+        btn_row.addStretch()
+
+        self._btn_cancel = QPushButton("Batal")
+        self._btn_cancel.setFixedHeight(40)
+        self._btn_cancel.setMinimumWidth(100)
+        self._btn_cancel.setStyleSheet(f"""
+            QPushButton {{
+                background: {PAGE_BG};
+                color: {TEXT_DARK};
+                border: 1.5px solid #DEE6F0;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 700;
+                padding: 0 20px;
+            }}
+            QPushButton:hover {{ background: #DEE6F0; }}
+        """)
+        self._btn_cancel.clicked.connect(self.reject)
+
+        self._btn_save = QPushButton("Simpan Perubahan")
+        self._btn_save.setFixedHeight(40)
+        self._btn_save.setMinimumWidth(140)
+        self._btn_save.setStyleSheet(
+            self._save_btn_style(NAVY_TOP, NAVY_SELECTED, "#0e2847")
+        )
+        self._btn_save.clicked.connect(self.accept)
+
+        btn_row.addWidget(self._btn_cancel)
+        btn_row.addWidget(self._btn_save)
+        main_layout.addLayout(btn_row)
+
+        # --- Battery-aware color polling ---
+        self._battery_timer = QTimer(self)
+        self._battery_timer.timeout.connect(self._update_charging_theme)
+        self._battery_timer.start(3000)
+        self._update_charging_theme()
+
+    def _row_label(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(
+            f"color: {TEXT_SOFT}; font-size: 12px; font-weight: 600;"
+            " border: none; background: transparent;"
+        )
+        return lbl
+
+    def _make_field(self, text: str = "") -> QLineEdit:
+        inp = QLineEdit(text)
+        inp.setFixedHeight(36)
+        inp.setStyleSheet(f"""
+            QLineEdit {{
+                background: {CARD_BG};
+                border: 1.5px solid #DEE6F0;
+                border-radius: 8px;
+                padding: 0 10px;
+                font-size: 13px;
+                color: {TEXT_DARK};
+            }}
+            QLineEdit:focus {{
+                border: 1.5px solid {NAVY_SELECTED};
+                background: #F8FAFD;
+            }}
+        """)
+        return inp
+
+    def _combo_style(self) -> str:
+        return f"""
+            QComboBox {{
+                background: {CARD_BG};
+                border: 1.5px solid #DEE6F0;
+                border-radius: 8px;
+                padding: 0 10px;
+                font-size: 13px;
+                color: {TEXT_DARK};
+            }}
+            QComboBox:focus {{
+                border: 1.5px solid {NAVY_SELECTED};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
+        """
+
+    def _save_btn_style(self, bg: str, hover: str, pressed: str) -> str:
+        return f"""
+            QPushButton {{
+                background: {bg};
+                color: #FFFFFF;
+                border: none;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 700;
+                padding: 0 20px;
+            }}
+            QPushButton:hover {{ background: {hover}; }}
+            QPushButton:pressed {{ background: {pressed}; }}
+        """
+
+    def _update_charging_theme(self) -> None:
+        try:
+            from ui.battery_status import get_battery_info
+        except ImportError:
+            try:
+                from src.ui.battery_status import get_battery_info
+            except ImportError:
+                return
+        info = get_battery_info()
+        charging = bool(info.get("charging")) if info else False
+        if charging == self._charging:
+            return
+        self._charging = charging
+        accent = "#50B4FF" if charging else NAVY_TOP
+        hover_accent = "#3AA8F5" if charging else NAVY_SELECTED
+        pressed_accent = "#2A96E0" if charging else "#0e2847"
+        self._header_bar.setStyleSheet(
+            f"background: {accent}; border-radius: 2px;"
+        )
+        title_css = (
+            f"color: {accent}; font-size: 12px; font-weight: 800;"
+            " border: none; background: transparent;"
+        )
+        self._info_title.setStyleSheet(title_css)
+        self._old_title.setStyleSheet(title_css)
+        self._new_title.setStyleSheet(title_css)
+        self._btn_save.setStyleSheet(
+            self._save_btn_style(accent, hover_accent, pressed_accent)
+        )
 
     def data(self) -> dict[str, str]:
         return {
