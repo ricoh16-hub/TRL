@@ -1,10 +1,10 @@
-from datetime import date
+from datetime import date, datetime
 import secrets
 import string
-from typing import Optional, TypedDict
+from typing import Optional, TypedDict, cast
 
 from PySide6.QtCore import Property, QEvent, QPropertyAnimation, QEasingCurve, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QEnterEvent, QMouseEvent
+from PySide6.QtGui import QColor, QEnterEvent, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QStackedWidget,
@@ -521,12 +522,12 @@ class UserEditDialog(QDialog):
         header_block.setContentsMargins(0, 0, 0, 0)
         header_block.setSpacing(4)
 
-        header_label = QLabel("Edit Data User")
+        header_label = QLabel("Edit User")
         header_label.setStyleSheet(
             f"color: {TEXT_DARK}; font-size: 18px; font-weight: 900;"
         )
         header_subtitle = QLabel(
-            "Kelola identitas, kredensial lama, dan pembaruan akses dalam satu panel."
+            "Manage profile details, existing credentials, and access updates in one panel."
         )
         header_subtitle.setWordWrap(True)
         header_subtitle.setStyleSheet(
@@ -544,7 +545,7 @@ class UserEditDialog(QDialog):
         header_row.addWidget(self._theme_badge, 0, Qt.AlignmentFlag.AlignTop)
         main_layout.addLayout(header_row)
 
-        # --- Section: Informasi User ---
+        # --- Section: User Information ---
         info_card = QFrame()
         info_card.setStyleSheet(
               f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
@@ -554,7 +555,7 @@ class UserEditDialog(QDialog):
         info_inner.setContentsMargins(20, 14, 20, 14)
         info_inner.setSpacing(10)
 
-        self._info_title = QLabel("Informasi User")
+        self._info_title = QLabel("User Information")
         self._info_title.setStyleSheet(
             f"color: {NAVY_TOP}; font-size: 12px; font-weight: 800;"
             " border: none; background: transparent;"
@@ -575,21 +576,21 @@ class UserEditDialog(QDialog):
             normalized_role = "Operator"
         self._role_combo.setCurrentText(normalized_role)
         self._status_combo = QComboBox()
-        self._status_combo.addItems(["Aktif", "Nonaktif"])
+        self._status_combo.addItems(["Active", "Inactive"])
         self._status_combo.setFixedHeight(36)
         self._status_combo.setStyleSheet(self._combo_style())
         normalized_status = status.strip().lower()
         self._status_combo.setCurrentText(
-            "Aktif" if normalized_status in {"aktif", "active"} else "Nonaktif"
+            "Active" if normalized_status in {"aktif", "active"} else "Inactive"
         )
         info_form.addRow(self._row_label("Username"), self._username_input)
-        info_form.addRow(self._row_label("Nama Lengkap"), self._nama_input)
+        info_form.addRow(self._row_label("Full Name"), self._nama_input)
         info_form.addRow(self._row_label("Role"), self._role_combo)
         info_form.addRow(self._row_label("Status"), self._status_combo)
         info_inner.addLayout(info_form)
         main_layout.addWidget(info_card)
 
-        # --- Section: Kredensial Saat Ini ---
+        # --- Section: Current Credentials ---
         old_card = QFrame()
         old_card.setStyleSheet(
               f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
@@ -599,7 +600,7 @@ class UserEditDialog(QDialog):
         old_inner.setContentsMargins(20, 14, 20, 14)
         old_inner.setSpacing(10)
 
-        self._old_title = QLabel("Kredensial Saat Ini")
+        self._old_title = QLabel("Current Credentials")
         self._old_title.setStyleSheet(
             f"color: {NAVY_TOP}; font-size: 12px; font-weight: 800;"
             " border: none; background: transparent;"
@@ -610,25 +611,25 @@ class UserEditDialog(QDialog):
         old_form.setSpacing(8)
         self._old_password_input = self._make_field()
         self._old_password_input.setEchoMode(QLineEdit.EchoMode.Normal)
-        self._old_password_input.setPlaceholderText("Isi jika ingin ganti password")
+        self._old_password_input.setPlaceholderText("Enter current password to change it")
         if current_password:
             self._old_password_input.setText(current_password)
         self._old_pin_input = self._make_field()
         self._old_pin_input.setEchoMode(QLineEdit.EchoMode.Normal)
-        self._old_pin_input.setPlaceholderText("PIN lama (6 digit)")
+        self._old_pin_input.setPlaceholderText("Current PIN (6 digits)")
         self._old_pin_input.setMaxLength(6)
         if current_pin:
             self._old_pin_input.setText(current_pin)
-        old_form.addRow(self._row_label("Password Lama"), self._old_password_input)
-        old_form.addRow(self._row_label("PIN Lama"), self._old_pin_input)
+        old_form.addRow(self._row_label("Current Password"), self._old_password_input)
+        old_form.addRow(self._row_label("Current PIN"), self._old_pin_input)
         old_inner.addLayout(old_form)
-        old_hint = QLabel("Ditampilkan apa adanya agar proses verifikasi dan rotasi lebih cepat.")
+        old_hint = QLabel("Shown as-is to speed up verification and credential rotation.")
         old_hint.setWordWrap(True)
         old_hint.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 11px;")
         old_inner.addWidget(old_hint)
         main_layout.addWidget(old_card)
 
-        # --- Section: Ubah Kredensial ---
+        # --- Section: New Credentials ---
         new_card = QFrame()
         new_card.setStyleSheet(
               f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
@@ -638,7 +639,7 @@ class UserEditDialog(QDialog):
         new_inner.setContentsMargins(20, 14, 20, 14)
         new_inner.setSpacing(10)
 
-        self._new_title = QLabel("Ubah Kredensial")
+        self._new_title = QLabel("New Credentials")
         self._new_title.setStyleSheet(
             f"color: {NAVY_TOP}; font-size: 12px; font-weight: 800;"
             " border: none; background: transparent;"
@@ -649,15 +650,15 @@ class UserEditDialog(QDialog):
         new_form.setSpacing(8)
         self._new_password_input = self._make_field()
         self._new_password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._new_password_input.setPlaceholderText("Password baru (kosongkan jika tidak diubah)")
+        self._new_password_input.setPlaceholderText("New password (leave blank to keep current)")
         self._new_pin_input = self._make_field()
         self._new_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._new_pin_input.setPlaceholderText("PIN baru 6 digit (kosongkan jika tidak diubah)")
+        self._new_pin_input.setPlaceholderText("New 6-digit PIN (leave blank to keep current)")
         self._new_pin_input.setMaxLength(6)
-        new_form.addRow(self._row_label("Password Baru"), self._new_password_input)
-        new_form.addRow(self._row_label("PIN Baru"), self._new_pin_input)
+        new_form.addRow(self._row_label("New Password"), self._new_password_input)
+        new_form.addRow(self._row_label("New PIN"), self._new_pin_input)
         new_inner.addLayout(new_form)
-        new_hint = QLabel("Kosongkan field baru jika user tidak memerlukan perubahan kredensial.")
+        new_hint = QLabel("Leave new fields blank if no credential update is needed.")
         new_hint.setWordWrap(True)
         new_hint.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 11px;")
         new_inner.addWidget(new_hint)
@@ -670,7 +671,7 @@ class UserEditDialog(QDialog):
         btn_row.setSpacing(12)
         btn_row.addStretch()
 
-        self._btn_cancel = QPushButton("Batal")
+        self._btn_cancel = QPushButton("Cancel")
         self._btn_cancel.setFixedHeight(40)
         self._btn_cancel.setMinimumWidth(100)
         self._btn_cancel.setStyleSheet(f"""
@@ -687,7 +688,7 @@ class UserEditDialog(QDialog):
         """)
         self._btn_cancel.clicked.connect(self.reject)
 
-        self._btn_save = QPushButton("Simpan Perubahan")
+        self._btn_save = QPushButton("Save Changes")
         self._btn_save.setFixedHeight(40)
         self._btn_save.setMinimumWidth(140)
         self._btn_save.setStyleSheet(
@@ -810,11 +811,13 @@ class UserEditDialog(QDialog):
         )
 
     def data(self) -> dict[str, str]:
+        selected_status = self._status_combo.currentText().strip().lower()
+        normalized_status = "aktif" if selected_status == "active" else "nonaktif"
         return {
             "username": self._username_input.text().strip(),
             "nama": self._nama_input.text().strip(),
             "role": self._role_combo.currentText().strip().lower(),
-            "status": self._status_combo.currentText().strip().lower(),
+            "status": normalized_status,
             "old_password": self._old_password_input.text(),
             "new_password": self._new_password_input.text(),
             "old_pin": self._old_pin_input.text().strip(),
@@ -823,10 +826,10 @@ class UserEditDialog(QDialog):
 
 
 class UserAddDialog(QDialog):
-    """Dialog untuk menambahkan user baru (password dan PIN auto-generate)"""
+    """Dialog to add a new user (password and PIN are auto-generated)."""
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Tambah User")
+        self.setWindowTitle("Add User")
         self.setModal(True)
         self.resize(420, 260)
 
@@ -834,42 +837,44 @@ class UserAddDialog(QDialog):
         form = QFormLayout()
 
         self._username_input = QLineEdit()
-        self._username_input.setPlaceholderText("Contoh: riko01")
+        self._username_input.setPlaceholderText("Example: riko01")
         
         self._nama_input = QLineEdit()
-        self._nama_input.setPlaceholderText("Contoh: Riko Sinaga")
+        self._nama_input.setPlaceholderText("Example: Riko Sinaga")
         
         self._role_combo = QComboBox()
         self._role_combo.addItems(list(CANONICAL_ROLES))
         self._role_combo.setCurrentText("Operator")
         
         self._status_combo = QComboBox()
-        self._status_combo.addItems(["Aktif", "Nonaktif"])
+        self._status_combo.addItems(["Active", "Inactive"])
 
         form.addRow("Username", self._username_input)
-        form.addRow("Nama", self._nama_input)
+        form.addRow("Full Name", self._nama_input)
         form.addRow("Role", self._role_combo)
         form.addRow("Status", self._status_combo)
         layout.addLayout(form)
         
-        info_label = QLabel("Password dan PIN akan otomatis di-generate.")
+        info_label = QLabel("Password and PIN will be generated automatically.")
         info_label.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 12px; font-style: italic;")
         layout.addWidget(info_label)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Save).setText("Simpan")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Batal")
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText("Save")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancel")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
     def data(self) -> dict[str, str]:
+        selected_status = self._status_combo.currentText().strip().lower()
+        normalized_status = "aktif" if selected_status == "active" else "nonaktif"
         return {
             "username": self._username_input.text().strip(),
             "nama": self._nama_input.text().strip(),
             "password": "",  # Will be auto-generated
             "role": self._role_combo.currentText().strip().lower(),
-            "status": self._status_combo.currentText().strip().lower(),
+            "status": normalized_status,
         }
 
 
@@ -986,7 +991,7 @@ class DashboardForm(QMainWindow):
             ("laporan", "Laporan"),
             ("inventaris", "Inventaris"),
             ("pengaturan", "Pengaturan"),
-            ("manajemen_user", "Manajemen User"),
+            ("manajemen_user", "User Management"),
         ]
 
         for key, item_text in menu_items:
@@ -1015,7 +1020,7 @@ class DashboardForm(QMainWindow):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(12)
 
-        title = QLabel("Manajemen User")
+        title = QLabel("User Management")
         title.setStyleSheet(f"color: {TEXT_DARK}; font-size: 38px; font-weight: 800;")
         layout.addWidget(title)
 
@@ -1023,14 +1028,14 @@ class DashboardForm(QMainWindow):
         controls.setSpacing(12)
 
         self._search_username = QLineEdit()
-        self._search_username.setPlaceholderText("Cari Username...")
+        self._search_username.setPlaceholderText("Search username...")
         self._search_username.setFixedHeight(36)
         self._search_username.setStyleSheet(
             "QLineEdit { background: white; border: 1px solid #D7E0EA; border-radius: 8px; padding: 0 12px; font-size: 14px; }"
         )
         self._search_username.textChanged.connect(self._apply_user_filters)
 
-        filter_label = QLabel("Filter Role")
+        filter_label = QLabel("Role Filter")
         filter_label.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 14px; font-weight: 700;")
 
         self._role_filter = QComboBox()
@@ -1042,7 +1047,7 @@ class DashboardForm(QMainWindow):
         )
         self._role_filter.currentTextChanged.connect(self._apply_user_filters)
 
-        add_user_btn = QPushButton("+ Tambah User")
+        add_user_btn = QPushButton("+ Add User")
         add_user_btn.setFixedHeight(36)
         add_user_btn.setMinimumWidth(140)
         add_user_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1061,56 +1066,291 @@ class DashboardForm(QMainWindow):
         layout.addLayout(controls)
 
         self._users_table = QTableWidget()
-        self._users_table.setColumnCount(12)
+        self._users_table.setColumnCount(9)
         self._users_table.setHorizontalHeaderLabels(
             [
+                "FULL NAME",
+                "USERNAME",
+                "ROLE",
+                "STATUS",
+                "EMAIL",
+                "PHONE",
+                "UPDATED",
                 "ID",
-                "Username",
-                "Nama",
-                "Email",
-                "Telepon",
-                "Role",
-                "Status",
-                "Password",
-                "PIN",
-                "Dibuat",
-                "Diupdate",
-                "Aksi",
+                "ACTIONS",
             ]
         )
         self._users_table.verticalHeader().setVisible(False)
-        self._users_table.verticalHeader().setDefaultSectionSize(38)
+        self._users_table.verticalHeader().setDefaultSectionSize(52)
         self._users_table.setAlternatingRowColors(True)
+        self._users_table.setShowGrid(False)
         self._users_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._users_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._users_table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        self._users_table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         self._users_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._users_table.setWordWrap(False)
         self._users_table.setTextElideMode(Qt.TextElideMode.ElideRight)
         self._users_table.setStyleSheet(
-            "QTableWidget { background: white; border: 1px solid #DCE5EF; border-radius: 10px; gridline-color: #E7EDF4; font-size: 15px; }"
-            "QHeaderView::section { background: #F2F6FB; color: #2D405C; font-size: 15px; font-weight: 700; border: none; border-right: 1px solid #E7EDF4; padding: 10px; }"
-            "QTableWidget::item { padding: 9px; color: #2D405C; }"
-            "QTableWidget::item:selected { background: #E7F1FF; color: #1F3F66; }"
+            "QTableWidget { background: white; alternate-background-color: #F5F9FF; border: 1px solid #D5E2F0; border-radius: 12px; font-size: 14px; outline: none; }"
+            "QHeaderView::section { background: #EDF3FB; color: #6B87A8; font-size: 11px; font-weight: 700; border: none; border-bottom: 2px solid #DAE6F3; padding: 10px 14px; }"
+            "QTableWidget::item { padding: 10px 12px; color: #2D405C; border-bottom: 1px solid #EAF0F8; }"
+            "QTableWidget::item:hover { background: #EDF5FF; }"
+            "QTableWidget::item:selected { background: #DDEEFF; color: #163A69; }"
         )
 
         header = self._users_table.horizontalHeader()
-        header.setMinimumSectionSize(88)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(10, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(11, QHeaderView.ResizeMode.ResizeToContents)
+        header.setMinimumSectionSize(72)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        # Widget-based columns should keep fixed width for consistent pixel alignment.
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
+        header.setSectionsClickable(True)
+        header.setStretchLastSection(False)
+        header.sectionDoubleClicked.connect(self._auto_size_user_table_column)
+        section_handle_double_clicked = getattr(header, "sectionHandleDoubleClicked", None)
+        if section_handle_double_clicked is not None:
+            section_handle_double_clicked.connect(self._auto_size_user_table_column)
+
+        # Default widths tuned for readability while keeping manual resize enabled.
+        self._users_table.setColumnWidth(0, 210)
+        self._users_table.setColumnWidth(1, 165)
+        self._users_table.setColumnWidth(2, 108)
+        self._users_table.setColumnWidth(3, 130)
+        self._users_table.setColumnWidth(4, 220)
+        self._users_table.setColumnWidth(5, 140)
+        self._users_table.setColumnWidth(6, 150)
+        self._users_table.setColumnWidth(7, 72)
+        self._users_table.setColumnWidth(8, 154)
+        self._users_table.setColumnHidden(7, True)
+
+        # Double-click row → edit; right-click → context menu; keyboard Delete/Enter
+        self._users_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._users_table.customContextMenuRequested.connect(self._show_user_context_menu)
+        self._users_table.cellDoubleClicked.connect(self._on_user_table_double_click)
+        self._users_table.itemSelectionChanged.connect(self._sync_user_table_widget_states)
+        self._users_table.installEventFilter(self)
 
         layout.addWidget(self._users_table, 1)
         return page
+
+    def _auto_size_user_table_column(self, logical_index: int) -> None:
+        if self._users_table is None:
+            return
+
+        # Keep widget-based columns fixed to avoid visual drift.
+        if logical_index in {3, 8}:
+            return
+
+        self._users_table.resizeColumnToContents(logical_index)
+        fitted_width = self._users_table.columnWidth(logical_index)
+        padded_width = fitted_width + 18
+        self._users_table.setColumnWidth(logical_index, max(72, min(padded_width, 520)))
+
+    def _auto_fit_all_user_columns(self) -> None:
+        """Resize all columns to fit their content, with padding and a max cap."""
+        if self._users_table is None:
+            return
+        self._users_table.resizeColumnsToContents()
+        for col in range(self._users_table.columnCount() - 1):
+            if self._users_table.isColumnHidden(col):
+                continue
+            w = self._users_table.columnWidth(col)
+            self._users_table.setColumnWidth(col, max(72, min(w + 20, 320)))
+        # Keep hidden ID internal-only and lock columns that use custom widgets.
+        self._users_table.setColumnWidth(3, 130)
+        self._users_table.setColumnWidth(8, 154)
+
+    def _build_status_badge(self, status_value: str) -> QWidget:
+        is_active = status_value.strip().lower() == "active"
+
+        container = QWidget()
+        container.setObjectName("statusBadgeContainer")
+        container.setAutoFillBackground(False)
+        container.setStyleSheet("background: transparent;")
+        outer = QHBoxLayout(container)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Pill widget — explicit QWidget so border-radius fills correctly
+        pill = QWidget()
+        pill.setObjectName("statusBadgePill")
+        pill.setProperty("isActive", is_active)
+        pill.setProperty("rowSelected", False)
+        pill.setFixedSize(112, 30)
+        pill_layout = QHBoxLayout(pill)
+        pill_layout.setContentsMargins(10, 0, 12, 0)
+        pill_layout.setSpacing(5)
+        pill_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        # Colored dot indicator
+        dot = QLabel()
+        dot.setObjectName("statusBadgeDot")
+        dot.setFixedSize(9, 9)
+
+        # Text label
+        lbl = QLabel(status_value)
+        lbl.setObjectName("statusBadgeLabel")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+
+        self._apply_status_badge_style(pill, dot, lbl, is_active, selected=False)
+
+        pill_layout.addWidget(dot)
+        pill_layout.addWidget(lbl)
+        outer.addWidget(pill)
+        return container
+
+    def _apply_status_badge_style(
+        self,
+        pill: QWidget,
+        dot: QLabel,
+        lbl: QLabel,
+        is_active: bool,
+        selected: bool,
+    ) -> None:
+        if is_active:
+            if selected:
+                pill.setStyleSheet("background: #C8F2D6; border: 1px solid #4BC174; border-radius: 13px;")
+                dot.setStyleSheet(
+                    "QLabel { background: #15803D; border-radius: 4px; border: 1px solid #166534; }"
+                )
+            else:
+                pill.setStyleSheet("background: #DCFCE7; border: 1px solid #65D68D; border-radius: 13px;")
+                dot.setStyleSheet("QLabel { background: #16A34A; border-radius: 4px; border: none; }")
+            lbl.setStyleSheet(
+                "QLabel { color: #166534; font-size: 12px; font-weight: 800; background: transparent; border: none; }"
+            )
+        else:
+            if selected:
+                pill.setStyleSheet("background: #FFD5D5; border: 1px solid #EF5D5D; border-radius: 13px;")
+                dot.setStyleSheet(
+                    "QLabel { background: #B91C1C; border-radius: 4px; border: 1px solid #991B1B; }"
+                )
+            else:
+                pill.setStyleSheet("background: #FEE2E2; border: 1px solid #F68282; border-radius: 13px;")
+                dot.setStyleSheet("QLabel { background: #DC2626; border-radius: 4px; border: none; }")
+            lbl.setStyleSheet(
+                "QLabel { color: #991B1B; font-size: 12px; font-weight: 800; background: transparent; border: none; }"
+            )
+
+    def _sync_user_table_widget_states(self) -> None:
+        if self._users_table is None:
+            return
+
+        for row_index in range(self._users_table.rowCount()):
+            is_selected = self._users_table.selectionModel().isRowSelected(
+                row_index,
+                self._users_table.rootIndex(),
+            )
+
+            status_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 3))
+            if status_container is not None:
+                pill = status_container.findChild(QWidget, "statusBadgePill")
+                dot = status_container.findChild(QLabel, "statusBadgeDot")
+                lbl = status_container.findChild(QLabel, "statusBadgeLabel")
+                if pill is not None and dot is not None and lbl is not None:
+                    is_active = bool(pill.property("isActive"))
+                    self._apply_status_badge_style(pill, dot, lbl, is_active, is_selected)
+                    pill.setProperty("rowSelected", is_selected)
+
+            actions_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 8))
+            if actions_container is not None:
+                panel = actions_container.findChild(QWidget, "actionsPanel")
+                if panel is not None:
+                    if is_selected:
+                        panel.setStyleSheet("background: #E7F0FC; border: 1px solid #BFD5EF; border-radius: 8px;")
+                    else:
+                        panel.setStyleSheet("background: #F7FAFE; border: 1px solid #D3E0EF; border-radius: 8px;")
+                    panel.setProperty("rowSelected", is_selected)
+
+    def _row_data_from_table(self, row: int) -> Optional[tuple[int, str, str, str, str, str]]:
+        if self._users_table is None:
+            return None
+        item = self._users_table.item(row, 0)
+        if item is None:
+            return None
+        raw = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(raw, tuple) or len(raw) != 6:  # type: ignore[arg-type]
+            return None
+        return cast(tuple[int, str, str, str, str, str], raw)
+
+    def _on_user_table_double_click(self, row: int, _column: int) -> None:
+        data = self._row_data_from_table(row)
+        if not data:
+            return
+        user_id, role_value, status_value, password_value, pin_value, _username = data
+        self._edit_user(int(user_id), str(role_value), str(status_value), str(password_value), str(pin_value))
+
+    def _show_user_context_menu(self, pos: object) -> None:
+        if self._users_table is None:
+            return
+        index = self._users_table.indexAt(pos)  # type: ignore[arg-type]
+        if not index.isValid():
+            return
+        data = self._row_data_from_table(index.row())
+        if not data:
+            return
+        user_id, role_value, status_value, password_value, pin_value, username = data
+        self._show_user_actions_menu(
+            self._users_table.viewport().mapToGlobal(pos),  # type: ignore[arg-type]
+            int(user_id),
+            str(role_value),
+            str(status_value),
+            str(password_value),
+            str(pin_value),
+            str(username),
+        )
+
+    def _show_user_actions_menu(
+        self,
+        global_pos: object,
+        user_id: int,
+        role_value: str,
+        status_value: str,
+        password_value: str,
+        pin_value: str,
+        username: str,
+    ) -> None:
+        menu = QMenu(self)
+        menu.setStyleSheet(
+            "QMenu { background: white; border: 1px solid #D0DAE7; border-radius: 8px; padding: 4px; font-size: 13px; }"
+            "QMenu::item { padding: 7px 20px; border-radius: 5px; color: #2D405C; }"
+            "QMenu::item:selected { background: #E7F1FF; color: #1F3F66; }"
+            "QMenu::separator { height: 1px; background: #E7EDF4; margin: 3px 8px; }"
+        )
+        edit_action = menu.addAction("Edit User")
+        menu.addSeparator()
+        delete_action = menu.addAction("Delete User")
+        action = menu.exec(global_pos)  # type: ignore[arg-type]
+        if action is edit_action:
+            self._edit_user(user_id, role_value, status_value, password_value, pin_value)
+        elif action is delete_action:
+            self._delete_user(user_id, username)
+
+    def _action_on_selected_user_row(self, action: str) -> None:
+        if self._users_table is None:
+            return
+        selected = self._users_table.selectionModel().selectedRows()
+        if not selected:
+            return
+        data = self._row_data_from_table(selected[0].row())
+        if not data:
+            return
+        user_id, role_value, status_value, password_value, pin_value, username = data
+        if action == "edit":
+            self._edit_user(int(user_id), str(role_value), str(status_value), str(password_value), str(pin_value))
+        elif action == "delete":
+            self._delete_user(int(user_id), str(username))
+
+    def eventFilter(self, source: object, event: object) -> bool:
+        if source is self._users_table and isinstance(event, QKeyEvent):
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self._action_on_selected_user_row("edit")
+                return True
+            if event.key() == Qt.Key.Key_Delete:
+                self._action_on_selected_user_row("delete")
+                return True
+        return super().eventFilter(source, event)  # type: ignore[arg-type]
 
     def _load_users_table(self) -> None:
         if self._users_table is None or self._role_filter is None:
@@ -1120,10 +1360,24 @@ class DashboardForm(QMainWindow):
             if value is None:
                 return "-"
             text = str(value).replace("T", " ")
-            formatted = text.split("+", 1)[0]
-            if len(formatted) >= 16:
-                return formatted[:16]
-            return formatted
+            normalized = text.split("+", 1)[0].strip()
+            if len(normalized) >= 16:
+                normalized = normalized[:16]
+            try:
+                dt = datetime.strptime(normalized, "%Y-%m-%d %H:%M")
+                today = datetime.now().date()
+                delta = (today - dt.date()).days
+                time_str = dt.strftime("%H:%M")
+                if delta == 0:
+                    return f"Today {time_str}"
+                elif delta == 1:
+                    return f"Yesterday {time_str}"
+                elif 2 <= delta <= 6:
+                    return dt.strftime("%a") + f" {time_str}"
+                else:
+                    return f"{dt.strftime('%b')} {dt.day}, {time_str}"
+            except ValueError:
+                return normalized
 
         session = Session()
         try:
@@ -1174,7 +1428,7 @@ class DashboardForm(QMainWindow):
                 "email": email or "-",
                 "phone": phone or "-",
                 "role": normalized_role,
-                "status": "Aktif" if status in {"aktif", "active"} else "Nonaktif",
+                "status": "Active" if status in {"aktif", "active"} else "Inactive",
                 "password_value": password_plaintext if password_plaintext else ("✓ CONFIGURED" if getattr(password_record, "password_hash", None) else "-"),
                 "pin_value": pin_plaintext if pin_plaintext else ("✓ CONFIGURED" if getattr(pin_record, "pin_hash", None) else "-"),
                 "created_at": created_at,
@@ -1198,6 +1452,7 @@ class DashboardForm(QMainWindow):
             self._search_username.blockSignals(False)
 
         self._apply_user_filters()
+        self._auto_fit_all_user_columns()
 
     def _apply_user_filters(self) -> None:
         if self._users_table is None or self._search_username is None or self._role_filter is None:
@@ -1215,40 +1470,69 @@ class DashboardForm(QMainWindow):
 
         self._users_table.setRowCount(len(filtered_rows))
         for row_index, row in enumerate(filtered_rows):
-            self._users_table.setItem(row_index, 0, QTableWidgetItem(str(row["id"])))
-            self._users_table.setItem(row_index, 1, QTableWidgetItem(str(row["username"])))
-            self._users_table.setItem(row_index, 2, QTableWidgetItem(str(row["full_name"])))
-            self._users_table.setItem(row_index, 3, QTableWidgetItem(str(row["email"])))
-            self._users_table.setItem(row_index, 4, QTableWidgetItem(str(row["phone"])))
-            self._users_table.setItem(row_index, 5, QTableWidgetItem(str(row["role"])))
-            status_value = str(row["status"])
-            status_item = QTableWidgetItem(status_value)
-            status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            if status_value.lower() == "aktif":
-                status_item.setForeground(QColor("#2E7D32"))
-            else:
-                status_item.setForeground(QColor("#A63D40"))
-            self._users_table.setItem(row_index, 6, status_item)
-            self._users_table.setItem(row_index, 7, QTableWidgetItem(str(row["password_value"])))
-            self._users_table.setItem(row_index, 8, QTableWidgetItem(str(row["pin_value"])))
-            self._users_table.setItem(row_index, 9, QTableWidgetItem(str(row["created_at"])))
-            self._users_table.setItem(row_index, 10, QTableWidgetItem(str(row["updated_at"])))
-
-            actions = QWidget()
-            actions_layout = QHBoxLayout(actions)
-            actions_layout.setContentsMargins(4, 2, 4, 2)
-            actions_layout.setSpacing(6)
-
-            edit_btn = QPushButton("Edit")
-            edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            edit_btn.setStyleSheet(
-                "QPushButton { background: #E8F1FF; color: #2559A6; border: 1px solid #C8DBF8; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 700; }"
-            )
+            # Hoist row scalars so lambdas and UserRole data share the same refs
             row_id = row["id"]
             row_role = str(row["role"])
             row_status = str(row["status"])
             row_password = str(row["password_value"])
             row_pin = str(row["pin_value"])
+            row_username = str(row["username"])
+
+            # Col 0 — Full Name (also carries full row data for row actions)
+            full_name_item = QTableWidgetItem(str(row["full_name"]))
+            full_name_item.setToolTip(str(row["full_name"]))
+            full_name_item.setData(
+                Qt.ItemDataRole.UserRole,
+                (row_id, row_role, row_status, row_password, row_pin, row_username),
+            )
+            self._users_table.setItem(row_index, 0, full_name_item)
+
+            username_item = QTableWidgetItem(row_username)
+            username_item.setToolTip(row_username)
+            self._users_table.setItem(row_index, 1, username_item)
+
+            self._users_table.setItem(row_index, 2, QTableWidgetItem(row_role))
+
+            status_value = row_status
+            self._users_table.setCellWidget(row_index, 3, self._build_status_badge(status_value))
+
+            email_item = QTableWidgetItem(str(row["email"]))
+            email_item.setToolTip(str(row["email"]))
+            self._users_table.setItem(row_index, 4, email_item)
+
+            self._users_table.setItem(row_index, 5, QTableWidgetItem(str(row["phone"])))
+
+            updated_item = QTableWidgetItem(str(row["updated_at"]))
+            updated_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._users_table.setItem(row_index, 6, updated_item)
+            self._users_table.setItem(row_index, 7, QTableWidgetItem(str(row_id)))
+
+            actions = QWidget()
+            actions.setAutoFillBackground(False)
+            actions.setStyleSheet("background: transparent;")
+            actions_layout = QHBoxLayout(actions)
+            actions_layout.setContentsMargins(0, 0, 0, 0)
+            actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            actions_panel = QWidget()
+            actions_panel.setObjectName("actionsPanel")
+            actions_panel.setProperty("rowSelected", False)
+            actions_panel.setFixedHeight(32)
+            actions_panel.setFixedWidth(118)
+            actions_panel.setStyleSheet("background: #F7FAFE; border: 1px solid #D3E0EF; border-radius: 8px;")
+            panel_layout = QHBoxLayout(actions_panel)
+            panel_layout.setContentsMargins(5, 1, 5, 1)
+            panel_layout.setSpacing(4)
+            panel_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            edit_btn = QPushButton("Edit")
+            edit_btn.setFixedSize(74, 26)
+            edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            edit_btn.setStyleSheet(
+                "QPushButton { background: #2563EB; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; }"
+                "QPushButton:hover { background: #1D55D8; }"
+                "QPushButton:pressed { background: #1749C0; }"
+            )
             edit_btn.clicked.connect(
                 lambda _checked=False, user_id=row_id, role_value=row_role, status_value=row_status, password_value=row_password, pin_value=row_pin: self._edit_user(
                     user_id,
@@ -1259,25 +1543,39 @@ class DashboardForm(QMainWindow):
                 )
             )
 
-            delete_btn = QPushButton("Hapus")
-            delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            delete_btn.setStyleSheet(
-                "QPushButton { background: #FEEBEC; color: #B5353A; border: 1px solid #F6C7CA; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 700; }"
+            more_btn = QPushButton("...")
+            more_btn.setFixedSize(30, 26)
+            more_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            more_btn.setStyleSheet(
+                "QPushButton { background: #FFFFFF; color: #3F5875; border: 1px solid #CDDAEA; border-radius: 6px; font-size: 13px; font-weight: 800; padding: 0; }"
+                "QPushButton:hover { background: #EEF3FA; color: #22364D; border-color: #B8CAE0; }"
+                "QPushButton:pressed { background: #E2EBF5; }"
             )
-            row_username = row["username"]
-            delete_btn.clicked.connect(
-                lambda _checked=False, user_id=row_id, username=row_username: self._delete_user(user_id, username)
+            more_btn.clicked.connect(
+                lambda _checked=False, button=more_btn, user_id=row_id, role_value=row_role, status_value=row_status, password_value=row_password, pin_value=row_pin, username=row_username: self._show_user_actions_menu(
+                    button.mapToGlobal(button.rect().bottomLeft()),
+                    user_id,
+                    role_value,
+                    status_value,
+                    password_value,
+                    pin_value,
+                    username,
+                )
             )
 
-            actions_layout.addWidget(edit_btn)
-            actions_layout.addWidget(delete_btn)
-            self._users_table.setCellWidget(row_index, 11, actions)
+            panel_layout.addWidget(edit_btn)
+            panel_layout.addWidget(more_btn)
+            actions_layout.addWidget(actions_panel)
+            self._users_table.setCellWidget(row_index, 8, actions)
+            self._users_table.setRowHeight(row_index, 52)
+
+        self._sync_user_table_widget_states()
 
     def _edit_user(
         self,
         user_id: int,
         fallback_role: str = "Operator",
-        fallback_status: str = "Aktif",
+        fallback_status: str = "Active",
         fallback_password: str = "",
         fallback_pin: str = "",
     ) -> None:
@@ -1285,7 +1583,7 @@ class DashboardForm(QMainWindow):
         try:
             user = session.get(User, user_id)
             if user is None:
-                QMessageBox.warning(self, "Data Tidak Ditemukan", "User tidak ditemukan.")
+                QMessageBox.warning(self, "Data Not Found", "User not found.")
                 return
 
             raw_role = str(getattr(user, "role", "") or "").strip()
@@ -1318,7 +1616,7 @@ class DashboardForm(QMainWindow):
 
             payload = dialog.data()
             if not payload["username"]:
-                QMessageBox.warning(self, "Validasi", "Username tidak boleh kosong.")
+                QMessageBox.warning(self, "Validation", "Username cannot be empty.")
                 return
 
             old_password = str(payload.get("old_password", "") or "")
@@ -1327,11 +1625,11 @@ class DashboardForm(QMainWindow):
             new_pin = str(payload.get("new_pin", "") or "")
 
             if new_password and not old_password:
-                QMessageBox.warning(self, "Validasi", "Isi Password Lama untuk mengganti password.")
+                QMessageBox.warning(self, "Validation", "Enter current password to change password.")
                 return
 
             if new_pin and not old_pin:
-                QMessageBox.warning(self, "Validasi", "Isi PIN Lama untuk mengganti PIN.")
+                QMessageBox.warning(self, "Validation", "Enter current PIN to change PIN.")
                 return
 
             if new_password:
@@ -1339,10 +1637,10 @@ class DashboardForm(QMainWindow):
                 stored_salt = str(getattr(password_record, "password_salt", "") or "")
                 stored_hash = str(getattr(password_record, "password_hash", "") or "")
                 if not stored_salt or not stored_hash:
-                    QMessageBox.warning(self, "Validasi", "Password lama belum tersedia untuk user ini.")
+                    QMessageBox.warning(self, "Validation", "Current password is not available for this user.")
                     return
                 if not verify_password(old_password, stored_salt, stored_hash):
-                    QMessageBox.warning(self, "Validasi", "Password lama tidak sesuai.")
+                    QMessageBox.warning(self, "Validation", "Current password is incorrect.")
                     return
 
             if new_pin:
@@ -1350,10 +1648,10 @@ class DashboardForm(QMainWindow):
                 stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
                 stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
                 if not stored_pin_salt or not stored_pin_hash:
-                    QMessageBox.warning(self, "Validasi", "PIN lama belum tersedia untuk user ini.")
+                    QMessageBox.warning(self, "Validation", "Current PIN is not available for this user.")
                     return
                 if not verify_pin_code(old_pin, stored_pin_salt, stored_pin_hash):
-                    QMessageBox.warning(self, "Validasi", "PIN lama tidak sesuai.")
+                    QMessageBox.warning(self, "Validation", "Current PIN is incorrect.")
                     return
 
             update_user(
@@ -1369,7 +1667,7 @@ class DashboardForm(QMainWindow):
             if new_pin:
                 set_user_pin(session, user_id, new_pin)
         except ValueError as error:
-            QMessageBox.warning(self, "Validasi", str(error))
+            QMessageBox.warning(self, "Validation", str(error))
             return
         finally:
             session.close()
@@ -1379,8 +1677,8 @@ class DashboardForm(QMainWindow):
     def _delete_user(self, user_id: int, username: str) -> None:
         answer = QMessageBox.question(
             self,
-            "Hapus User",
-            f"Hapus user '{username}'?",
+            "Delete User",
+            f"Delete user '{username}'?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -1391,7 +1689,7 @@ class DashboardForm(QMainWindow):
         try:
             delete_user(session, user_id)
         except ValueError as error:
-            QMessageBox.warning(self, "Gagal Hapus", str(error))
+            QMessageBox.warning(self, "Delete Failed", str(error))
             return
         finally:
             session.close()
@@ -1509,7 +1807,7 @@ class DashboardForm(QMainWindow):
             session.close()
 
     def _open_add_user_dialog(self) -> None:
-        """Buka dialog untuk menambah user baru"""
+        """Open dialog to add a new user."""
         dialog = UserAddDialog(self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -1518,17 +1816,17 @@ class DashboardForm(QMainWindow):
         
         # Validasi
         if not data["username"]:
-            QMessageBox.warning(self, "Validasi", "Username tidak boleh kosong.")
+            QMessageBox.warning(self, "Validation", "Username cannot be empty.")
             return
         
         if not data["nama"]:
-            QMessageBox.warning(self, "Validasi", "Nama tidak boleh kosong.")
+            QMessageBox.warning(self, "Validation", "Full name cannot be empty.")
             return
         
         self._add_user(data)
 
     def _add_user(self, data: dict[str, str]) -> None:
-        """Tambahkan user baru ke database dengan password dan PIN otomatis"""
+        """Add a new user to the database with generated password and PIN."""
         # Generate password dan PIN
         generated_password = self._build_temp_password()
         generated_pin = "".join(secrets.choice(string.digits) for _ in range(6))
@@ -1553,14 +1851,14 @@ class DashboardForm(QMainWindow):
             self._load_users_table()
             QMessageBox.information(
                 self,
-                "User Baru Berhasil Dibuat",
-                f"User '{data['username']}' berhasil ditambahkan.\n\n"
+                "User Created",
+                f"User '{data['username']}' was added successfully.\n\n"
                 f"Password: {generated_password}\n"
                 f"PIN: {generated_pin}\n\n"
-                f"Catat kredensial ini sekarang (hanya ditampilkan sekali)."
+                f"Save these credentials now (shown only once)."
             )
         except ValueError as error:
-            QMessageBox.warning(self, "Validasi", str(error))
+            QMessageBox.warning(self, "Validation", str(error))
             session.rollback()
             return
         except Exception as error:
