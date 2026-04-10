@@ -1169,7 +1169,7 @@ class DashboardForm(QMainWindow):
         container.setAutoFillBackground(False)
         container.setStyleSheet("background: transparent;")
         outer = QHBoxLayout(container)
-        outer.setContentsMargins(6, 8, 6, 8)
+        outer.setContentsMargins(8, 8, 8, 8)
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Pill widget — explicit QWidget so border-radius fills correctly
@@ -1177,7 +1177,7 @@ class DashboardForm(QMainWindow):
         pill.setObjectName("statusBadgePill")
         pill.setProperty("isActive", is_active)
         pill.setProperty("rowSelected", False)
-        pill.setFixedSize(124, 34)
+        pill.setFixedSize(124, 32)
         pill_layout = QHBoxLayout(pill)
         pill_layout.setContentsMargins(10, 0, 12, 0)
         pill_layout.setSpacing(5)
@@ -1210,27 +1210,23 @@ class DashboardForm(QMainWindow):
     ) -> None:
         if is_active:
             if selected:
-                pill.setStyleSheet("background: #C8F2D6; border: 1px solid #4BC174; border-radius: 13px;")
-                dot.setStyleSheet(
-                    "QLabel { background: #15803D; border-radius: 4px; border: 1px solid #166534; }"
-                )
+                pill.setStyleSheet("background: #DDEFE5; border: 1px solid #B7CCBE; border-radius: 12px;")
+                dot.setStyleSheet("QLabel { background: #1F8F55; border-radius: 4px; border: none; }")
             else:
-                pill.setStyleSheet("background: #DCFCE7; border: 1px solid #65D68D; border-radius: 13px;")
-                dot.setStyleSheet("QLabel { background: #16A34A; border-radius: 4px; border: none; }")
+                pill.setStyleSheet("background: #E8F4EE; border: 1px solid #C9D8CE; border-radius: 12px;")
+                dot.setStyleSheet("QLabel { background: #22A15F; border-radius: 4px; border: none; }")
             lbl.setStyleSheet(
-                "QLabel { color: #166534; font-size: 12px; font-weight: 800; background: transparent; border: none; }"
+                "QLabel { color: #1F6B45; font-size: 12px; font-weight: 700; background: transparent; border: none; }"
             )
         else:
             if selected:
-                pill.setStyleSheet("background: #FFD5D5; border: 1px solid #EF5D5D; border-radius: 13px;")
-                dot.setStyleSheet(
-                    "QLabel { background: #B91C1C; border-radius: 4px; border: 1px solid #991B1B; }"
-                )
+                pill.setStyleSheet("background: #F3E2E2; border: 1px solid #CFB8B8; border-radius: 12px;")
+                dot.setStyleSheet("QLabel { background: #C74747; border-radius: 4px; border: none; }")
             else:
-                pill.setStyleSheet("background: #FEE2E2; border: 1px solid #F68282; border-radius: 13px;")
-                dot.setStyleSheet("QLabel { background: #DC2626; border-radius: 4px; border: none; }")
+                pill.setStyleSheet("background: #F8ECEC; border: 1px solid #DCCACA; border-radius: 12px;")
+                dot.setStyleSheet("QLabel { background: #D65353; border-radius: 4px; border: none; }")
             lbl.setStyleSheet(
-                "QLabel { color: #991B1B; font-size: 12px; font-weight: 800; background: transparent; border: none; }"
+                "QLabel { color: #8D2F2F; font-size: 12px; font-weight: 700; background: transparent; border: none; }"
             )
 
     def _sync_user_table_widget_states(self) -> None:
