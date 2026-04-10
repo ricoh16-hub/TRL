@@ -1119,7 +1119,7 @@ class DashboardForm(QMainWindow):
         self._users_table.setColumnWidth(3, 220)
         self._users_table.setColumnWidth(4, 140)
         self._users_table.setColumnWidth(5, 150)
-        self._users_table.setColumnWidth(6, 160)
+        self._users_table.setColumnWidth(6, 176)
         self._users_table.setColumnWidth(7, 72)
         self._users_table.setColumnWidth(8, 210)
         self._users_table.setColumnHidden(7, True)
@@ -1158,7 +1158,7 @@ class DashboardForm(QMainWindow):
             w = self._users_table.columnWidth(col)
             self._users_table.setColumnWidth(col, max(72, min(w + 20, 320)))
         # Keep hidden ID internal-only and lock columns that use custom widgets.
-        self._users_table.setColumnWidth(6, 160)
+        self._users_table.setColumnWidth(6, 176)
         self._users_table.setColumnWidth(8, 210)
 
     def _build_status_badge(self, status_value: str) -> QWidget:
@@ -1169,7 +1169,7 @@ class DashboardForm(QMainWindow):
         container.setAutoFillBackground(False)
         container.setStyleSheet("background: transparent;")
         outer = QHBoxLayout(container)
-        outer.setContentsMargins(10, 8, 10, 8)
+        outer.setContentsMargins(6, 8, 6, 8)
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Pill widget — explicit QWidget so border-radius fills correctly
@@ -1177,7 +1177,7 @@ class DashboardForm(QMainWindow):
         pill.setObjectName("statusBadgePill")
         pill.setProperty("isActive", is_active)
         pill.setProperty("rowSelected", False)
-        pill.setFixedSize(132, 34)
+        pill.setFixedSize(124, 34)
         pill_layout = QHBoxLayout(pill)
         pill_layout.setContentsMargins(10, 0, 12, 0)
         pill_layout.setSpacing(5)
@@ -1255,13 +1255,7 @@ class DashboardForm(QMainWindow):
 
             actions_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 8))
             if actions_container is not None:
-                panel = actions_container.findChild(QWidget, "actionsPanel")
-                if panel is not None:
-                    if is_selected:
-                        panel.setStyleSheet("background: #E7F0FC; border: 1px solid #BFD5EF; border-radius: 8px;")
-                    else:
-                        panel.setStyleSheet("background: #F7FAFE; border: 1px solid #D3E0EF; border-radius: 8px;")
-                    panel.setProperty("rowSelected", is_selected)
+                pass
 
     def _row_data_from_table(self, row: int) -> Optional[tuple[int, str, str, str, str, str]]:
         if self._users_table is None:
@@ -1513,19 +1507,8 @@ class DashboardForm(QMainWindow):
             actions.setStyleSheet("background: transparent;")
             actions_layout = QHBoxLayout(actions)
             actions_layout.setContentsMargins(10, 8, 10, 8)
+            actions_layout.setSpacing(8)
             actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            actions_panel = QWidget()
-            actions_panel.setObjectName("actionsPanel")
-            actions_panel.setProperty("rowSelected", False)
-            actions_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-            actions_panel.setFixedHeight(34)
-            actions_panel.setFixedWidth(168)
-            actions_panel.setStyleSheet("background: #F7FAFE; border: 1px solid #D3E0EF; border-radius: 10px;")
-            panel_layout = QHBoxLayout(actions_panel)
-            panel_layout.setContentsMargins(8, 2, 8, 2)
-            panel_layout.setSpacing(8)
-            panel_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             edit_btn = QPushButton("Edit")
             edit_btn.setFixedSize(102, 28)
@@ -1565,9 +1548,8 @@ class DashboardForm(QMainWindow):
                 )
             )
 
-            panel_layout.addWidget(edit_btn)
-            panel_layout.addWidget(more_btn)
-            actions_layout.addWidget(actions_panel)
+            actions_layout.addWidget(edit_btn)
+            actions_layout.addWidget(more_btn)
             self._users_table.setCellWidget(row_index, 8, actions)
             self._users_table.setRowHeight(row_index, 62)
 
