@@ -1081,7 +1081,7 @@ class DashboardForm(QMainWindow):
             ]
         )
         self._users_table.verticalHeader().setVisible(False)
-        self._users_table.verticalHeader().setDefaultSectionSize(60)
+        self._users_table.verticalHeader().setDefaultSectionSize(62)
         self._users_table.setAlternatingRowColors(True)
         self._users_table.setShowGrid(False)
         self._users_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -1094,7 +1094,7 @@ class DashboardForm(QMainWindow):
         self._users_table.setStyleSheet(
             "QTableWidget { background: white; alternate-background-color: #F5F9FF; border: 1px solid #D5E2F0; border-radius: 12px; font-size: 14px; outline: none; }"
             "QHeaderView::section { background: #EDF3FB; color: #6B87A8; font-size: 11px; font-weight: 700; border: none; border-bottom: 2px solid #DAE6F3; padding: 10px 14px; }"
-            "QTableWidget::item { padding: 10px 12px; color: #2D405C; border-bottom: 1px solid #EAF0F8; }"
+            "QTableWidget::item { padding: 10px 12px; color: #2D405C; border: none; }"
             "QTableWidget::item:hover { background: #EDF5FF; }"
             "QTableWidget::item:selected { background: #DDEEFF; color: #163A69; }"
         )
@@ -1511,22 +1511,23 @@ class DashboardForm(QMainWindow):
             actions.setAutoFillBackground(False)
             actions.setStyleSheet("background: transparent;")
             actions_layout = QHBoxLayout(actions)
-            actions_layout.setContentsMargins(8, 6, 8, 6)
+            actions_layout.setContentsMargins(10, 8, 10, 8)
             actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             actions_panel = QWidget()
             actions_panel.setObjectName("actionsPanel")
             actions_panel.setProperty("rowSelected", False)
-            actions_panel.setFixedHeight(38)
+            actions_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            actions_panel.setFixedHeight(34)
             actions_panel.setFixedWidth(168)
-            actions_panel.setStyleSheet("background: #F7FAFE; border: 1px solid #D3E0EF; border-radius: 8px;")
+            actions_panel.setStyleSheet("background: #F7FAFE; border: 1px solid #D3E0EF; border-radius: 10px;")
             panel_layout = QHBoxLayout(actions_panel)
-            panel_layout.setContentsMargins(8, 3, 8, 3)
+            panel_layout.setContentsMargins(8, 2, 8, 2)
             panel_layout.setSpacing(8)
             panel_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             edit_btn = QPushButton("Edit")
-            edit_btn.setFixedSize(102, 30)
+            edit_btn.setFixedSize(102, 28)
             edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             edit_btn.setStyleSheet(
                 "QPushButton { background: #2563EB; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; }"
@@ -1544,7 +1545,7 @@ class DashboardForm(QMainWindow):
             )
 
             more_btn = QPushButton("...")
-            more_btn.setFixedSize(38, 30)
+            more_btn.setFixedSize(38, 28)
             more_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             more_btn.setStyleSheet(
                 "QPushButton { background: #FFFFFF; color: #3F5875; border: 1px solid #CDDAEA; border-radius: 6px; font-size: 13px; font-weight: 800; padding: 0; }"
@@ -1567,7 +1568,7 @@ class DashboardForm(QMainWindow):
             panel_layout.addWidget(more_btn)
             actions_layout.addWidget(actions_panel)
             self._users_table.setCellWidget(row_index, 8, actions)
-            self._users_table.setRowHeight(row_index, 60)
+            self._users_table.setRowHeight(row_index, 62)
 
         self._sync_user_table_widget_states()
 
