@@ -1169,7 +1169,7 @@ class DashboardForm(QMainWindow):
         container.setAutoFillBackground(False)
         container.setStyleSheet("background: transparent;")
         outer = QHBoxLayout(container)
-        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setContentsMargins(10, 8, 10, 8)
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Pill widget — explicit QWidget so border-radius fills correctly
@@ -1177,7 +1177,7 @@ class DashboardForm(QMainWindow):
         pill.setObjectName("statusBadgePill")
         pill.setProperty("isActive", is_active)
         pill.setProperty("rowSelected", False)
-        pill.setFixedSize(132, 32)
+        pill.setFixedSize(132, 34)
         pill_layout = QHBoxLayout(pill)
         pill_layout.setContentsMargins(10, 0, 12, 0)
         pill_layout.setSpacing(5)
