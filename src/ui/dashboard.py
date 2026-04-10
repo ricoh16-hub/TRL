@@ -1072,10 +1072,10 @@ class DashboardForm(QMainWindow):
                 "FULL NAME",
                 "USERNAME",
                 "ROLE",
-                "STATUS",
                 "EMAIL",
                 "PHONE",
                 "UPDATED",
+                "STATUS",
                 "ID",
                 "ACTIONS",
             ]
@@ -1103,7 +1103,7 @@ class DashboardForm(QMainWindow):
         header.setMinimumSectionSize(72)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         # Widget-based columns should keep fixed width for consistent pixel alignment.
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
         header.setSectionsClickable(True)
         header.setStretchLastSection(False)
@@ -1116,10 +1116,10 @@ class DashboardForm(QMainWindow):
         self._users_table.setColumnWidth(0, 210)
         self._users_table.setColumnWidth(1, 165)
         self._users_table.setColumnWidth(2, 108)
-        self._users_table.setColumnWidth(3, 160)
-        self._users_table.setColumnWidth(4, 220)
-        self._users_table.setColumnWidth(5, 140)
-        self._users_table.setColumnWidth(6, 150)
+        self._users_table.setColumnWidth(3, 220)
+        self._users_table.setColumnWidth(4, 140)
+        self._users_table.setColumnWidth(5, 150)
+        self._users_table.setColumnWidth(6, 160)
         self._users_table.setColumnWidth(7, 72)
         self._users_table.setColumnWidth(8, 210)
         self._users_table.setColumnHidden(7, True)
@@ -1139,7 +1139,7 @@ class DashboardForm(QMainWindow):
             return
 
         # Keep widget-based columns fixed to avoid visual drift.
-        if logical_index in {3, 8}:
+        if logical_index in {6, 8}:
             return
 
         self._users_table.resizeColumnToContents(logical_index)
@@ -1158,7 +1158,7 @@ class DashboardForm(QMainWindow):
             w = self._users_table.columnWidth(col)
             self._users_table.setColumnWidth(col, max(72, min(w + 20, 320)))
         # Keep hidden ID internal-only and lock columns that use custom widgets.
-        self._users_table.setColumnWidth(3, 160)
+        self._users_table.setColumnWidth(6, 160)
         self._users_table.setColumnWidth(8, 210)
 
     def _build_status_badge(self, status_value: str) -> QWidget:
@@ -1243,7 +1243,7 @@ class DashboardForm(QMainWindow):
                 self._users_table.rootIndex(),
             )
 
-            status_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 3))
+            status_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 6))
             if status_container is not None:
                 pill = status_container.findChild(QWidget, "statusBadgePill")
                 dot = status_container.findChild(QLabel, "statusBadgeDot")
@@ -1493,18 +1493,19 @@ class DashboardForm(QMainWindow):
 
             self._users_table.setItem(row_index, 2, QTableWidgetItem(row_role))
 
-            status_value = row_status
-            self._users_table.setCellWidget(row_index, 3, self._build_status_badge(status_value))
-
             email_item = QTableWidgetItem(str(row["email"]))
             email_item.setToolTip(str(row["email"]))
-            self._users_table.setItem(row_index, 4, email_item)
+            self._users_table.setItem(row_index, 3, email_item)
 
-            self._users_table.setItem(row_index, 5, QTableWidgetItem(str(row["phone"])))
+            self._users_table.setItem(row_index, 4, QTableWidgetItem(str(row["phone"])))
 
             updated_item = QTableWidgetItem(str(row["updated_at"]))
             updated_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._users_table.setItem(row_index, 6, updated_item)
+            self._users_table.setItem(row_index, 5, updated_item)
+
+            status_value = row_status
+            self._users_table.setCellWidget(row_index, 6, self._build_status_badge(status_value))
+
             self._users_table.setItem(row_index, 7, QTableWidgetItem(str(row_id)))
 
             actions = QWidget()
