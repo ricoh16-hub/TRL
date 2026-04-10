@@ -1716,8 +1716,11 @@ class DashboardForm(QMainWindow):
         dialog = QDialog(self)
         dialog.setModal(True)
         dialog.setWindowTitle("User Action Restricted")
-        dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
-        dialog.setFixedSize(580, 304)
+        dialog.setWindowFlags(
+            (dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+            | Qt.WindowType.WindowCloseButtonHint
+        )
+        dialog.setFixedWidth(464)
         dialog.setStyleSheet(
             "QDialog {"
             " background: #F6F9FD;"
@@ -1727,59 +1730,46 @@ class DashboardForm(QMainWindow):
             "QFrame#headerBand {"
             " background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #EEF3FB, stop:1 #E8F0FC);"
             " border: 1px solid #D5E0EE;"
-            " border-radius: 10px;"
+            " border-radius: 8px;"
             "}"
-            "QLabel#titleLabel { color: #1E3E67; font-size: 18px; font-weight: 800; }"
-            "QLabel#subtitleLabel { color: #4A678A; font-size: 12px; font-weight: 600; }"
+            "QLabel#titleLabel { color: #1E3E67; font-size: 14px; font-weight: 800; }"
+            "QLabel#subtitleLabel { color: #4A678A; font-size: 11px; font-weight: 600; }"
             "QFrame#contentCard {"
             " background: rgba(255, 255, 255, 0.92);"
             " border: 1px solid #D9E3F2;"
-            " border-radius: 10px;"
+            " border-radius: 8px;"
             "}"
             "QLabel#infoIcon {"
-            " min-width: 34px; max-width: 34px;"
-            " min-height: 34px; max-height: 34px;"
-            " border-radius: 17px;"
+            " min-width: 28px; max-width: 28px;"
+            " min-height: 28px; max-height: 28px;"
+            " border-radius: 14px;"
             " background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2C8ED8, stop:1 #1E71BB);"
             " color: white;"
-            " font-size: 19px;"
+            " font-size: 15px;"
             " font-weight: 900;"
             " qproperty-alignment: AlignCenter;"
             "}"
-            "QLabel#contentText { color: #284566; font-size: 12px; }"
+            "QLabel#contentText { color: #284566; font-size: 11px; }"
             "QLabel#statusPill {"
             " color: #1B4B78;"
             " background: #ECF3FF;"
             " border: 1px solid #CCDCF3;"
-            " border-radius: 10px;"
-            " padding: 5px 10px;"
-            " font-size: 11px;"
-            " font-weight: 700;"
-            "}"
-            "QPushButton#okButton {"
-            " min-width: 156px;"
-            " min-height: 36px;"
-            " border: none;"
             " border-radius: 8px;"
-            " background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2F67D2, stop:1 #1E4FAA);"
-            " color: white;"
-            " font-size: 12px;"
-            " font-weight: 800;"
-            "}"
-            "QPushButton#okButton:hover {"
-            " background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #285FC6, stop:1 #19449A);"
+            " padding: 3px 8px;"
+            " font-size: 10px;"
+            " font-weight: 700;"
             "}"
         )
 
         root_layout = QVBoxLayout(dialog)
-        root_layout.setContentsMargins(14, 12, 14, 12)
-        root_layout.setSpacing(9)
+        root_layout.setContentsMargins(12, 10, 12, 10)
+        root_layout.setSpacing(7)
 
         header_band = QFrame()
         header_band.setObjectName("headerBand")
         header_layout = QVBoxLayout(header_band)
-        header_layout.setContentsMargins(10, 7, 10, 7)
-        header_layout.setSpacing(2)
+        header_layout.setContentsMargins(9, 6, 9, 6)
+        header_layout.setSpacing(1)
         title = QLabel("User Action Restricted")
         title.setObjectName("titleLabel")
         subtitle = QLabel(f"Action blocked: {action_name} in User Management")
@@ -1791,21 +1781,24 @@ class DashboardForm(QMainWindow):
         content_card = QFrame()
         content_card.setObjectName("contentCard")
         content_layout = QVBoxLayout(content_card)
-        content_layout.setContentsMargins(12, 11, 12, 11)
-        content_layout.setSpacing(9)
+        content_layout.setContentsMargins(10, 9, 10, 9)
+        content_layout.setSpacing(6)
 
         content_top = QHBoxLayout()
-        content_top.setSpacing(12)
+        content_top.setSpacing(9)
         info_icon = QLabel("i")
         info_icon.setObjectName("infoIcon")
         content_text = QLabel(
-            "You are not allowed to perform this action.\n\n"
-            "Only users with Role = Superior and Status = Active can perform Edit and Delete actions.\n\n"
+            "You are not allowed to perform this action.\n"
+            "Only users with Role = Superior and Status = Active can perform Edit and Delete actions.\n"
             "Please contact an Active Superior for assistance."
         )
         content_text.setObjectName("contentText")
         content_text.setWordWrap(True)
-        content_text.setMinimumHeight(96)
+        content_text.setMinimumWidth(370)
+        content_text.setMaximumWidth(370)
+        content_text.adjustSize()
+        content_text.setMinimumHeight(content_text.sizeHint().height() + 6)
         content_top.addWidget(info_icon, alignment=Qt.AlignmentFlag.AlignTop)
         content_top.addWidget(content_text, stretch=1)
         content_layout.addLayout(content_top)
@@ -1821,13 +1814,8 @@ class DashboardForm(QMainWindow):
         content_layout.addLayout(access_row)
         root_layout.addWidget(content_card)
 
-        footer = QHBoxLayout()
-        footer.addStretch()
-        ok_button = QPushButton("OK")
-        ok_button.setObjectName("okButton")
-        ok_button.clicked.connect(dialog.accept)
-        footer.addWidget(ok_button)
-        root_layout.addLayout(footer)
+        required_height = max(220, content_text.sizeHint().height() + 150)
+        dialog.setFixedHeight(required_height)
 
         if self.isVisible():
             center = self.frameGeometry().center()
