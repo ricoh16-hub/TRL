@@ -912,6 +912,9 @@ class DashboardForm(QMainWindow):
 
         self.setCentralWidget(root)
 
+    def current_user_id(self) -> int:
+        return int(getattr(self._user, "id", 0) or 0)
+
     def _build_temp_password(self, length: int = TEMP_PASSWORD_LENGTH) -> str:
         alphabet = string.ascii_letters + string.digits
         return "".join(secrets.choice(alphabet) for _ in range(length))
@@ -1309,8 +1312,13 @@ class DashboardForm(QMainWindow):
             "QMenu::separator { height: 1px; background: #E7EDF4; margin: 3px 8px; }"
         )
         edit_action = menu.addAction("Edit User")
+        can_manage_actions = self._can_current_user_manage_user_actions()
+        if not can_manage_actions:
+            edit_action.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
         menu.addSeparator()
         delete_action = menu.addAction("Delete User")
+        if not can_manage_actions:
+            delete_action.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
         action = menu.exec(global_pos)  # type: ignore[arg-type]
         if action is edit_action:
             self._edit_user(user_id, role_value, status_value, password_value, pin_value)
@@ -1458,6 +1466,8 @@ class DashboardForm(QMainWindow):
             and (selected_role == "All" or row["role"] == selected_role)
         ]
 
+        can_manage_actions = self._can_current_user_manage_user_actions()
+
         self._users_table.setRowCount(len(filtered_rows))
         for row_index, row in enumerate(filtered_rows):
             # Hoist row scalars so lambdas and UserRole data share the same refs
@@ -1513,6 +1523,7 @@ class DashboardForm(QMainWindow):
                 "QPushButton { background: #2563EB; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; }"
                 "QPushButton:hover { background: #1D55D8; }"
                 "QPushButton:pressed { background: #1749C0; }"
+                "QPushButton:disabled { background: #BFCDE2; color: #6A7F9E; }"
             )
             edit_btn.clicked.connect(
                 lambda _checked=False, user_id=row_id, role_value=row_role, status_value=row_status, password_value=row_password, pin_value=row_pin: self._edit_user(
@@ -1523,6 +1534,8 @@ class DashboardForm(QMainWindow):
                     pin_value,
                 )
             )
+            if not can_manage_actions:
+                edit_btn.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
 
             more_btn = QPushButton("...")
             more_btn.setFixedSize(38, 28)
@@ -1559,6 +1572,10 @@ class DashboardForm(QMainWindow):
         fallback_password: str = "",
         fallback_pin: str = "",
     ) -> None:
+        if not self._can_current_user_manage_user_actions():
+            self._show_user_action_access_denied_dialog("Edit")
+            return
+
         session = Session()
         try:
             user = session.get(User, user_id)
@@ -1654,7 +1671,184 @@ class DashboardForm(QMainWindow):
 
         self._load_users_table()
 
+    def _get_current_user_access_profile(self) -> tuple[str, str]:
+        if self._user is None:
+            return ("Unknown", "Inactive")
+
+        # Always read latest role/status from DB to avoid stale in-memory user state.
+        user_id = int(getattr(self._user, "id", 0) or 0)
+        if user_id > 0:
+            session = Session()
+            try:
+                user = session.get(User, user_id)
+                if user is not None:
+                    raw_role = str(getattr(user, "role", "Operator") or "Operator").strip()
+                    try:
+                        role_value = normalize_role_name(raw_role)
+                    except ValueError:
+                        role_value = raw_role if raw_role else "Unknown"
+
+                    raw_status = str(getattr(user, "status", "nonaktif") or "nonaktif").strip().lower()
+                    status_value = "Active" if raw_status in {"aktif", "active"} else "Inactive"
+                    return (role_value, status_value)
+            finally:
+                session.close()
+
+        raw_role = str(getattr(self._user, "role", "Operator") or "Operator").strip()
+        try:
+            role_value = normalize_role_name(raw_role)
+        except ValueError:
+            role_value = raw_role if raw_role else "Unknown"
+        raw_status = str(getattr(self._user, "status", "nonaktif") or "nonaktif").strip().lower()
+        status_value = "Active" if raw_status in {"aktif", "active"} else "Inactive"
+        return (role_value, status_value)
+
+    def _can_current_user_manage_user_actions(self) -> bool:
+        role_value, status_value = self._get_current_user_access_profile()
+        return role_value.strip().lower() == "superior" and status_value.strip().lower() == "active"
+
+    def _can_current_user_edit_users(self) -> bool:
+        # Backward-compatible alias for existing call sites.
+        return self._can_current_user_manage_user_actions()
+
+    def _show_user_action_access_denied_dialog(self, action_name: str) -> None:
+        role_value, status_value = self._get_current_user_access_profile()
+        dialog = QDialog(self)
+        dialog.setModal(True)
+        dialog.setWindowTitle("User Action Restricted")
+        dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        dialog.setFixedSize(640, 332)
+        dialog.setStyleSheet(
+            "QDialog {"
+            " background: #F6F9FD;"
+            " border: 1px solid #D9E2EF;"
+            " border-radius: 12px;"
+            "}"
+            "QFrame#headerBand {"
+            " background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #EEF3FB, stop:1 #E8F0FC);"
+            " border: 1px solid #D5E0EE;"
+            " border-radius: 10px;"
+            "}"
+            "QLabel#titleLabel { color: #1E3E67; font-size: 18px; font-weight: 800; }"
+            "QLabel#subtitleLabel { color: #4A678A; font-size: 12px; font-weight: 600; }"
+            "QFrame#contentCard {"
+            " background: rgba(255, 255, 255, 0.92);"
+            " border: 1px solid #D9E3F2;"
+            " border-radius: 10px;"
+            "}"
+            "QLabel#infoIcon {"
+            " min-width: 34px; max-width: 34px;"
+            " min-height: 34px; max-height: 34px;"
+            " border-radius: 17px;"
+            " background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2C8ED8, stop:1 #1E71BB);"
+            " color: white;"
+            " font-size: 19px;"
+            " font-weight: 900;"
+            " qproperty-alignment: AlignCenter;"
+            "}"
+            "QLabel#contentText { color: #284566; font-size: 12px; line-height: 1.34em; }"
+            "QLabel#statusPill {"
+            " color: #1B4B78;"
+            " background: #ECF3FF;"
+            " border: 1px solid #CCDCF3;"
+            " border-radius: 10px;"
+            " padding: 5px 10px;"
+            " font-size: 11px;"
+            " font-weight: 700;"
+            "}"
+            "QPushButton#okButton {"
+            " min-width: 156px;"
+            " min-height: 36px;"
+            " border: none;"
+            " border-radius: 8px;"
+            " background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2F67D2, stop:1 #1E4FAA);"
+            " color: white;"
+            " font-size: 12px;"
+            " font-weight: 800;"
+            "}"
+            "QPushButton#okButton:hover {"
+            " background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #285FC6, stop:1 #19449A);"
+            "}"
+        )
+
+        shadow = QGraphicsDropShadowEffect(dialog)
+        shadow.setBlurRadius(24)
+        shadow.setOffset(0, 8)
+        shadow.setColor(QColor(20, 41, 74, 62))
+        dialog.setGraphicsEffect(shadow)
+
+        root_layout = QVBoxLayout(dialog)
+        root_layout.setContentsMargins(18, 14, 18, 14)
+        root_layout.setSpacing(10)
+
+        header_band = QFrame()
+        header_band.setObjectName("headerBand")
+        header_layout = QVBoxLayout(header_band)
+        header_layout.setContentsMargins(12, 9, 12, 9)
+        header_layout.setSpacing(2)
+        title = QLabel("User Action Restricted")
+        title.setObjectName("titleLabel")
+        subtitle = QLabel(f"Action blocked: {action_name} in User Management")
+        subtitle.setObjectName("subtitleLabel")
+        header_layout.addWidget(title)
+        header_layout.addWidget(subtitle)
+        root_layout.addWidget(header_band)
+
+        content_card = QFrame()
+        content_card.setObjectName("contentCard")
+        content_layout = QVBoxLayout(content_card)
+        content_layout.setContentsMargins(14, 12, 14, 12)
+        content_layout.setSpacing(10)
+
+        content_top = QHBoxLayout()
+        content_top.setSpacing(12)
+        info_icon = QLabel("i")
+        info_icon.setObjectName("infoIcon")
+        content_text = QLabel(
+            "You are not allowed to perform this action.\n\n"
+            "Only users with Role = Superior and Status = Active can perform Edit and Delete actions.\n\n"
+            "Please contact an Active Superior for assistance."
+        )
+        content_text.setObjectName("contentText")
+        content_text.setWordWrap(True)
+        content_top.addWidget(info_icon, alignment=Qt.AlignmentFlag.AlignTop)
+        content_top.addWidget(content_text, stretch=1)
+        content_layout.addLayout(content_top)
+
+        access_row = QHBoxLayout()
+        role_pill = QLabel(f"Role: {role_value}")
+        role_pill.setObjectName("statusPill")
+        status_pill = QLabel(f"Status: {status_value}")
+        status_pill.setObjectName("statusPill")
+        access_row.addWidget(role_pill)
+        access_row.addWidget(status_pill)
+        access_row.addStretch()
+        content_layout.addLayout(access_row)
+        root_layout.addWidget(content_card)
+
+        root_layout.addStretch()
+
+        footer = QHBoxLayout()
+        footer.addStretch()
+        ok_button = QPushButton("Understood")
+        ok_button.setObjectName("okButton")
+        ok_button.clicked.connect(dialog.accept)
+        footer.addWidget(ok_button)
+        root_layout.addLayout(footer)
+
+        if self.isVisible():
+            center = self.frameGeometry().center()
+            dialog_rect = dialog.frameGeometry()
+            dialog_rect.moveCenter(center)
+            dialog.move(dialog_rect.topLeft())
+
+        dialog.exec()
+
     def _delete_user(self, user_id: int, username: str) -> None:
+        if not self._can_current_user_manage_user_actions():
+            self._show_user_action_access_denied_dialog("Delete")
+            return
+
         answer = QMessageBox.question(
             self,
             "Delete User",
@@ -2017,9 +2211,18 @@ class DashboardForm(QMainWindow):
 def show_dashboard(app: QApplication, user: Optional[User] = None) -> DashboardForm:
     global _active_dashboard
     if _active_dashboard is not None and _active_dashboard.isVisible():
-        _active_dashboard.raise_()
-        _active_dashboard.activateWindow()
-        return _active_dashboard
+        current_user_id = _active_dashboard.current_user_id()
+        incoming_user_id = int(getattr(user, "id", 0) or 0)
+
+        # If login user changed, rebuild dashboard to avoid stale permissions/user context.
+        if incoming_user_id > 0 and incoming_user_id != current_user_id:
+            _active_dashboard.close()
+            _active_dashboard.deleteLater()
+            _active_dashboard = None
+        else:
+            _active_dashboard.raise_()
+            _active_dashboard.activateWindow()
+            return _active_dashboard
 
     _active_dashboard = DashboardForm(user=user)
     _active_dashboard.showMaximized()
