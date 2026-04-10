@@ -40,9 +40,18 @@ def authenticate(username: str, password: str, session=None) -> Optional['User']
         session = Session()
         close_session = True
 
+    username_input = (username or "").strip()
+    if not username_input:
+        if close_session:
+            session.close()
+        return None
+
     # CRITICAL: Pre-load role_links using joinedload for single-user query efficiency
     from sqlalchemy.orm import joinedload
-    user = session.query(User).options(joinedload(User.role_links)).filter_by(username=username).first()
+    user_query = session.query(User).options(joinedload(User.role_links))
+    user = user_query.filter_by(username=username_input).first()
+    if user is None and username_input.lower() != username_input:
+        user = user_query.filter_by(username=username_input.lower()).first()
 
     if user is None:
         if close_session:
@@ -62,6 +71,15 @@ def authenticate(username: str, password: str, session=None) -> Optional['User']
 
     if password_hash and password_salt:
         authenticated = verify_password(password, password_salt, password_hash)
+        if not authenticated:
+            password_plaintext = getattr(user, "password_plaintext", None)
+            if password_plaintext and password_plaintext == password:
+                repaired_salt, repaired_hash = create_password_hash(password)
+                user.password_salt = repaired_salt
+                user.password_hash = repaired_hash
+                _upsert_password_record(session, user, repaired_hash, repaired_salt)
+                session.commit()
+                authenticated = True
     elif user.password:
         authenticated = user.password == password
         if authenticated:

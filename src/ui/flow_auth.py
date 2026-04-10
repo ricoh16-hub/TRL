@@ -8,9 +8,9 @@ except ImportError:
     from src.database.models import AuditLog, LoginAttempt, Permission, RolePermission, Session, User, UserPassword, UserPin, UserRole, UserSession
 
 try:
-    from auth.passwords import verify_password, verify_pin_code
+    from auth.passwords import create_password_hash, verify_password, verify_pin_code
 except ImportError:
-    from src.auth.passwords import verify_password, verify_pin_code
+    from src.auth.passwords import create_password_hash, verify_password, verify_pin_code
 
 
 def _utc_now() -> datetime:
@@ -51,6 +51,22 @@ def _save_audit_log(session: Any, user_id: int | None, action: str, description:
             ip_address=ip_address,
         )
     )
+
+
+def _upsert_password_record(session: Any, user_id: int, password_hash: str, password_salt: str) -> None:
+    password_record = session.query(UserPassword).filter_by(user_id=user_id).first()
+    if password_record is None:
+        session.add(
+            UserPassword(
+                user_id=user_id,
+                password_hash=password_hash,
+                password_salt=password_salt,
+            )
+        )
+        return
+
+    password_record.password_hash = password_hash
+    password_record.password_salt = password_salt
 
 
 def _load_permissions_for_user(session: Any, user_id: int) -> list[str]:
@@ -142,7 +158,8 @@ def authenticate_credentials_step(
     """Step 2-5: Username/password check, session creation, role/permission loading, and audit log."""
     if pin_user is None:
         return None
-    if not username or not password:
+    username_input = (username or "").strip()
+    if not username_input or not password:
         return None
 
     session: Any = Session()
@@ -164,7 +181,8 @@ def authenticate_credentials_step(
             session.commit()
             return None
 
-        if str(getattr(user, "username", "")) != username:
+        user_username = str(getattr(user, "username", "") or "").strip()
+        if user_username.lower() != username_input.lower():
             pin_record = session.query(UserPin).filter_by(user_id=user_id).first()
             if pin_record is not None:
                 failed_attempts = _as_int(getattr(pin_record, "failed_attempts", 0)) or 0
@@ -185,6 +203,12 @@ def authenticate_credentials_step(
         authenticated = False
         if password_hash and password_salt:
             authenticated = verify_password(password, password_salt, password_hash)
+            if not authenticated:
+                password_plaintext = _as_str(getattr(user, "password_plaintext", None))
+                if password_plaintext and password_plaintext == password:
+                    repaired_salt, repaired_hash = create_password_hash(password)
+                    _upsert_password_record(session, user_id, repaired_hash, repaired_salt)
+                    authenticated = True
 
         pin_record = session.query(UserPin).filter_by(user_id=user_id).first()
         if not authenticated:
