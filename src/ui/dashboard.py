@@ -1081,7 +1081,7 @@ class DashboardForm(QMainWindow):
             ]
         )
         self._users_table.verticalHeader().setVisible(False)
-        self._users_table.verticalHeader().setDefaultSectionSize(52)
+        self._users_table.verticalHeader().setDefaultSectionSize(60)
         self._users_table.setAlternatingRowColors(True)
         self._users_table.setShowGrid(False)
         self._users_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -1116,12 +1116,12 @@ class DashboardForm(QMainWindow):
         self._users_table.setColumnWidth(0, 210)
         self._users_table.setColumnWidth(1, 165)
         self._users_table.setColumnWidth(2, 108)
-        self._users_table.setColumnWidth(3, 130)
+        self._users_table.setColumnWidth(3, 160)
         self._users_table.setColumnWidth(4, 220)
         self._users_table.setColumnWidth(5, 140)
         self._users_table.setColumnWidth(6, 150)
         self._users_table.setColumnWidth(7, 72)
-        self._users_table.setColumnWidth(8, 154)
+        self._users_table.setColumnWidth(8, 210)
         self._users_table.setColumnHidden(7, True)
 
         # Double-click row → edit; right-click → context menu; keyboard Delete/Enter
@@ -1158,8 +1158,8 @@ class DashboardForm(QMainWindow):
             w = self._users_table.columnWidth(col)
             self._users_table.setColumnWidth(col, max(72, min(w + 20, 320)))
         # Keep hidden ID internal-only and lock columns that use custom widgets.
-        self._users_table.setColumnWidth(3, 130)
-        self._users_table.setColumnWidth(8, 154)
+        self._users_table.setColumnWidth(3, 160)
+        self._users_table.setColumnWidth(8, 210)
 
     def _build_status_badge(self, status_value: str) -> QWidget:
         is_active = status_value.strip().lower() == "active"
@@ -1177,7 +1177,7 @@ class DashboardForm(QMainWindow):
         pill.setObjectName("statusBadgePill")
         pill.setProperty("isActive", is_active)
         pill.setProperty("rowSelected", False)
-        pill.setFixedSize(112, 30)
+        pill.setFixedSize(132, 32)
         pill_layout = QHBoxLayout(pill)
         pill_layout.setContentsMargins(10, 0, 12, 0)
         pill_layout.setSpacing(5)
@@ -1186,7 +1186,7 @@ class DashboardForm(QMainWindow):
         # Colored dot indicator
         dot = QLabel()
         dot.setObjectName("statusBadgeDot")
-        dot.setFixedSize(9, 9)
+        dot.setFixedSize(10, 10)
 
         # Text label
         lbl = QLabel(status_value)
@@ -1511,22 +1511,22 @@ class DashboardForm(QMainWindow):
             actions.setAutoFillBackground(False)
             actions.setStyleSheet("background: transparent;")
             actions_layout = QHBoxLayout(actions)
-            actions_layout.setContentsMargins(0, 0, 0, 0)
+            actions_layout.setContentsMargins(8, 6, 8, 6)
             actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             actions_panel = QWidget()
             actions_panel.setObjectName("actionsPanel")
             actions_panel.setProperty("rowSelected", False)
-            actions_panel.setFixedHeight(32)
-            actions_panel.setFixedWidth(118)
+            actions_panel.setFixedHeight(38)
+            actions_panel.setFixedWidth(168)
             actions_panel.setStyleSheet("background: #F7FAFE; border: 1px solid #D3E0EF; border-radius: 8px;")
             panel_layout = QHBoxLayout(actions_panel)
-            panel_layout.setContentsMargins(5, 1, 5, 1)
-            panel_layout.setSpacing(4)
+            panel_layout.setContentsMargins(8, 3, 8, 3)
+            panel_layout.setSpacing(8)
             panel_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             edit_btn = QPushButton("Edit")
-            edit_btn.setFixedSize(74, 26)
+            edit_btn.setFixedSize(102, 30)
             edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             edit_btn.setStyleSheet(
                 "QPushButton { background: #2563EB; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; }"
@@ -1544,7 +1544,7 @@ class DashboardForm(QMainWindow):
             )
 
             more_btn = QPushButton("...")
-            more_btn.setFixedSize(30, 26)
+            more_btn.setFixedSize(38, 30)
             more_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             more_btn.setStyleSheet(
                 "QPushButton { background: #FFFFFF; color: #3F5875; border: 1px solid #CDDAEA; border-radius: 6px; font-size: 13px; font-weight: 800; padding: 0; }"
@@ -1567,7 +1567,7 @@ class DashboardForm(QMainWindow):
             panel_layout.addWidget(more_btn)
             actions_layout.addWidget(actions_panel)
             self._users_table.setCellWidget(row_index, 8, actions)
-            self._users_table.setRowHeight(row_index, 52)
+            self._users_table.setRowHeight(row_index, 60)
 
         self._sync_user_table_widget_states()
 
