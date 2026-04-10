@@ -1717,12 +1717,12 @@ class DashboardForm(QMainWindow):
         dialog.setModal(True)
         dialog.setWindowTitle("User Action Restricted")
         dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
-        dialog.setFixedSize(640, 332)
+        dialog.setFixedSize(580, 304)
         dialog.setStyleSheet(
             "QDialog {"
             " background: #F6F9FD;"
             " border: 1px solid #D9E2EF;"
-            " border-radius: 12px;"
+            " border-radius: 0px;"
             "}"
             "QFrame#headerBand {"
             " background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #EEF3FB, stop:1 #E8F0FC);"
@@ -1746,7 +1746,7 @@ class DashboardForm(QMainWindow):
             " font-weight: 900;"
             " qproperty-alignment: AlignCenter;"
             "}"
-            "QLabel#contentText { color: #284566; font-size: 12px; line-height: 1.34em; }"
+            "QLabel#contentText { color: #284566; font-size: 12px; }"
             "QLabel#statusPill {"
             " color: #1B4B78;"
             " background: #ECF3FF;"
@@ -1771,20 +1771,14 @@ class DashboardForm(QMainWindow):
             "}"
         )
 
-        shadow = QGraphicsDropShadowEffect(dialog)
-        shadow.setBlurRadius(24)
-        shadow.setOffset(0, 8)
-        shadow.setColor(QColor(20, 41, 74, 62))
-        dialog.setGraphicsEffect(shadow)
-
         root_layout = QVBoxLayout(dialog)
-        root_layout.setContentsMargins(18, 14, 18, 14)
-        root_layout.setSpacing(10)
+        root_layout.setContentsMargins(14, 12, 14, 12)
+        root_layout.setSpacing(9)
 
         header_band = QFrame()
         header_band.setObjectName("headerBand")
         header_layout = QVBoxLayout(header_band)
-        header_layout.setContentsMargins(12, 9, 12, 9)
+        header_layout.setContentsMargins(10, 7, 10, 7)
         header_layout.setSpacing(2)
         title = QLabel("User Action Restricted")
         title.setObjectName("titleLabel")
@@ -1797,8 +1791,8 @@ class DashboardForm(QMainWindow):
         content_card = QFrame()
         content_card.setObjectName("contentCard")
         content_layout = QVBoxLayout(content_card)
-        content_layout.setContentsMargins(14, 12, 14, 12)
-        content_layout.setSpacing(10)
+        content_layout.setContentsMargins(12, 11, 12, 11)
+        content_layout.setSpacing(9)
 
         content_top = QHBoxLayout()
         content_top.setSpacing(12)
@@ -1811,6 +1805,7 @@ class DashboardForm(QMainWindow):
         )
         content_text.setObjectName("contentText")
         content_text.setWordWrap(True)
+        content_text.setMinimumHeight(96)
         content_top.addWidget(info_icon, alignment=Qt.AlignmentFlag.AlignTop)
         content_top.addWidget(content_text, stretch=1)
         content_layout.addLayout(content_top)
@@ -1826,11 +1821,9 @@ class DashboardForm(QMainWindow):
         content_layout.addLayout(access_row)
         root_layout.addWidget(content_card)
 
-        root_layout.addStretch()
-
         footer = QHBoxLayout()
         footer.addStretch()
-        ok_button = QPushButton("Understood")
+        ok_button = QPushButton("OK")
         ok_button.setObjectName("okButton")
         ok_button.clicked.connect(dialog.accept)
         footer.addWidget(ok_button)
