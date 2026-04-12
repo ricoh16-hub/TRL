@@ -168,48 +168,19 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         QLabel {
             color: #f4f8ff;
             font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
-            font-size: 15px;
-        }
-
-        QFrame#badgeOuter {
-            border-radius: 42px;
-            border: 1px solid rgba(88, 138, 255, 0.45);
-            background: rgba(5, 20, 65, 0.35);
-        }
-
-        QFrame#badgeInner {
-            border-radius: 31px;
-            border: 1px solid rgba(90, 156, 255, 0.5);
-            background: qradialgradient(
-                cx:0.5,
-                cy:0.42,
-                radius:0.9,
-                stop:0 rgba(102, 162, 255, 0.45),
-                stop:1 rgba(14, 35, 85, 0.8)
-            );
-        }
-
-        QLabel#badgeText {
-            font-size: 14px;
-            font-weight: 700;
-            color: #dbe8ff;
+            font-size: 13px;
         }
 
         QLabel#title {
-            font-size: 28px;
+            font-size: 22px;
             font-weight: 700;
-            letter-spacing: 0.2px;
+            letter-spacing: 0.5px;
             color: #ecf2ff;
         }
 
-        QLabel#subtitle {
-            font-size: 12px;
-            color: rgba(233, 241, 255, 0.70);
-        }
-
         QFrame#cardPanel {
-            border: 1px solid rgba(127, 174, 255, 0.45);
-            border-radius: 28px;
+            border: 1px solid rgba(127, 174, 255, 0.40);
+            border-radius: 20px;
             background: qlineargradient(
                 x1:0,
                 y1:0,
@@ -217,20 +188,6 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                 y2:1,
                 stop:0 rgba(10, 23, 73, 0.88),
                 stop:1 rgba(24, 44, 111, 0.88)
-            );
-        }
-
-        QFrame#leftGlow,
-        QFrame#rightGlow {
-            border: none;
-            background: qlineargradient(
-                x1:0,
-                y1:0,
-                x2:0,
-                y2:1,
-                stop:0 rgba(127, 187, 255, 0),
-                stop:0.5 rgba(127, 187, 255, 0.65),
-                stop:1 rgba(127, 187, 255, 0)
             );
         }
 
@@ -242,83 +199,86 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                 x2:1,
                 y2:0,
                 stop:0 rgba(170, 205, 255, 0),
-                stop:0.5 rgba(202, 227, 255, 0.95),
+                stop:0.5 rgba(202, 227, 255, 0.90),
                 stop:1 rgba(170, 205, 255, 0)
             );
         }
 
         QLabel#fieldLabel {
-            font-size: 13px;
-            font-weight: 600;
-            color: #e9f1ff;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            color: rgba(167, 197, 255, 0.80);
         }
 
         QFrame#inputRow {
-            border: 1px solid rgba(130, 170, 255, 0.34);
-            border-radius: 16px;
-            background: rgba(18, 33, 83, 0.72);
+            border: 1px solid rgba(130, 170, 255, 0.32);
+            border-radius: 12px;
+            background: rgba(18, 33, 83, 0.68);
         }
 
         QLabel#fieldIcon {
-            min-width: 26px;
+            min-width: 24px;
+            max-width: 24px;
         }
 
         QLineEdit#fieldInput {
             color: #edf4ff;
             border: none;
             background: transparent;
-            padding: 10px 6px;
-            font-size: 12px;
+            padding: 0px 4px;
+            font-size: 14px;
             font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
         }
 
         QLineEdit#fieldInput::placeholder {
-            color: rgba(214, 228, 255, 0.48);
+            color: rgba(214, 228, 255, 0.42);
         }
 
         QToolButton#togglePassword {
             border: none;
             background: transparent;
-            padding: 2px 4px;
+            padding: 2px 6px;
         }
 
         QLabel#statusIcon {
-            min-width: 20px;
+            min-width: 22px;
+            max-width: 22px;
         }
 
         QLabel#statusText {
-            color: rgba(220, 232, 255, 0.9);
+            color: rgba(190, 220, 255, 0.85);
             font-size: 12px;
         }
 
         QPushButton {
-            border-radius: 15px;
-            padding: 9px 14px;
-            font-size: 12px;
+            border-radius: 12px;
+            font-size: 13px;
             font-weight: 700;
-            min-height: 24px;
+            min-height: 44px;
         }
 
         QPushButton#cancelButton {
-            border: 1px solid rgba(126, 170, 255, 0.38);
-            color: #eaf1ff;
-            background: rgba(12, 24, 70, 0.65);
+            border: 1px solid rgba(126, 170, 255, 0.35);
+            color: rgba(220, 235, 255, 0.85);
+            background: rgba(12, 24, 70, 0.55);
         }
 
         QPushButton#cancelButton:hover {
-            background: rgba(24, 42, 99, 0.9);
+            background: rgba(24, 42, 99, 0.80);
+            color: #eaf1ff;
         }
 
         QPushButton#submitButton {
             color: white;
-            border: 1px solid rgba(145, 191, 255, 0.42);
+            border: 1px solid rgba(145, 191, 255, 0.38);
             background: qlineargradient(
                 x1:0,
                 y1:0,
                 x2:1,
                 y2:0,
-                stop:0 #3f6fff,
-                stop:1 #5ea0ff
+                stop:0 #3566e8,
+                stop:1 #4e90f5
             );
         }
 
@@ -328,20 +288,23 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                 y1:0,
                 x2:1,
                 y2:0,
-                stop:0 #4b79ff,
-                stop:1 #6badff
+                stop:0 #4070f0,
+                stop:1 #5ea0ff
             );
         }
         """
     )
 
     root_layout = QVBoxLayout(dialog)
-    root_layout.setContentsMargins(42, 28, 42, 24)
-    root_layout.setSpacing(12)
+    root_layout.setContentsMargins(36, 0, 36, 0)
+    root_layout.setSpacing(0)
+
+    root_layout.addStretch(1)
 
     title = QLabel(
-        "<p style='margin:0; padding:0;'>Secure <span style='color:#5f8fff;'>Access</span> Point</p>"
-        "<p style='margin:1px 0 0 0; padding:0; font-size:12px; color:rgba(233,241,255,0.70); font-weight:400;'>"
+        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px;'>"
+        "Secure <span style='color:#5f8fff;'>Access</span> Point</p>"
+        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(233,241,255,0.65); font-weight:400;'>"
         "Enter your credentials to continue securely"
         "</p>"
     )
@@ -349,45 +312,33 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     title.setTextFormat(Qt.TextFormat.RichText)
     title.setAlignment(Qt.AlignmentFlag.AlignCenter)
     root_layout.addWidget(title)
+    root_layout.addSpacing(20)
 
     card = QFrame()
     card.setObjectName("cardPanel")
     card_layout = QVBoxLayout(card)
-    card_layout.setContentsMargins(24, 14, 24, 20)
+    card_layout.setContentsMargins(24, 18, 24, 22)
     card_layout.setSpacing(10)
-
-    side_glow_row = QHBoxLayout()
-    side_glow_row.setContentsMargins(0, 0, 0, 0)
-    side_glow_row.setSpacing(0)
-    left_glow = QFrame()
-    left_glow.setObjectName("leftGlow")
-    left_glow.setFixedWidth(1)
-    right_glow = QFrame()
-    right_glow.setObjectName("rightGlow")
-    right_glow.setFixedWidth(1)
-    side_glow_row.addWidget(left_glow)
-    side_glow_row.addStretch(1)
-    side_glow_row.addWidget(right_glow)
-    card_layout.addLayout(side_glow_row)
 
     top_glow = QFrame()
     top_glow.setObjectName("topGlow")
-    top_glow.setFixedHeight(3)
+    top_glow.setFixedHeight(2)
     card_layout.addWidget(top_glow)
 
-    username_label = QLabel("Username")
+    username_label = QLabel("USERNAME")
     username_label.setObjectName("fieldLabel")
     card_layout.addWidget(username_label)
 
     username_row = QFrame()
     username_row.setObjectName("inputRow")
+    username_row.setFixedHeight(46)
     username_layout = QHBoxLayout(username_row)
-    username_layout.setContentsMargins(12, 0, 12, 0)
-    username_layout.setSpacing(8)
+    username_layout.setContentsMargins(14, 0, 14, 0)
+    username_layout.setSpacing(10)
 
     username_icon = QLabel()
     username_icon.setObjectName("fieldIcon")
-    _set_icon(username_icon, _draw_user_icon(16, QColor("#c9defc")))
+    _set_icon(username_icon, _draw_user_icon(18, QColor("#c9defc")))
 
     username_input = QLineEdit()
     username_input.setObjectName("fieldInput")
@@ -397,19 +348,20 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     username_layout.addWidget(username_input)
     card_layout.addWidget(username_row)
 
-    password_label = QLabel("Password")
+    password_label = QLabel("PASSWORD")
     password_label.setObjectName("fieldLabel")
     card_layout.addWidget(password_label)
 
     password_row = QFrame()
     password_row.setObjectName("inputRow")
+    password_row.setFixedHeight(46)
     password_layout = QHBoxLayout(password_row)
-    password_layout.setContentsMargins(12, 0, 12, 0)
-    password_layout.setSpacing(8)
+    password_layout.setContentsMargins(14, 0, 14, 0)
+    password_layout.setSpacing(10)
 
     password_icon = QLabel()
     password_icon.setObjectName("fieldIcon")
-    _set_icon(password_icon, _draw_lock_icon(16, QColor("#c9defc")))
+    _set_icon(password_icon, _draw_lock_icon(18, QColor("#c9defc")))
 
     password_input = QLineEdit()
     password_input.setObjectName("fieldInput")
@@ -418,8 +370,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     toggle_password_btn = QToolButton()
     toggle_password_btn.setObjectName("togglePassword")
-    toggle_password_btn.setIconSize(password_icon.pixmap().size() if password_icon.pixmap() is not None else QSize(14, 14))
-    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(14, QColor("#d3e6ff"), crossed=False)))
+    toggle_password_btn.setIconSize(QSize(16, 16))
+    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), crossed=False)))
     toggle_password_btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
     password_layout.addWidget(password_icon)
@@ -427,11 +379,16 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     password_layout.addWidget(toggle_password_btn)
     card_layout.addWidget(password_row)
 
+    divider = QFrame()
+    divider.setFixedHeight(1)
+    divider.setStyleSheet("background: rgba(127,174,255,0.18); border: none;")
+    card_layout.addWidget(divider)
+
     status_row = QHBoxLayout()
-    status_row.setSpacing(7)
+    status_row.setSpacing(8)
     status_icon = QLabel()
     status_icon.setObjectName("statusIcon")
-    _set_icon(status_icon, _draw_check_icon(14, QColor("#7fc3ff")))
+    _set_icon(status_icon, _draw_check_icon(16, QColor("#7fc3ff")))
     status_text = QLabel(f"PIN verified for user: <b>{getattr(pin_user, 'username', '-')}</b>")
     status_text.setObjectName("statusText")
     status_text.setTextFormat(Qt.TextFormat.RichText)
@@ -441,6 +398,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     card_layout.addLayout(status_row)
 
     root_layout.addWidget(card)
+    root_layout.addSpacing(20)
 
     result_user: dict[str, Optional[User]] = {"user": None}
 
@@ -448,11 +406,14 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     buttons.setSpacing(12)
     cancel_btn = QPushButton("Cancel")
     cancel_btn.setObjectName("cancelButton")
-    submit_btn = QPushButton("Sign In   ->")
+    cancel_btn.setFixedHeight(44)
+    submit_btn = QPushButton("Sign In  →")
     submit_btn.setObjectName("submitButton")
-    buttons.addWidget(cancel_btn)
-    buttons.addWidget(submit_btn)
+    submit_btn.setFixedHeight(44)
+    buttons.addWidget(cancel_btn, 1)
+    buttons.addWidget(submit_btn, 1)
     root_layout.addLayout(buttons)
+    root_layout.addStretch(1)
 
     def toggle_password_visibility() -> None:
         is_hidden = password_input.echoMode() == QLineEdit.EchoMode.Password
