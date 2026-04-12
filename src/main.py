@@ -63,7 +63,8 @@ def _best_effort_sync_app_privileges() -> None:
 def main():
     """
     Entry point utama aplikasi.
-    Alur: PIN -> username/password -> dashboard.
+    Alur: LOCK -> PIN -> username/password -> dashboard.
+    Jika credentials di-cancel, kembali ke form PIN.
     """
     app_instance = QApplication.instance()
     app = app_instance if isinstance(app_instance, QApplication) else QApplication(sys.argv)
@@ -73,13 +74,17 @@ def main():
         show_boot()
         if not show_lock():
             return
-        pin_user = show_login(app)
-        if pin_user is None:
-            return
 
-        authenticated_user = show_credentials_login(app, pin_user)
-        if authenticated_user is None:
-            return
+        authenticated_user = None
+        while authenticated_user is None:
+            pin_user = show_login(app)
+            if pin_user is None:
+                return
+
+            authenticated_user = show_credentials_login(app, pin_user)
+            if authenticated_user is None:
+                print("[INFO] Credentials dibatalkan. Kembali ke form PIN.")
+                continue
 
         dashboard = show_dashboard(app, authenticated_user)
         dashboard.raise_()
