@@ -2,7 +2,7 @@ from typing import Optional
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QToolButton, QVBoxLayout, QWidget
 
 try:
     from ui.flow_auth import authenticate_credentials_step
@@ -150,150 +150,158 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     y = screen_geometry.y() + (screen_geometry.height() - height_px) // 2
     dialog.move(x, y)
 
-    dialog.setStyleSheet(
-        """
-        QDialog#credentialsDialog {
+    _BASE_SHEET = """
+        QDialog#credentialsDialog {{
             background: qlineargradient(
-                x1:0,
-                y1:0,
-                x2:1,
-                y2:1,
-                stop:0 #222a36,
-                stop:1 #3a4a5c
+                x1:0, y1:0, x2:1, y2:1,
+                stop:0 {bg0},
+                stop:1 {bg1}
             );
             border-radius: 24px;
             border: 1px solid rgba(255,255,255,0.18);
-        }
-
-        QLabel {
+        }}
+        QLabel {{
             color: #f4f8ff;
             font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
             font-size: 13px;
-        }
-
-        QLabel#title {
-            font-size: 22px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            color: #ecf2ff;
-        }
-
-        QFrame#cardPanel {
-            border: 1px solid rgba(127, 174, 255, 0.40);
+        }}
+        QFrame#cardPanel {{
+            border: 1px solid {card_border};
             border-radius: 20px;
             background: qlineargradient(
-                x1:0,
-                y1:0,
-                x2:1,
-                y2:1,
-                stop:0 rgba(10, 23, 73, 0.88),
-                stop:1 rgba(24, 44, 111, 0.88)
+                x1:0, y1:0, x2:1, y2:1,
+                stop:0 {card_bg0},
+                stop:1 {card_bg1}
             );
-        }
-
-        QFrame#topGlow {
+        }}
+        QFrame#topGlow {{
             border: none;
             background: qlineargradient(
-                x1:0,
-                y1:0,
-                x2:1,
-                y2:0,
-                stop:0 rgba(170, 205, 255, 0),
-                stop:0.5 rgba(202, 227, 255, 0.90),
-                stop:1 rgba(170, 205, 255, 0)
+                x1:0, y1:0, x2:1, y2:0,
+                stop:0 rgba(0,0,0,0),
+                stop:0.5 {glow},
+                stop:1 rgba(0,0,0,0)
             );
-        }
-
-        QLabel#fieldLabel {
+        }}
+        QLabel#fieldLabel {{
             font-size: 11px;
             font-weight: 700;
             letter-spacing: 0.8px;
-            color: rgba(167, 197, 255, 0.80);
-        }
-
-        QFrame#inputRow {
-            border: 1px solid rgba(130, 170, 255, 0.32);
+            color: {label_color};
+            font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+        }}
+        QFrame#inputRow {{
+            border: 1px solid {input_border};
             border-radius: 12px;
             background: rgba(18, 33, 83, 0.68);
-        }
-
-        QLabel#fieldIcon {
+        }}
+        QLabel#fieldIcon {{
             min-width: 24px;
             max-width: 24px;
-        }
-
-        QLineEdit#fieldInput {
+        }}
+        QLineEdit#fieldInput {{
             color: #edf4ff;
             border: none;
             background: transparent;
             padding: 0px 4px;
             font-size: 14px;
             font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
-        }
-
-        QLineEdit#fieldInput::placeholder {
+        }}
+        QLineEdit#fieldInput::placeholder {{
             color: rgba(214, 228, 255, 0.42);
-        }
-
-        QToolButton#togglePassword {
+        }}
+        QToolButton#togglePassword {{
             border: none;
             background: transparent;
             padding: 2px 6px;
-        }
-
-        QLabel#statusIcon {
+        }}
+        QLabel#statusIcon {{
             min-width: 22px;
             max-width: 22px;
-        }
-
-        QLabel#statusText {
-            color: rgba(190, 220, 255, 0.85);
+        }}
+        QLabel#statusText {{
+            color: {status_color};
             font-size: 12px;
-        }
-
-        QPushButton {
+            font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+        }}
+        QPushButton {{
             border-radius: 12px;
             font-size: 13px;
             font-weight: 700;
             min-height: 44px;
-        }
-
-        QPushButton#cancelButton {
-            border: 1px solid rgba(126, 170, 255, 0.35);
-            color: rgba(220, 235, 255, 0.85);
+            font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+        }}
+        QPushButton#cancelButton {{
+            border: 1px solid {cancel_border};
+            color: {cancel_color};
             background: rgba(12, 24, 70, 0.55);
-        }
-
-        QPushButton#cancelButton:hover {
+        }}
+        QPushButton#cancelButton:hover {{
             background: rgba(24, 42, 99, 0.80);
             color: #eaf1ff;
-        }
-
-        QPushButton#submitButton {
+        }}
+        QPushButton#submitButton {{
             color: white;
-            border: 1px solid rgba(145, 191, 255, 0.38);
+            border: 1px solid {submit_border};
             background: qlineargradient(
-                x1:0,
-                y1:0,
-                x2:1,
-                y2:0,
-                stop:0 #3566e8,
-                stop:1 #4e90f5
+                x1:0, y1:0, x2:1, y2:0,
+                stop:0 {submit0},
+                stop:1 {submit1}
             );
-        }
+        }}
+        QPushButton#submitButton:hover {{
+            background: qlineargradient(
+                x1:0, y1:0, x2:1, y2:0,
+                stop:0 {submit_h0},
+                stop:1 {submit_h1}
+            );
+        }}
+    """
 
-        QPushButton#submitButton:hover {
-            background: qlineargradient(
-                x1:0,
-                y1:0,
-                x2:1,
-                y2:0,
-                stop:0 #4070f0,
-                stop:1 #5ea0ff
-            );
-        }
-        """
+    _STYLE_NORMAL = _BASE_SHEET.format(
+        bg0="#222a36", bg1="#3a4a5c",
+        card_border="rgba(127, 174, 255, 0.40)",
+        card_bg0="rgba(10, 23, 73, 0.88)", card_bg1="rgba(24, 44, 111, 0.88)",
+        glow="rgba(202, 227, 255, 0.90)",
+        label_color="rgba(167, 197, 255, 0.80)",
+        input_border="rgba(130, 170, 255, 0.32)",
+        status_color="rgba(190, 220, 255, 0.85)",
+        cancel_border="rgba(126, 170, 255, 0.35)",
+        cancel_color="rgba(220, 235, 255, 0.85)",
+        submit_border="rgba(145, 191, 255, 0.38)",
+        submit0="#3566e8", submit1="#4e90f5",
+        submit_h0="#4070f0", submit_h1="#5ea0ff",
     )
+
+    _STYLE_CHARGING = _BASE_SHEET.format(
+        bg0="#1b2535", bg1="#2d3f58",
+        card_border="rgba(80, 180, 255, 0.55)",
+        card_bg0="rgba(8, 20, 65, 0.90)", card_bg1="rgba(16, 36, 98, 0.90)",
+        glow="rgba(80, 180, 255, 0.95)",
+        label_color="rgba(80, 180, 255, 0.90)",
+        input_border="rgba(80, 180, 255, 0.42)",
+        status_color="rgba(80, 200, 255, 0.90)",
+        cancel_border="rgba(80, 180, 255, 0.40)",
+        cancel_color="#50B4FF",
+        submit_border="rgba(80, 180, 255, 0.45)",
+        submit0="#0d72cc", submit1="#50B4FF",
+        submit_h0="#1580dc", submit_h1="#7dd8ff",
+    )
+
+    _TITLE_NORMAL = (
+        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#ecf2ff;'>"
+        "Secure <span style='color:#5f8fff;'>Access</span> Point</p>"
+        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(233,241,255,0.65); font-weight:400;'>"
+        "Enter your credentials to continue securely</p>"
+    )
+    _TITLE_CHARGING = (
+        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#50B4FF;'>"
+        "Secure <span style='color:#7dd8ff;'>Access</span> Point</p>"
+        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(80,200,255,0.75); font-weight:400;'>"
+        "Enter your credentials to continue securely</p>"
+    )
+
+    dialog.setStyleSheet(_STYLE_NORMAL)
 
     root_layout = QVBoxLayout(dialog)
     root_layout.setContentsMargins(36, 0, 36, 0)
@@ -301,13 +309,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     root_layout.addStretch(1)
 
-    title = QLabel(
-        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px;'>"
-        "Secure <span style='color:#5f8fff;'>Access</span> Point</p>"
-        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(233,241,255,0.65); font-weight:400;'>"
-        "Enter your credentials to continue securely"
-        "</p>"
-    )
+    title = QLabel(_TITLE_NORMAL)
     title.setObjectName("title")
     title.setTextFormat(Qt.TextFormat.RichText)
     title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -316,6 +318,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     card = QFrame()
     card.setObjectName("cardPanel")
+    card_shadow = QGraphicsDropShadowEffect(card)
+    card_shadow.setBlurRadius(12)
+    card_shadow.setOffset(3, 4)
+    card_shadow.setColor(QColor(60, 120, 255, 90))
+    card.setGraphicsEffect(card_shadow)
     card_layout = QVBoxLayout(card)
     card_layout.setContentsMargins(24, 18, 24, 22)
     card_layout.setSpacing(10)
@@ -444,6 +451,48 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     toggle_password_btn.clicked.connect(toggle_password_visibility)
     submit_btn.clicked.connect(on_submit)
     cancel_btn.clicked.connect(dialog.reject)
+
+    # --- Charging state (mengikuti login.py: #50B4FF saat charging) ---
+    try:
+        from ui.battery_status import get_battery_info
+    except ImportError:
+        from src.ui.battery_status import get_battery_info  # type: ignore
+
+    from PySide6.QtCore import QTimer
+    _charging_cache: dict[str, bool | None] = {"prev": None}
+
+    def _apply_charging(charging: bool) -> None:
+        dialog.setStyleSheet(_STYLE_CHARGING if charging else _STYLE_NORMAL)
+        title.setText(_TITLE_CHARGING if charging else _TITLE_NORMAL)
+        icon_color = QColor("#50B4FF") if charging else QColor("#c9defc")
+        check_color = QColor("#50B4FF") if charging else QColor("#7fc3ff")
+        eye_color = QColor("#50B4FF") if charging else QColor("#d3e6ff")
+        _set_icon(username_icon, _draw_user_icon(18, icon_color))
+        _set_icon(password_icon, _draw_lock_icon(18, icon_color))
+        _set_icon(status_icon, _draw_check_icon(16, check_color))
+        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, crossed=False)))
+        if charging:
+            card_shadow.setBlurRadius(16)
+            card_shadow.setOffset(3, 4)
+            card_shadow.setColor(QColor(80, 180, 255, 130))
+        else:
+            card_shadow.setBlurRadius(12)
+            card_shadow.setOffset(3, 4)
+            card_shadow.setColor(QColor(60, 120, 255, 90))
+
+    def _update_charging() -> None:
+        info = get_battery_info()
+        charging = bool(info.get("charging", False)) if info else False
+        if _charging_cache["prev"] == charging:
+            return
+        _charging_cache["prev"] = charging
+        _apply_charging(charging)
+
+    _charging_timer = QTimer(dialog)
+    _charging_timer.timeout.connect(_update_charging)
+    _charging_timer.start(1000)
+    _update_charging()  # update awal
+    # -------------------------------------------------------------------
 
     username_input.setFocus()
     if dialog.exec() == QDialog.DialogCode.Accepted:
