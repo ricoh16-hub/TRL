@@ -261,24 +261,24 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         }}
     """
 
-    # Modern professional palette (inspired by Stripe, Apple, Microsoft)
+    # Samakan background utama dengan login.py (charging & tidak charging)
     _STYLE_NORMAL = _BASE_SHEET.format(
-        bg0="#1A2236", bg1="#2C365A",  # deep navy to blue-purple
-        card_border="rgba(127, 174, 255, 0.32)",
-        card_bg0="rgba(30, 40, 70, 0.92)", card_bg1="rgba(44, 54, 90, 0.92)",
-        glow="rgba(127, 195, 255, 0.70)",
-        label_color="rgba(167, 197, 255, 0.82)",
-        input_border="rgba(130, 170, 255, 0.22)",
-        status_color="rgba(190, 220, 255, 0.85)",
-        cancel_border="rgba(126, 170, 255, 0.28)",
-        cancel_color="rgba(220, 235, 255, 0.85)",
-        submit_border="rgba(145, 191, 255, 0.32)",
-        submit0="#3A8DFF", submit1="#5F8FFF",
-        submit_h0="#4070f0", submit_h1="#7DD8FF",
+        bg0="#222a36", bg1="#3a4a5c",
+        card_border="rgba(255,255,255,0.18)",
+        card_bg0="rgba(22, 32, 52, 0.82)", card_bg1="rgba(36, 54, 84, 0.82)",
+        glow="rgba(255,255,255,0.28)",
+        label_color="#FFFFFF",
+        input_border="rgba(255,255,255,0.18)",
+        status_color="#FFFFFF",
+        cancel_border="#FFFFFF",
+        cancel_color="#FFFFFF",
+        submit_border="#FFFFFF",
+        submit0="#222a36", submit1="#3a4a5c",
+        submit_h0="#3a4a5c", submit_h1="#edf4ff",
     )
 
     _STYLE_CHARGING = _BASE_SHEET.format(
-        bg0="#1b2535", bg1="#2d3f58",
+        bg0="#222a36", bg1="#3a4a5c",  # sama persis login.py
         card_border="rgba(80, 180, 255, 0.55)",
         card_bg0="rgba(8, 20, 65, 0.90)", card_bg1="rgba(16, 36, 98, 0.90)",
         glow="rgba(80, 180, 255, 0.95)",
@@ -585,11 +585,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     def _apply_charging(charging: bool) -> None:
         dialog.setStyleSheet(_STYLE_CHARGING if charging else _STYLE_NORMAL)
         title.setText(_TITLE_CHARGING if charging else _TITLE_NORMAL)
-        icon_color = QColor("#50B4FF") if charging else QColor("#c9defc")
-        check_color = QColor("#50B4FF") if charging else QColor("#7fc3ff")
-        eye_color = QColor("#50B4FF") if charging else QColor("#d3e6ff")
-        label_color = QColor("#50B4FF") if charging else QColor("#a7c5ff")
-        status_color = QColor("#50B4FF") if charging else QColor("#7fc3ff")
+        icon_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
+        check_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
+        eye_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
+        label_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
+        status_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
 
         # Update icon colors
         _set_icon(username_icon, _draw_user_icon(18, icon_color))
@@ -598,9 +598,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, crossed=False)))
 
         # Update label colors (username, password, status)
-        username_label.setStyleSheet(f"color: {label_color.name()}; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
-        password_label.setStyleSheet(f"color: {label_color.name()}; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
-        status_text.setStyleSheet(f"color: {status_color.name()}; font-size: 12px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
+        username_label.setStyleSheet("color: #FFFFFF; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
+        password_label.setStyleSheet("color: #FFFFFF; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
+        status_text.setStyleSheet("color: #FFFFFF; font-size: 12px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
 
         # Update glow/outline effect
         glow_color = QColor("#50B4FF" if charging else "#FFFFFF")
@@ -644,13 +644,13 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             submit_btn.graphicsEffect().setColor(QColor(80, 180, 255, 180))
             submit_btn.graphicsEffect().setBlurRadius(22)
         else:
-            # Cancel: gradient biru lembut, glow putih
+            # Cancel: outline putih, gradient gelap, glow putih
             cancel_btn.setStyleSheet("""
                 QPushButton {
                     border-radius: 12px;
-                    border: 1.5px solid #a7c5ff;
-                    color: #a7c5ff;
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #222a36, stop:1 #a7c5ff);
+                    border: 1.5px solid #FFFFFF;
+                    color: #FFFFFF;
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #222a36, stop:1 #3a4a5c);
                     font-weight: 700;
                 }
                 QPushButton:hover {
@@ -658,22 +658,22 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                     color: #222a36;
                 }
             """)
-            cancel_btn.graphicsEffect().setColor(QColor(202, 227, 255, 90))
+            cancel_btn.graphicsEffect().setColor(QColor(255, 255, 255, 70))
             cancel_btn.graphicsEffect().setBlurRadius(18)
-            # Sign In: gradient biru lembut, glow biru muda
+            # Sign In: outline putih, gradient gelap, glow putih
             submit_btn.setStyleSheet("""
                 QPushButton {
                     border-radius: 12px;
-                    border: 1.5px solid #7fc3ff;
-                    color: #fff;
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #3566e8, stop:1 #4e90f5);
+                    border: 1.5px solid #FFFFFF;
+                    color: #FFFFFF;
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #222a36, stop:1 #3a4a5c);
                     font-weight: 700;
                 }
                 QPushButton:hover {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #4070f0, stop:1 #5ea0ff);
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #3a4a5c, stop:1 #edf4ff);
                 }
             """)
-            submit_btn.graphicsEffect().setColor(QColor(127, 195, 255, 120))
+            submit_btn.graphicsEffect().setColor(QColor(255, 255, 255, 70))
             submit_btn.graphicsEffect().setBlurRadius(22)
 
         # Update card shadow
@@ -684,7 +684,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         else:
             card_shadow.setBlurRadius(12)
             card_shadow.setOffset(3, 4)
-            card_shadow.setColor(QColor(60, 120, 255, 90))
+            card_shadow.setColor(QColor(255, 255, 255, 40))
 
         # Update shimmer Top Glow sesuai charging
         if hasattr(top_glow, 'setCharging'):
