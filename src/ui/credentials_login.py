@@ -467,10 +467,21 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         icon_color = QColor("#50B4FF") if charging else QColor("#c9defc")
         check_color = QColor("#50B4FF") if charging else QColor("#7fc3ff")
         eye_color = QColor("#50B4FF") if charging else QColor("#d3e6ff")
+        label_color = QColor("#50B4FF") if charging else QColor("#a7c5ff")
+        status_color = QColor("#50B4FF") if charging else QColor("#7fc3ff")
+
+        # Update icon colors
         _set_icon(username_icon, _draw_user_icon(18, icon_color))
         _set_icon(password_icon, _draw_lock_icon(18, icon_color))
         _set_icon(status_icon, _draw_check_icon(16, check_color))
         toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, crossed=False)))
+
+        # Update label colors (username, password, status)
+        username_label.setStyleSheet(f"color: {label_color.name()}; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
+        password_label.setStyleSheet(f"color: {label_color.name()}; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
+        status_text.setStyleSheet(f"color: {status_color.name()}; font-size: 12px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
+
+        # Update card shadow
         if charging:
             card_shadow.setBlurRadius(16)
             card_shadow.setOffset(3, 4)
