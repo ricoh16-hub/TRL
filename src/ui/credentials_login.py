@@ -328,15 +328,57 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     card_layout.setContentsMargins(24, 18, 24, 22)
     card_layout.setSpacing(10)
 
-    top_glow = QFrame()
-    top_glow.setObjectName("topGlow")
-    top_glow.setFixedHeight(2)
-    # Efek khusus: Glow lebih terang hanya untuk Top Glow
-    top_glow_effect = QGraphicsDropShadowEffect(top_glow)
-    top_glow_effect.setBlurRadius(18)
-    top_glow_effect.setOffset(0, 0)
-    # Warna efek glow akan diatur dinamis sesuai charging
-    top_glow.setGraphicsEffect(top_glow_effect)
+    from PySide6.QtCore import QPropertyAnimation, Property
+    from PySide6.QtGui import QPainter, QLinearGradient, QBrush
+
+    class ShimmerGlow(QFrame):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.setObjectName("topGlow")
+            self.setFixedHeight(2)
+            self._shimmer_pos = 0.0
+            self._charging = False
+            self._color_charging = QColor(80, 180, 255, 180)
+            self._color_normal = QColor(202, 227, 255, 160)
+            self._anim = QPropertyAnimation(self, b"shimmerPos")
+            self._anim.setStartValue(0.0)
+            self._anim.setEndValue(1.0)
+            self._anim.setDuration(1800)
+            self._anim.setLoopCount(-1)
+            self._anim.start()
+
+        def setCharging(self, charging: bool):
+            self._charging = charging
+            self.update()
+
+        def getShimmerPos(self):
+            return self._shimmer_pos
+
+        def setShimmerPos(self, value):
+            self._shimmer_pos = value
+            self.update()
+
+        shimmerPos = Property(float, getShimmerPos, setShimmerPos)
+
+        def paintEvent(self, event):
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing)
+            w = self.width()
+            h = self.height()
+            grad = QLinearGradient(0, 0, w, 0)
+            # shimmer bergerak
+            pos = self._shimmer_pos
+            base = self._color_charging if self._charging else self._color_normal
+            grad.setColorAt(0.0, QColor(0,0,0,0))
+            grad.setColorAt(max(0.0, pos-0.08), QColor(0,0,0,0))
+            grad.setColorAt(min(1.0, pos), base)
+            grad.setColorAt(min(1.0, pos+0.08), QColor(0,0,0,0))
+            grad.setColorAt(1.0, QColor(0,0,0,0))
+            painter.setBrush(QBrush(grad))
+            painter.setPen(Qt.NoPen)
+            painter.drawRect(0, 0, w, h)
+
+    top_glow = ShimmerGlow()
     card_layout.addWidget(top_glow)
 
     username_label = QLabel("User")
@@ -525,12 +567,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             card_shadow.setOffset(3, 4)
             card_shadow.setColor(QColor(60, 120, 255, 90))
 
-        # Update efek glow khusus Top Glow sesuai charging
-        if hasattr(top_glow, 'graphicsEffect') and isinstance(top_glow.graphicsEffect(), QGraphicsDropShadowEffect):
-            if charging:
-                top_glow.graphicsEffect().setColor(QColor(80, 180, 255, 120))  # Biru terang
-            else:
-                top_glow.graphicsEffect().setColor(QColor(202, 227, 255, 110))  # Putih kebiruan
+        # Update shimmer Top Glow sesuai charging
+        if hasattr(top_glow, 'setCharging'):
+            top_glow.setCharging(charging)
 
     def _update_charging() -> None:
         info = get_battery_info()
