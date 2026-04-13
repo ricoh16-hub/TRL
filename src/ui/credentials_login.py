@@ -3,8 +3,9 @@ from typing import Optional
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QToolButton, QVBoxLayout, QWidget
+    QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QToolButton, QVBoxLayout, QWidget
 )
+from ui.custom_button import CustomButton
 from PySide6.QtGui import QColor
 
 try:
@@ -521,23 +522,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     buttons = QHBoxLayout()
     buttons.setSpacing(12)
-    cancel_btn = QPushButton("Cancel")
-    cancel_btn.setObjectName("cancelButton")
+    cancel_btn = CustomButton("Cancel")
     cancel_btn.setFixedHeight(44)
-    submit_btn = QPushButton("Sign In  →")
-    submit_btn.setObjectName("submitButton")
+    submit_btn = CustomButton("Sign In  →")
     submit_btn.setFixedHeight(44)
-    # Tambah efek glow ke tombol
-    cancel_glow = QGraphicsDropShadowEffect(cancel_btn)
-    cancel_glow.setBlurRadius(18)
-    cancel_glow.setOffset(0, 0)
-    cancel_glow.setColor(QColor(202, 227, 255, 90))
-    cancel_btn.setGraphicsEffect(cancel_glow)
-    submit_glow = QGraphicsDropShadowEffect(submit_btn)
-    submit_glow.setBlurRadius(22)
-    submit_glow.setOffset(0, 0)
-    submit_glow.setColor(QColor(80, 180, 255, 120))
-    submit_btn.setGraphicsEffect(submit_glow)
     buttons.addWidget(cancel_btn, 1)
     buttons.addWidget(submit_btn, 1)
     root_layout.addLayout(buttons)
@@ -611,70 +599,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                 eff.setBlurRadius(12 if charging else 7)
 
         # Update tombol Cancel dan Sign In: gradient + glow harmonis
-        if charging:
-            # Cancel: gradient biru terang, glow biru
-            cancel_btn.setStyleSheet("""
-                QPushButton {
-                    border-radius: 12px;
-                    border: 1.5px solid #50B4FF;
-                    color: #50B4FF;
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #1b2535, stop:1 #50B4FF);
-                    font-weight: 700;
-                }
-                QPushButton:hover {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #50B4FF, stop:1 #7dd8ff);
-                    color: #fff;
-                }
-            """)
-            cancel_btn.graphicsEffect().setColor(QColor(80, 180, 255, 120))
-            cancel_btn.graphicsEffect().setBlurRadius(18)
-            # Sign In: gradient biru terang, glow biru
-            submit_btn.setStyleSheet("""
-                QPushButton {
-                    border-radius: 12px;
-                    border: 1.5px solid #50B4FF;
-                    color: #fff;
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #0d72cc, stop:1 #50B4FF);
-                    font-weight: 700;
-                }
-                QPushButton:hover {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #1580dc, stop:1 #7dd8ff);
-                }
-            """)
-            submit_btn.graphicsEffect().setColor(QColor(80, 180, 255, 180))
-            submit_btn.graphicsEffect().setBlurRadius(22)
-        else:
-            # Cancel: outline putih, gradient gelap, glow putih
-            cancel_btn.setStyleSheet("""
-                QPushButton {
-                    border-radius: 12px;
-                    border: 1.5px solid #FFFFFF;
-                    color: #FFFFFF;
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #222a36, stop:1 #3a4a5c);
-                    font-weight: 700;
-                }
-                QPushButton:hover {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #3a4a5c, stop:1 #edf4ff);
-                    color: #222a36;
-                }
-            """)
-            cancel_btn.graphicsEffect().setColor(QColor(255, 255, 255, 70))
-            cancel_btn.graphicsEffect().setBlurRadius(18)
-            # Sign In: outline putih, gradient gelap, glow putih
-            submit_btn.setStyleSheet("""
-                QPushButton {
-                    border-radius: 12px;
-                    border: 1.5px solid #FFFFFF;
-                    color: #FFFFFF;
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #222a36, stop:1 #3a4a5c);
-                    font-weight: 700;
-                }
-                QPushButton:hover {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #3a4a5c, stop:1 #edf4ff);
-                }
-            """)
-            submit_btn.graphicsEffect().setColor(QColor(255, 255, 255, 70))
-            submit_btn.graphicsEffect().setBlurRadius(22)
+        # CustomButton: tidak perlu setStyleSheet atau graphicsEffect untuk tombol
+        pass
 
         # Update card shadow
         if charging:
