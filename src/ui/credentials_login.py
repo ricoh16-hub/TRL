@@ -2,7 +2,9 @@ from typing import Optional
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QToolButton, QVBoxLayout, QWidget
+)
 from PySide6.QtGui import QColor
 
 try:
@@ -259,19 +261,20 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         }}
     """
 
+    # Modern professional palette (inspired by Stripe, Apple, Microsoft)
     _STYLE_NORMAL = _BASE_SHEET.format(
-        bg0="#222a36", bg1="#3a4a5c",
-        card_border="rgba(127, 174, 255, 0.40)",
-        card_bg0="rgba(10, 23, 73, 0.88)", card_bg1="rgba(24, 44, 111, 0.88)",
-        glow="rgba(202, 227, 255, 0.90)",
-        label_color="rgba(167, 197, 255, 0.80)",
-        input_border="rgba(130, 170, 255, 0.32)",
+        bg0="#1A2236", bg1="#2C365A",  # deep navy to blue-purple
+        card_border="rgba(127, 174, 255, 0.32)",
+        card_bg0="rgba(30, 40, 70, 0.92)", card_bg1="rgba(44, 54, 90, 0.92)",
+        glow="rgba(127, 195, 255, 0.70)",
+        label_color="rgba(167, 197, 255, 0.82)",
+        input_border="rgba(130, 170, 255, 0.22)",
         status_color="rgba(190, 220, 255, 0.85)",
-        cancel_border="rgba(126, 170, 255, 0.35)",
+        cancel_border="rgba(126, 170, 255, 0.28)",
         cancel_color="rgba(220, 235, 255, 0.85)",
-        submit_border="rgba(145, 191, 255, 0.38)",
-        submit0="#3566e8", submit1="#4e90f5",
-        submit_h0="#4070f0", submit_h1="#5ea0ff",
+        submit_border="rgba(145, 191, 255, 0.32)",
+        submit0="#3A8DFF", submit1="#5F8FFF",
+        submit_h0="#4070f0", submit_h1="#7DD8FF",
     )
 
     _STYLE_CHARGING = _BASE_SHEET.format(
@@ -524,6 +527,17 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     submit_btn = QPushButton("Sign In  →")
     submit_btn.setObjectName("submitButton")
     submit_btn.setFixedHeight(44)
+    # Tambah efek glow ke tombol
+    cancel_glow = QGraphicsDropShadowEffect(cancel_btn)
+    cancel_glow.setBlurRadius(18)
+    cancel_glow.setOffset(0, 0)
+    cancel_glow.setColor(QColor(202, 227, 255, 90))
+    cancel_btn.setGraphicsEffect(cancel_glow)
+    submit_glow = QGraphicsDropShadowEffect(submit_btn)
+    submit_glow.setBlurRadius(22)
+    submit_glow.setOffset(0, 0)
+    submit_glow.setColor(QColor(80, 180, 255, 120))
+    submit_btn.setGraphicsEffect(submit_glow)
     buttons.addWidget(cancel_btn, 1)
     buttons.addWidget(submit_btn, 1)
     root_layout.addLayout(buttons)
@@ -595,6 +609,72 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             if isinstance(eff, QGraphicsDropShadowEffect):
                 eff.setColor(QColor(glow_color.red(), glow_color.green(), glow_color.blue(), glow_alpha))
                 eff.setBlurRadius(12 if charging else 7)
+
+        # Update tombol Cancel dan Sign In: gradient + glow harmonis
+        if charging:
+            # Cancel: gradient biru terang, glow biru
+            cancel_btn.setStyleSheet("""
+                QPushButton {
+                    border-radius: 12px;
+                    border: 1.5px solid #50B4FF;
+                    color: #50B4FF;
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #1b2535, stop:1 #50B4FF);
+                    font-weight: 700;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #50B4FF, stop:1 #7dd8ff);
+                    color: #fff;
+                }
+            """)
+            cancel_btn.graphicsEffect().setColor(QColor(80, 180, 255, 120))
+            cancel_btn.graphicsEffect().setBlurRadius(18)
+            # Sign In: gradient biru terang, glow biru
+            submit_btn.setStyleSheet("""
+                QPushButton {
+                    border-radius: 12px;
+                    border: 1.5px solid #50B4FF;
+                    color: #fff;
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #0d72cc, stop:1 #50B4FF);
+                    font-weight: 700;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #1580dc, stop:1 #7dd8ff);
+                }
+            """)
+            submit_btn.graphicsEffect().setColor(QColor(80, 180, 255, 180))
+            submit_btn.graphicsEffect().setBlurRadius(22)
+        else:
+            # Cancel: gradient biru lembut, glow putih
+            cancel_btn.setStyleSheet("""
+                QPushButton {
+                    border-radius: 12px;
+                    border: 1.5px solid #a7c5ff;
+                    color: #a7c5ff;
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #222a36, stop:1 #a7c5ff);
+                    font-weight: 700;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #3a4a5c, stop:1 #edf4ff);
+                    color: #222a36;
+                }
+            """)
+            cancel_btn.graphicsEffect().setColor(QColor(202, 227, 255, 90))
+            cancel_btn.graphicsEffect().setBlurRadius(18)
+            # Sign In: gradient biru lembut, glow biru muda
+            submit_btn.setStyleSheet("""
+                QPushButton {
+                    border-radius: 12px;
+                    border: 1.5px solid #7fc3ff;
+                    color: #fff;
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #3566e8, stop:1 #4e90f5);
+                    font-weight: 700;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #4070f0, stop:1 #5ea0ff);
+                }
+            """)
+            submit_btn.graphicsEffect().setColor(QColor(127, 195, 255, 120))
+            submit_btn.graphicsEffect().setBlurRadius(22)
 
         # Update card shadow
         if charging:
