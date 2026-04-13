@@ -332,7 +332,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     top_glow.setFixedHeight(2)
     card_layout.addWidget(top_glow)
 
-    username_label = QLabel("USERNAME")
+    username_label = QLabel("User")
     username_label.setObjectName("fieldLabel")
     # Efek glow awal
     username_glow = QGraphicsDropShadowEffect(username_label)
@@ -363,7 +363,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     # Tambahkan jarak antara input username dan input password
     card_layout.addSpacing(14)
 
-    password_label = QLabel("PASSWORD")
+    password_label = QLabel("Password")
     password_label.setObjectName("fieldLabel")
     # Efek glow awal
     password_glow = QGraphicsDropShadowEffect(password_label)
@@ -409,7 +409,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     status_icon = QLabel()
     status_icon.setObjectName("statusIcon")
     _set_icon(status_icon, _draw_check_icon(16, QColor("#7fc3ff")))
-    status_text = QLabel(f"PIN verified for user: <b>{getattr(pin_user, 'username', '-')}</b>")
+    status_text = QLabel(f"PIN verified for user: <span style='font-size:15px;'><b>{getattr(pin_user, 'username', '-')}</b></span>")
     status_text.setObjectName("statusText")
     status_text.setTextFormat(Qt.TextFormat.RichText)
     # Efek glow awal
@@ -496,8 +496,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, crossed=False)))
 
         # Update label colors (username, password, status)
-        username_label.setStyleSheet(f"color: {label_color.name()}; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
-        password_label.setStyleSheet(f"color: {label_color.name()}; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
+        username_label.setStyleSheet(f"color: {label_color.name()}; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
+        password_label.setStyleSheet(f"color: {label_color.name()}; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
         status_text.setStyleSheet(f"color: {status_color.name()}; font-size: 12px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
 
         # Update glow/outline effect
