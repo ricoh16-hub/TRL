@@ -360,6 +360,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     username_layout.addWidget(username_icon)
     username_layout.addWidget(username_input)
     card_layout.addWidget(username_row)
+    # Tambahkan jarak antara input username dan input password
+    card_layout.addSpacing(14)
 
     password_label = QLabel("PASSWORD")
     password_label.setObjectName("fieldLabel")
@@ -397,11 +399,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     password_layout.addWidget(password_input)
     password_layout.addWidget(toggle_password_btn)
     card_layout.addWidget(password_row)
+    # Tambahkan jarak antara input password dan status row
+    card_layout.addSpacing(22)
 
-    divider = QFrame()
-    divider.setFixedHeight(1)
-    divider.setStyleSheet("background: rgba(127,174,255,0.18); border: none;")
-    card_layout.addWidget(divider)
+    # Divider dihapus sesuai permintaan
 
     status_row = QHBoxLayout()
     status_row.setSpacing(8)
