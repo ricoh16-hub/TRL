@@ -334,6 +334,12 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     username_label = QLabel("USERNAME")
     username_label.setObjectName("fieldLabel")
+    # Efek glow awal
+    username_glow = QGraphicsDropShadowEffect(username_label)
+    username_glow.setBlurRadius(7)
+    username_glow.setOffset(0, 0)
+    username_glow.setColor(QColor(255, 255, 255, 70))
+    username_label.setGraphicsEffect(username_glow)
     card_layout.addWidget(username_label)
 
     username_row = QFrame()
@@ -357,6 +363,12 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     password_label = QLabel("PASSWORD")
     password_label.setObjectName("fieldLabel")
+    # Efek glow awal
+    password_glow = QGraphicsDropShadowEffect(password_label)
+    password_glow.setBlurRadius(7)
+    password_glow.setOffset(0, 0)
+    password_glow.setColor(QColor(255, 255, 255, 70))
+    password_label.setGraphicsEffect(password_glow)
     card_layout.addWidget(password_label)
 
     password_row = QFrame()
@@ -399,6 +411,12 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     status_text = QLabel(f"PIN verified for user: <b>{getattr(pin_user, 'username', '-')}</b>")
     status_text.setObjectName("statusText")
     status_text.setTextFormat(Qt.TextFormat.RichText)
+    # Efek glow awal
+    status_glow = QGraphicsDropShadowEffect(status_text)
+    status_glow.setBlurRadius(7)
+    status_glow.setOffset(0, 0)
+    status_glow.setColor(QColor(255, 255, 255, 70))
+    status_text.setGraphicsEffect(status_glow)
     status_row.addWidget(status_icon)
     status_row.addWidget(status_text)
     status_row.addStretch(1)
@@ -480,6 +498,14 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         username_label.setStyleSheet(f"color: {label_color.name()}; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
         password_label.setStyleSheet(f"color: {label_color.name()}; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
         status_text.setStyleSheet(f"color: {status_color.name()}; font-size: 12px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
+
+        # Update glow/outline effect
+        glow_color = QColor("#50B4FF" if charging else "#FFFFFF")
+        glow_alpha = 120 if charging else 70
+        for eff in [username_label.graphicsEffect(), password_label.graphicsEffect(), status_text.graphicsEffect()]:
+            if isinstance(eff, QGraphicsDropShadowEffect):
+                eff.setColor(QColor(glow_color.red(), glow_color.green(), glow_color.blue(), glow_alpha))
+                eff.setBlurRadius(12 if charging else 7)
 
         # Update card shadow
         if charging:
