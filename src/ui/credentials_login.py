@@ -3,6 +3,7 @@ from typing import Optional
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor
 
 try:
     from ui.flow_auth import authenticate_credentials_step
@@ -330,6 +331,12 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     top_glow = QFrame()
     top_glow.setObjectName("topGlow")
     top_glow.setFixedHeight(2)
+    # Efek khusus: Glow lebih terang hanya untuk Top Glow
+    top_glow_effect = QGraphicsDropShadowEffect(top_glow)
+    top_glow_effect.setBlurRadius(18)
+    top_glow_effect.setOffset(0, 0)
+    # Warna efek glow akan diatur dinamis sesuai charging
+    top_glow.setGraphicsEffect(top_glow_effect)
     card_layout.addWidget(top_glow)
 
     username_label = QLabel("User")
@@ -517,6 +524,13 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             card_shadow.setBlurRadius(12)
             card_shadow.setOffset(3, 4)
             card_shadow.setColor(QColor(60, 120, 255, 90))
+
+        # Update efek glow khusus Top Glow sesuai charging
+        if hasattr(top_glow, 'graphicsEffect') and isinstance(top_glow.graphicsEffect(), QGraphicsDropShadowEffect):
+            if charging:
+                top_glow.graphicsEffect().setColor(QColor(80, 180, 255, 120))  # Biru terang
+            else:
+                top_glow.graphicsEffect().setColor(QColor(202, 227, 255, 110))  # Putih kebiruan
 
     def _update_charging() -> None:
         info = get_battery_info()
