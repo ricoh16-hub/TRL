@@ -3,8 +3,9 @@ from typing import Optional
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QToolButton, QVBoxLayout, QWidget
+    QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QToolButton, QVBoxLayout, QWidget
 )
+from PySide6.QtWidgets import QGraphicsDropShadowEffect
 from ui.custom_button import CustomButton
 from PySide6.QtGui import QColor
 
@@ -522,10 +523,32 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     buttons = QHBoxLayout()
     buttons.setSpacing(12)
-    cancel_btn = CustomButton("Cancel")
+    # Icon panah kanan untuk tombol Sign In
+    arrow_pixmap = QPixmap(20, 20)
+    arrow_pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(arrow_pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    pen = QPen(QColor("#FFFFFF"), 2.2)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+    # Draw right arrow
+    painter.drawLine(6, 10, 14, 10)
+    painter.drawLine(11, 7, 14, 10)
+    painter.drawLine(11, 13, 14, 10)
+    painter.end()
+    arrow_icon = QIcon(arrow_pixmap)
+
+    cancel_btn = CustomButton("Cancel", primary=False)
     cancel_btn.setFixedHeight(44)
-    submit_btn = CustomButton("Sign In  →")
+    submit_btn = CustomButton("Sign In", primary=True, icon=arrow_icon, icon_size=QSize(20, 20))
     submit_btn.setFixedHeight(44)
+    # Tambahkan efek shadow/timbul pada kedua tombol
+    for btn in [cancel_btn, submit_btn]:
+        shadow = QGraphicsDropShadowEffect(btn)
+        shadow.setBlurRadius(18)
+        shadow.setOffset(0, 3)
+        shadow.setColor(QColor(60, 60, 80, 120))
+        btn.setGraphicsEffect(shadow)
     buttons.addWidget(cancel_btn, 1)
     buttons.addWidget(submit_btn, 1)
     root_layout.addLayout(buttons)
@@ -598,9 +621,25 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                 eff.setColor(QColor(glow_color.red(), glow_color.green(), glow_color.blue(), glow_alpha))
                 eff.setBlurRadius(12 if charging else 7)
 
-        # Update tombol Cancel dan Sign In: gradient + glow harmonis
-        # CustomButton: tidak perlu setStyleSheet atau graphicsEffect untuk tombol
-        pass
+        # Update tombol Cancel dan Sign In agar warna sesuai status charging
+        if charging:
+            # Default CustomButton: biru terang
+            for btn in [cancel_btn, submit_btn]:
+                btn.setStyleSheet("border: none; background: transparent; font-weight: 600; font-family: 'SF Pro Display', Arial, sans-serif;")
+                eff = btn.graphicsEffect()
+                if isinstance(eff, QGraphicsDropShadowEffect):
+                    eff.setColor(QColor(80, 180, 255, 120))
+                    eff.setBlurRadius(22)
+        else:
+            # Warna seperti gembok login.py: body_color = QColor(60, 60, 80, 220)
+            for btn in [cancel_btn, submit_btn]:
+                btn.setStyleSheet("border: none; background: transparent; font-weight: 600; font-family: 'SF Pro Display', Arial, sans-serif;")
+                btn._custom_bg = QColor(60, 60, 80, 220)
+                btn.update()
+                eff = btn.graphicsEffect()
+                if isinstance(eff, QGraphicsDropShadowEffect):
+                    eff.setColor(QColor(60, 60, 80, 120))
+                    eff.setBlurRadius(18)
 
         # Update card shadow
         if charging:
