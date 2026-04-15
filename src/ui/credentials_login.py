@@ -623,23 +623,24 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
         # Update tombol Cancel dan Sign In agar warna sesuai status charging
         if charging:
-            # Default CustomButton: biru terang
+            # Default CustomButton: biru terang (tanpa custom_bg)
             for btn in [cancel_btn, submit_btn]:
-                btn.setStyleSheet("border: none; background: transparent; font-weight: 600; font-family: 'SF Pro Display', Arial, sans-serif;")
+                btn._custom_bg = None
+                btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")
                 eff = btn.graphicsEffect()
                 if isinstance(eff, QGraphicsDropShadowEffect):
                     eff.setColor(QColor(80, 180, 255, 120))
                     eff.setBlurRadius(22)
         else:
-            # Warna seperti gembok login.py: body_color = QColor(60, 60, 80, 220)
+            # Warna putih seperti gembok login.py: QColor(255, 255, 255)
             for btn in [cancel_btn, submit_btn]:
-                btn.setStyleSheet("border: none; background: transparent; font-weight: 600; font-family: 'SF Pro Display', Arial, sans-serif;")
-                btn._custom_bg = QColor(60, 60, 80, 220)
+                btn._custom_bg = QColor(255, 255, 255)
+                btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")
                 btn.update()
                 eff = btn.graphicsEffect()
                 if isinstance(eff, QGraphicsDropShadowEffect):
-                    eff.setColor(QColor(60, 60, 80, 120))
-                    eff.setBlurRadius(18)
+                    eff.setColor(QColor(60, 60, 80, 60))
+                    eff.setBlurRadius(14)
 
         # Update card shadow
         if charging:

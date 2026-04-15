@@ -38,13 +38,34 @@ class CustomButton(QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         rect = self.rect().adjusted(1, 1, -1, -1)
-        radius = 12
-        # Primary style
+        radius = 14
+        # --- Shadow/Glow effect (drawn behind button) ---
+        if self._hovered or self._pressed:
+            shadow_color = QColor(80, 180, 255, 80) if self.primary else QColor(60, 60, 80, 80)
+            painter.save()
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(shadow_color)
+            painter.drawRoundedRect(rect.adjusted(-4, -4, 4, 4), radius+6, radius+6)
+            painter.restore()
+
+        # --- Button background ---
         if self._custom_bg is not None:
-            # Gunakan warna custom (misal: warna gembok)
-            painter.setBrush(QBrush(self._custom_bg))
+            # Custom color (misal: warna gembok/putih)
+            bg = QColor(self._custom_bg)
+            if self._hovered:
+                # Hover: putih → abu muda, lain → lebih terang
+                if bg.red() == 255 and bg.green() == 255 and bg.blue() == 255:
+                    bg = QColor(240, 245, 255)
+                else:
+                    bg = QColor(min(bg.red()+18,255), min(bg.green()+18,255), min(bg.blue()+18,255), bg.alpha())
+            painter.setBrush(QBrush(bg))
             painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(rect, radius, radius)
+            # Outline tipis jika putih
+            if self._custom_bg.red() == 255 and self._custom_bg.green() == 255 and self._custom_bg.blue() == 255:
+                painter.setPen(QPen(QColor(220, 225, 235), 1))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRoundedRect(rect, radius, radius)
         elif self.primary:
             grad = QLinearGradient(rect.topLeft(), rect.topRight())
             if self._hovered:
@@ -56,35 +77,36 @@ class CustomButton(QPushButton):
             painter.setBrush(QBrush(grad))
             painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(rect, radius, radius)
-            # Shadow
-            if self._hovered or self._pressed:
-                painter.setPen(Qt.NoPen)
-                painter.setBrush(QColor(80, 180, 255, 60))
-                painter.drawRoundedRect(rect.adjusted(-2, -2, 2, 2), radius+2, radius+2)
-            # Glow effect
-            if self._hovered:
-                painter.setPen(Qt.NoPen)
-                painter.setBrush(QColor(80, 180, 255, 40))
-                painter.drawRoundedRect(rect.adjusted(-4, -4, 4, 4), radius+4, radius+4)
         else:
-            # Secondary style
-            bg = QColor("#2A2F3A") if not self._hovered else QColor("#353B47")
+            # Secondary style (Cancel)
+            bg = QColor(60, 60, 80, 220) if not self._hovered else QColor(80, 80, 110, 230)
             painter.setBrush(bg)
-            painter.setPen(QPen(QColor(255,255,255,50), 1))
+            painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(rect, radius, radius)
 
-        # Active (pressed) effect
+        # --- Pressed effect (slight scale) ---
         if self._pressed:
             painter.save()
             painter.setOpacity(0.92)
             painter.scale(0.97, 0.97)
             painter.restore()
 
-        # Draw text and icon
+        # --- Draw text and icon ---
         text = self.text()
-        font = QFont('SF Pro Display', 13, QFont.DemiBold)
+        font = QFont('SF Pro Display', 16, QFont.ExtraBold)
         painter.setFont(font)
-        color = QColor("#FFFFFF") if self.primary else QColor("#E6EAF3")
+        # Pilih warna teks kontras dengan background
+        if self._custom_bg is not None:
+            bg = QColor(self._custom_bg)
+            # Jika putih atau sangat terang, pakai teks gelap
+            if bg.red() > 240 and bg.green() > 240 and bg.blue() > 240:
+                color = QColor("#22304A")  # biru gelap
+            else:
+                color = QColor("#FFFFFF")
+        elif self.primary:
+            color = QColor("#FFFFFF")
+        else:
+            color = QColor("#FFFFFF")
         painter.setPen(color)
         padding_x = 24
         icon_space = self._icon_size.width() + 8 if self._icon else 0
