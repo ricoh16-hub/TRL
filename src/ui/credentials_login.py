@@ -336,30 +336,45 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     from PySide6.QtCore import QPropertyAnimation, Property
     from PySide6.QtGui import QPainter, QLinearGradient, QBrush
 
+
     class ShimmerGlow(QFrame):
         def __init__(self, parent=None):
             super().__init__(parent)
             self.setObjectName("topGlow")
             self.setFixedHeight(2)
-            self._shimmer_pos = 0.0
             self._charging = False
             self._color_charging = QColor(80, 180, 255, 180)
             self._color_charging_core = QColor(80, 180, 255, 255)
             self._color_normal = QColor(202, 227, 255, 160)
             self._color_normal_core = QColor(202, 227, 255, 255)
+            self._shimmer_active = True
+            self._shimmer_pos = 0.0
             from PySide6.QtCore import QEasingCurve, QSequentialAnimationGroup, QPauseAnimation, QPropertyAnimation
 
             self._anim_group = QSequentialAnimationGroup(self)
             shimmer_anim = QPropertyAnimation(self, b"shimmerPos")
             shimmer_anim.setStartValue(0.0)
             shimmer_anim.setEndValue(1.0)
-            shimmer_anim.setDuration(3000)  # perlambat shimmer, 3 detik per siklus
+            shimmer_anim.setDuration(2000)  # 2 detik per siklus
             shimmer_anim.setEasingCurve(QEasingCurve.Linear)
-            pause = QPauseAnimation(1000)  # jeda 1 detik
+            pause = QPauseAnimation(600)  # jeda 0.6 detik
             self._anim_group.addAnimation(shimmer_anim)
             self._anim_group.addAnimation(pause)
-            self._anim_group.setLoopCount(-1)
+            self._anim_group.setLoopCount(2)  # hanya 2 kali
+            self._anim_group.finished.connect(self._on_shimmer_finished)
+
+        def start_shimmer(self):
+            self._shimmer_active = True
+            self._shimmer_pos = 0.0
+            self.show()
+            self._anim_group.stop()
+            self._anim_group.setLoopCount(2)
             self._anim_group.start()
+
+        def _on_shimmer_finished(self):
+            self._shimmer_active = False
+            self._shimmer_pos = 0.0
+            self.update()
 
         def setCharging(self, charging: bool):
             self._charging = charging
@@ -372,6 +387,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             self._shimmer_pos = value
             self.update()
 
+        from PySide6.QtCore import Property
         shimmerPos = Property(float, getShimmerPos, setShimmerPos)
 
         def paintEvent(self, event):
@@ -379,35 +395,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             painter.setRenderHint(QPainter.Antialiasing)
             w = self.width()
             h = self.height()
-            pos = self._shimmer_pos
-            # Pilih warna sesuai mode
             base = self._color_charging if self._charging else self._color_normal
             core = self._color_charging_core if self._charging else self._color_normal_core
-
-            # Tapered line: buat path poligon dengan tinggi bervariasi
-
-            taper_width = w * 0.5  # shimmer lebih lebar (50% lebar card)
-            max_thick = 3  # shimmer lebih tebal di tengah (3px)
-            num_points = 41  # sampling lebih banyak, lebih smooth
-            from math import cos, pi
-            from PySide6.QtGui import QPolygonF
-            from PySide6.QtCore import QPointF
-
-            # Best practice: shimmer bergerak dari -taper_width ke w+taper_width
-            # shimmer_pos: 0.0..1.0, mapping ke posisi
-            min_x = -taper_width
-            max_x = w + taper_width
-            center_x = min_x + (max_x - min_x) * self._shimmer_pos
-            points = []
-            for i in range(num_points):
-                rel = (i - (num_points-1)/2) / ((num_points-1)/2)  # -1..0..1
-                x = center_x + rel * taper_width
-                thick = max_thick * max(0, cos(rel * pi / 2)) ** 2
-                y1 = (h - thick) / 2
-                y2 = y1 + thick
-                points.append((x, y1, y2))
-
-            grad = QLinearGradient(center_x - taper_width, 0, center_x + taper_width, 0)
+            grad = QLinearGradient(0, 0, w, 0)
             grad.setColorAt(0.0, QColor(0,0,0,0))
             grad.setColorAt(0.2, base)
             grad.setColorAt(0.5, core)
@@ -415,15 +405,24 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             grad.setColorAt(1.0, QColor(0,0,0,0))
             painter.setBrush(QBrush(grad))
             painter.setPen(Qt.NoPen)
-            poly = []
-            for x, y1, y2 in points:
-                poly.append(QPointF(x, y1))
-            for x, y1, y2 in reversed(points):
-                poly.append(QPointF(x, y2))
-            painter.drawPolygon(QPolygonF(poly))
+            if self._shimmer_active:
+                # shimmer effect: overlay moving white highlight
+                from PySide6.QtGui import QLinearGradient as QLG
+                highlight = QLG(0, 0, w, 0)
+                pos = self._shimmer_pos
+                highlight.setColorAt(max(0.0, pos-0.08), QColor(255,255,255,0))
+                highlight.setColorAt(pos, QColor(255,255,255,120))
+                highlight.setColorAt(min(1.0, pos+0.08), QColor(255,255,255,0))
+                painter.fillRect(0, 0, w, h, grad)
+                painter.fillRect(0, 0, w, h, highlight)
+            else:
+                painter.drawRect(0, 0, w, h)
 
     top_glow = ShimmerGlow()
     card_layout.addWidget(top_glow)
+    # Jalankan shimmer hanya 2 kali saat form dibuat
+    if hasattr(top_glow, 'start_shimmer'):
+        top_glow.start_shimmer()
 
     username_label = QLabel("User")
     username_label.setObjectName("fieldLabel")
@@ -523,24 +522,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     buttons = QHBoxLayout()
     buttons.setSpacing(12)
-    # Icon panah kanan untuk tombol Sign In
-    arrow_pixmap = QPixmap(20, 20)
-    arrow_pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(arrow_pixmap)
-    painter.setRenderHint(QPainter.Antialiasing)
-    pen = QPen(QColor("#FFFFFF"), 2.2)
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    painter.setPen(pen)
-    # Draw right arrow
-    painter.drawLine(6, 10, 14, 10)
-    painter.drawLine(11, 7, 14, 10)
-    painter.drawLine(11, 13, 14, 10)
-    painter.end()
-    arrow_icon = QIcon(arrow_pixmap)
 
     cancel_btn = CustomButton("Cancel", primary=False)
     cancel_btn.setFixedHeight(44)
-    submit_btn = CustomButton("Sign In", primary=True, icon=arrow_icon, icon_size=QSize(20, 20))
+    submit_btn = CustomButton("Sign In", primary=True)
     submit_btn.setFixedHeight(44)
     # Tambahkan efek shadow/timbul pada kedua tombol
     for btn in [cancel_btn, submit_btn]:
