@@ -150,7 +150,7 @@ class BackspaceButton(QWidget):
             radius: float = layer['radius']
             opacity_base: float = layer['opacity_base']
             rect = QRectF(center_x - radius, center_y - radius, radius * 2, radius * 2)
-            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.6, Qt.PenStyle.SolidLine))
+            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.3, Qt.PenStyle.SolidLine))  # thinner
             painter.drawEllipse(rect)
         
         # Dual-ridge neumorphic effect di seluruh lingkaran
@@ -200,19 +200,17 @@ class BackspaceButton(QWidget):
                     thickness: float = thickness_pattern[pattern_index] * scale
                     thickness_factor = thickness / (0.7 * scale) if scale > 0 else 0.0
                     opacity = int(opacity_base + (opacity_max - opacity_base) * thickness_factor)
-                    
-                    if thickness > 0.02 and opacity > 15:
+                    if thickness > 0.01 and opacity > 15:
                         border_color = QColor(255, 255, 255, opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, thickness, Qt.PenStyle.SolidLine))
+                        painter.setPen(QPen(border_color, thickness * 0.5, Qt.PenStyle.SolidLine))  # thinner ridge
                         painter.drawArc(rect, int(angle_qt * 16), 16)
                 else:
-                    # Area di luar ridge tetap ada subtle outline
                     subtle_opacity = int(opacity_base * 0.4)
                     if subtle_opacity > 10:
                         border_color = QColor(255, 255, 255, subtle_opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, 0.3, Qt.PenStyle.SolidLine))
+                        painter.setPen(QPen(border_color, 0.15, Qt.PenStyle.SolidLine))  # thinner outline
                         painter.drawArc(rect, int(angle_qt * 16), 16)
         
         # Tentukan warna berdasarkan status charging
@@ -247,8 +245,8 @@ class BackspaceButton(QWidget):
         arrow_y = trap_center_y
         
         # Gambar trapezoid outline
-        line_thickness = 1.0
-        painter.setPen(QPen(icon_color, line_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        line_thickness = 0.6
+        painter.setPen(QPen(icon_color, line_thickness * 0.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))  # thinner
         painter.setBrush(Qt.BrushStyle.NoBrush)
         
         # Gunakan QPainterPath untuk rounded corners di sisi kanan
@@ -413,7 +411,7 @@ class BackButton(QWidget):
             radius: float = layer['radius']
             opacity_base: float = layer['opacity_base']
             rect = QRectF(center_x - radius, center_y - radius, radius * 2, radius * 2)
-            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.6, Qt.PenStyle.SolidLine))
+            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.3, Qt.PenStyle.SolidLine))  # thinner
             painter.drawEllipse(rect)
         
         # Dual-ridge neumorphic effect di seluruh lingkaran
@@ -463,19 +461,17 @@ class BackButton(QWidget):
                     thickness: float = thickness_pattern[pattern_index] * scale
                     thickness_factor = thickness / (0.7 * scale) if scale > 0 else 0.0
                     opacity = int(opacity_base + (opacity_max - opacity_base) * thickness_factor)
-                    
-                    if thickness > 0.02 and opacity > 15:
+                    if thickness > 0.01 and opacity > 15:
                         border_color = QColor(255, 255, 255, opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, thickness, Qt.PenStyle.SolidLine))
+                        painter.setPen(QPen(border_color, thickness * 0.5, Qt.PenStyle.SolidLine))  # thinner ridge
                         painter.drawArc(rect, int(angle_qt * 16), 16)
                 else:
-                    # Area di luar ridge tetap ada subtle outline
                     subtle_opacity = int(opacity_base * 0.4)
                     if subtle_opacity > 10:
                         border_color = QColor(255, 255, 255, subtle_opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, 0.3, Qt.PenStyle.SolidLine))
+                        painter.setPen(QPen(border_color, 0.15, Qt.PenStyle.SolidLine))  # thinner outline
                         painter.drawArc(rect, int(angle_qt * 16), 16)
         
         # Tentukan warna berdasarkan status charging: biru saat charging, putih saat normal
@@ -865,7 +861,7 @@ class RoundLabel(QLabel):
             radius: float = layer['radius']
             opacity_base: float = layer['opacity_base']
             rect = QRectF(center_x - radius, center_y - radius, radius * 2, radius * 2)
-            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.6, Qt.PenStyle.SolidLine))
+            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.3, Qt.PenStyle.SolidLine))  # thinner
             painter.drawEllipse(rect)
         
         # Dual-ridge neumorphic effect di seluruh lingkaran
@@ -915,11 +911,10 @@ class RoundLabel(QLabel):
                     thickness: float = thickness_pattern[pattern_index] * scale
                     thickness_factor = thickness / (0.7 * scale) if scale > 0 else 0.0
                     opacity = int(opacity_base + (opacity_max - opacity_base) * thickness_factor)
-                    
-                    if thickness > 0.02 and opacity > 15:
+                    if thickness > 0.01 and opacity > 15:
                         border_color = QColor(255, 255, 255, opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, thickness, Qt.PenStyle.SolidLine))
+                        painter.setPen(QPen(border_color, thickness * 0.5, Qt.PenStyle.SolidLine))  # thinner ridge
                         painter.drawArc(rect, int(angle_qt * 16), 16)
                 else:
                     # Area di luar ridge tetap ada subtle outline
@@ -927,7 +922,7 @@ class RoundLabel(QLabel):
                     if subtle_opacity > 10:
                         border_color = QColor(255, 255, 255, subtle_opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, 0.3, Qt.PenStyle.SolidLine))
+                        painter.setPen(QPen(border_color, 0.15, Qt.PenStyle.SolidLine))  # thinner outline
                         painter.drawArc(rect, int(angle_qt * 16), 16)
         
         # Hitung posisi vertikal yang seimbang
@@ -1831,7 +1826,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
             dialog.reject()
         QDialog.keyPressEvent(dialog, event)
     
-    def keyReleaseEvent(event: QKeyEvent) -> None:
+    def keyReleaseEvent(self, event: QKeyEvent) -> None:
         key_text = event.text()
         # Jika user lepas angka 0-9 di keyboard
         if key_text in dialog.keypad_map:
