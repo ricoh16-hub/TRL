@@ -235,7 +235,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     _STYLE_NORMAL = _BASE_SHEET.format(
         bg0="#222a36", bg1="#3a4a5c",
         card_border="rgba(255,255,255,1)",
-        card_bg0="rgba(22, 32, 52, 0.82)", card_bg1="rgba(36, 54, 84, 0.82)",
+        card_bg0="rgba(36, 54, 84, 0.90)", card_bg1="rgba(255, 255, 255, 0.18)",
         glow="rgba(255,255,255,0.28)",
         label_color="#FFFFFF",
         input_border="rgba(255,255,255,0.18)",
