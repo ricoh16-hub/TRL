@@ -93,7 +93,8 @@ class CustomButton(QPushButton):
 
         # --- Draw text and icon ---
         text = self.text()
-        font = QFont('SF Pro Display', 16, QFont.ExtraBold)
+        font = QFont('SF Pro Display', 10)
+        font.setBold(True)
         painter.setFont(font)
         # Pilih warna teks kontras dengan background
         if self._custom_bg is not None:
@@ -108,13 +109,11 @@ class CustomButton(QPushButton):
         else:
             color = QColor("#FFFFFF")
         painter.setPen(color)
-        padding_x = 24
-        icon_space = self._icon_size.width() + 8 if self._icon else 0
-        # Center text and icon
-        text_rect = rect.adjusted(padding_x, 0, -padding_x - icon_space, 0)
-        painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, text)
+        # Center text horizontally and vertically
+        text_rect = rect
+        painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignHCenter, text)
         if self._icon:
-            icon_rect = QRectF(rect.right() - padding_x - self._icon_size.width(),
+            icon_rect = QRectF(rect.right() - 24 - self._icon_size.width(),
                                rect.center().y() - self._icon_size.height()/2,
                                self._icon_size.width(), self._icon_size.height())
             self._icon.paint(painter, icon_rect.toRect(), Qt.AlignCenter)
