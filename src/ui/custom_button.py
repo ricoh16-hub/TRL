@@ -14,7 +14,7 @@ class CustomButton(QPushButton):
         self._custom_bg = None  # QColor or None
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet("border: none; background: transparent; font-weight: 600; font-family: 'SF Pro Display', Arial, sans-serif;")
-        self.setMinimumHeight(44)
+        self.setMinimumHeight(33)  # default minimum height dikurangi 25%
         self.setContentsMargins(0, 0, 0, 0)
         self.setMouseTracking(True)
         self.installEventFilter(self)
