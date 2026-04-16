@@ -234,7 +234,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     # Samakan background utama dengan login.py (charging & tidak charging)
     _STYLE_NORMAL = _BASE_SHEET.format(
         bg0="#222a36", bg1="#3a4a5c",
-        card_border="rgba(255,255,255,0.18)",
+        card_border="rgba(255,255,255,1)",
         card_bg0="rgba(22, 32, 52, 0.82)", card_bg1="rgba(36, 54, 84, 0.82)",
         glow="rgba(255,255,255,0.28)",
         label_color="#FFFFFF",
@@ -292,11 +292,21 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     card = QFrame()
     card.setObjectName("cardPanel")
+    # Shadow utama (putih)
     card_shadow = QGraphicsDropShadowEffect(card)
-    card_shadow.setBlurRadius(12)
+    card_shadow.setBlurRadius(16)
     card_shadow.setOffset(3, 4)
-    card_shadow.setColor(QColor(60, 120, 255, 90))
+    card_shadow.setColor(QColor(255, 255, 255, 60))
     card.setGraphicsEffect(card_shadow)
+
+    # Shadow kedua (biru muda transparan, harmonis dengan background)
+    card_shadow2 = QGraphicsDropShadowEffect(card)
+    card_shadow2.setBlurRadius(32)
+    card_shadow2.setOffset(0, 0)
+    card_shadow2.setColor(QColor(80, 180, 255, 40))
+    # Agar kedua efek tampil, letakkan shadow kedua di parent panel
+    card.setGraphicsEffect(card_shadow)
+    card.parentWidget().setGraphicsEffect(card_shadow2) if card.parentWidget() else None
     card_layout = QVBoxLayout(card)
     card_layout.setContentsMargins(24, 18, 24, 22)
     card_layout.setSpacing(10)
@@ -578,28 +588,32 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                 eff.setBlurRadius(12 if charging else 7)
 
         # Update tombol Cancel dan Sign In agar warna sesuai status charging
-        if charging:
-            # Default CustomButton: biru terang (tanpa custom_bg)
-            for btn in [cancel_btn, submit_btn]:
-                btn._custom_bg = None
-                btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")
-                btn.update()
-        else:
-            # Warna putih seperti gembok login.py: QColor(255, 255, 255)
-            for btn in [cancel_btn, submit_btn]:
-                btn._custom_bg = QColor(255, 255, 255)
-                btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")
-                btn.update()
+        # Selalu paksa kedua tombol menjadi primary (warna sama & efek sama) di semua state
+        cancel_btn.primary = True
+        submit_btn.primary = True
+        for btn in [cancel_btn, submit_btn]:
+            btn._custom_bg = None
+            btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")
+            btn.update()
 
         # Update card shadow
         if charging:
             card_shadow.setBlurRadius(16)
             card_shadow.setOffset(3, 4)
             card_shadow.setColor(QColor(80, 180, 255, 130))
+            if card.parentWidget():
+                card.parentWidget().setGraphicsEffect(None)
         else:
-            card_shadow.setBlurRadius(12)
+            card_shadow.setBlurRadius(16)
             card_shadow.setOffset(3, 4)
-            card_shadow.setColor(QColor(255, 255, 255, 40))
+            card_shadow.setColor(QColor(255, 255, 255, 60))
+            # Aktifkan shadow biru kedua saat tidak charging
+            if card.parentWidget():
+                card_shadow2 = QGraphicsDropShadowEffect(card)
+                card_shadow2.setBlurRadius(32)
+                card_shadow2.setOffset(0, 0)
+                card_shadow2.setColor(QColor(80, 180, 255, 40))
+                card.parentWidget().setGraphicsEffect(card_shadow2)
 
         # Update shimmer Top Glow sesuai charging
         if hasattr(top_glow, 'setCharging'):
