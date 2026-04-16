@@ -52,9 +52,9 @@ class CustomButton(QPushButton):
             painter.setBrush(QBrush(bg))
             painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(rect, radius, radius)
-            # Outline tipis jika putih
+            # Outline tipis jika putih: gunakan hitam
             if self._custom_bg.red() == 255 and self._custom_bg.green() == 255 and self._custom_bg.blue() == 255:
-                painter.setPen(QPen(QColor(220, 225, 235), 1))
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
                 painter.setBrush(Qt.NoBrush)
                 painter.drawRoundedRect(rect, radius, radius)
         elif self.primary:
