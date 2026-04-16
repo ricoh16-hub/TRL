@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, QRectF, QSize, QEvent
 class CustomButton(QPushButton):
     def sizeHint(self):
         from PySide6.QtCore import QSize
-        return QSize(100, 10)
+        return QSize(100, 5)
     def __init__(self, text, *, primary=False, icon: QIcon = None, icon_size: QSize = QSize(20, 20), parent=None):
         super().__init__(text, parent)
         self.primary = primary
@@ -17,8 +17,8 @@ class CustomButton(QPushButton):
         self._custom_bg = None  # QColor or None
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet("border: none; background: transparent; font-weight: 600; font-family: 'SF Pro Display', Arial, sans-serif;")
-        self.setMinimumHeight(15)  # default minimum height lebih kecil lagi
-        self.setMaximumHeight(15)
+        self.setMinimumHeight(5)
+        self.setMaximumHeight(5)
         from PySide6.QtWidgets import QSizePolicy
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self._custom_radius = 10.5  # 14 * 0.75
