@@ -229,38 +229,6 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             font-size: 12px;
             font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
         }}
-        QPushButton {{
-            border-radius: 12px;
-            font-size: 13px;
-            font-weight: 700;
-            min-height: 44px;
-            font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
-        }}
-        QPushButton#cancelButton {{
-            border: 1px solid {cancel_border};
-            color: {cancel_color};
-            background: rgba(12, 24, 70, 0.55);
-        }}
-        QPushButton#cancelButton:hover {{
-            background: rgba(24, 42, 99, 0.80);
-            color: #eaf1ff;
-        }}
-        QPushButton#submitButton {{
-            color: white;
-            border: 1px solid {submit_border};
-            background: qlineargradient(
-                x1:0, y1:0, x2:1, y2:0,
-                stop:0 {submit0},
-                stop:1 {submit1}
-            );
-        }}
-        QPushButton#submitButton:hover {{
-            background: qlineargradient(
-                x1:0, y1:0, x2:1, y2:0,
-                stop:0 {submit_h0},
-                stop:1 {submit_h1}
-            );
-        }}
     """
 
     # Samakan background utama dengan login.py (charging & tidak charging)
@@ -433,10 +401,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     username_glow.setColor(QColor(255, 255, 255, 70))
     username_label.setGraphicsEffect(username_glow)
     card_layout.addWidget(username_label)
+    card_layout.addSpacing(8)  # Tambahkan jarak 8px antara label dan textbox user
 
     username_row = QFrame()
     username_row.setObjectName("inputRow")
-    username_row.setFixedHeight(46)
+    username_row.setFixedHeight(41)
     username_layout = QHBoxLayout(username_row)
     username_layout.setContentsMargins(14, 0, 14, 0)
     username_layout.setSpacing(10)
@@ -464,10 +433,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     password_glow.setColor(QColor(255, 255, 255, 70))
     password_label.setGraphicsEffect(password_glow)
     card_layout.addWidget(password_label)
+    card_layout.addSpacing(8)  # Tambahkan jarak 8px antara label dan textbox password
 
     password_row = QFrame()
     password_row.setObjectName("inputRow")
-    password_row.setFixedHeight(46)
+    password_row.setFixedHeight(41)
     password_layout = QHBoxLayout(password_row)
     password_layout.setContentsMargins(14, 0, 14, 0)
     password_layout.setSpacing(10)
@@ -524,20 +494,19 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     buttons.setSpacing(12)
 
     cancel_btn = CustomButton("Cancel", primary=False)
-    cancel_btn.setMinimumHeight(5)
-    cancel_btn.setMaximumHeight(5)
-    cancel_btn.setMinimumWidth(100)
-    cancel_btn.setMaximumWidth(100)
+    cancel_btn.setObjectName("cancelButtonFixed")
+    cancel_btn.setMinimumSize(100, 41)
+    cancel_btn.setMaximumSize(100, 41)
+    cancel_btn.setStyleSheet("")  # Kosongkan stylesheet agar tidak override
     submit_btn = CustomButton("Sign In", primary=True)
-    submit_btn.setMinimumHeight(5)
-    submit_btn.setMaximumHeight(5)
-    submit_btn.setMinimumWidth(100)
-    submit_btn.setMaximumWidth(100)
-    # Hilangkan efek shadow/timbul pada kedua tombol
+    submit_btn.setObjectName("submitButtonFixed")
+    submit_btn.setMinimumSize(100, 41)
+    submit_btn.setMaximumSize(100, 41)
+    submit_btn.setStyleSheet("")
     for btn in [cancel_btn, submit_btn]:
         btn.setGraphicsEffect(None)
-    buttons.addWidget(cancel_btn, 1)
-    buttons.addWidget(submit_btn, 1)
+    buttons.addWidget(cancel_btn, 0)
+    buttons.addWidget(submit_btn, 0)
     root_layout.addLayout(buttons)
     root_layout.addStretch(1)
 
