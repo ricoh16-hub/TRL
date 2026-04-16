@@ -524,10 +524,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     buttons.setSpacing(12)
 
     cancel_btn = CustomButton("Cancel", primary=False)
-    cancel_btn.setFixedHeight(26)  # dikurangi lagi, lebih kecil
+    cancel_btn.setFixedHeight(20)  # dikurangi lagi, lebih kecil
     cancel_btn.setFixedWidth(120)  # misal lebar awal 160, 160 * 0.75 = 120
     submit_btn = CustomButton("Sign In", primary=True)
-    submit_btn.setFixedHeight(26)  # dikurangi lagi, lebih kecil
+    submit_btn.setFixedHeight(20)  # dikurangi lagi, lebih kecil
     submit_btn.setFixedWidth(120)
     # Hilangkan efek shadow/timbul pada kedua tombol
     for btn in [cancel_btn, submit_btn]:
