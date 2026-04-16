@@ -38,14 +38,60 @@ class CustomButton(QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         rect = self.rect().adjusted(1, 1, -1, -1)
-        # Tidak menggambar background apapun (benar-benar transparan)
+        radius = 14
+        # --- Button background ---
+        if self._custom_bg is not None:
+            # Custom color (misal: warna gembok/putih)
+            bg = QColor(self._custom_bg)
+            if self._hovered:
+                # Hover: putih → abu muda, lain → lebih terang
+                if bg.red() == 255 and bg.green() == 255 and bg.blue() == 255:
+                    bg = QColor(240, 245, 255)
+                else:
+                    bg = QColor(min(bg.red()+18,255), min(bg.green()+18,255), min(bg.blue()+18,255), bg.alpha())
+            painter.setBrush(QBrush(bg))
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(rect, radius, radius)
+            # Outline tipis jika putih
+            if self._custom_bg.red() == 255 and self._custom_bg.green() == 255 and self._custom_bg.blue() == 255:
+                painter.setPen(QPen(QColor(220, 225, 235), 1))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRoundedRect(rect, radius, radius)
+        elif self.primary:
+            grad = QLinearGradient(rect.topLeft(), rect.topRight())
+            if self._hovered:
+                grad.setColorAt(0.0, QColor("#4F98F7"))
+                grad.setColorAt(1.0, QColor("#7EC8FA"))
+            else:
+                grad.setColorAt(0.0, QColor("#3B82F6"))
+                grad.setColorAt(1.0, QColor("#60A5FA"))
+            painter.setBrush(QBrush(grad))
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(rect, radius, radius)
+        else:
+            # Secondary style (Cancel)
+            bg = QColor(60, 60, 80, 220) if not self._hovered else QColor(80, 80, 110, 230)
+            painter.setBrush(bg)
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(rect, radius, radius)
 
         # --- Draw text and icon ---
         text = self.text()
         font = QFont('SF Pro Display', 10)
         font.setBold(True)
         painter.setFont(font)
-        color = QColor("#22304A")  # Gunakan warna teks gelap agar kontras di background transparan
+        # Pilih warna teks kontras dengan background
+        if self._custom_bg is not None:
+            bg = QColor(self._custom_bg)
+            # Jika putih atau sangat terang, pakai teks gelap
+            if bg.red() > 240 and bg.green() > 240 and bg.blue() > 240:
+                color = QColor("#22304A")  # biru gelap
+            else:
+                color = QColor("#FFFFFF")
+        elif self.primary:
+            color = QColor("#FFFFFF")
+        else:
+            color = QColor("#FFFFFF")
         painter.setPen(color)
         # Center text horizontally and vertically
         text_rect = rect

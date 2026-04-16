@@ -602,11 +602,19 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                 eff.setColor(QColor(glow_color.red(), glow_color.green(), glow_color.blue(), glow_alpha))
                 eff.setBlurRadius(12 if charging else 7)
 
-        # Hilangkan background tombol Cancel dan Sign In di kedua kondisi
-        for btn in [cancel_btn, submit_btn]:
-            btn._custom_bg = None
-            btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")
-            btn.update()
+        # Update tombol Cancel dan Sign In agar warna sesuai status charging
+        if charging:
+            # Default CustomButton: biru terang (tanpa custom_bg)
+            for btn in [cancel_btn, submit_btn]:
+                btn._custom_bg = None
+                btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")
+                btn.update()
+        else:
+            # Warna putih seperti gembok login.py: QColor(255, 255, 255)
+            for btn in [cancel_btn, submit_btn]:
+                btn._custom_bg = QColor(255, 255, 255)
+                btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")
+                btn.update()
 
         # Update card shadow
         if charging:
