@@ -78,7 +78,7 @@ class CustomButton(QPushButton):
 
         # --- Draw text and icon ---
         text = self.text()
-        font = QFont('SF Pro Display', 7.5)  # 10 * 0.75
+        font = QFont('SF Pro Display', 10)  # tetap 10px sesuai permintaan
         font.setBold(True)
         painter.setFont(font)
         # Pilih warna teks kontras dengan background
