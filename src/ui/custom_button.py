@@ -15,6 +15,7 @@ class CustomButton(QPushButton):
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet("border: none; background: transparent; font-weight: 600; font-family: 'SF Pro Display', Arial, sans-serif;")
         self.setMinimumHeight(15)  # default minimum height lebih kecil lagi
+        self.setMaximumHeight(15)
         self._custom_radius = 10.5  # 14 * 0.75
         self.setContentsMargins(0, 0, 0, 0)
         self.setMouseTracking(True)
