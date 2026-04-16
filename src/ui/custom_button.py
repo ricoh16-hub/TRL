@@ -15,6 +15,7 @@ class CustomButton(QPushButton):
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet("border: none; background: transparent; font-weight: 600; font-family: 'SF Pro Display', Arial, sans-serif;")
         self.setMinimumHeight(33)  # default minimum height dikurangi 25%
+        self._custom_radius = 10.5  # 14 * 0.75
         self.setContentsMargins(0, 0, 0, 0)
         self.setMouseTracking(True)
         self.installEventFilter(self)
@@ -38,7 +39,7 @@ class CustomButton(QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         rect = self.rect().adjusted(1, 1, -1, -1)
-        radius = 14
+        radius = getattr(self, '_custom_radius', 14)
         # --- Button background ---
         if self._custom_bg is not None:
             # Custom color (misal: warna gembok/putih)
@@ -77,7 +78,7 @@ class CustomButton(QPushButton):
 
         # --- Draw text and icon ---
         text = self.text()
-        font = QFont('SF Pro Display', 10)
+        font = QFont('SF Pro Display', 7.5)  # 10 * 0.75
         font.setBold(True)
         painter.setFont(font)
         # Pilih warna teks kontras dengan background
