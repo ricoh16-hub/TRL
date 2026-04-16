@@ -1345,7 +1345,7 @@ class LoginDialog(QDialog):
             self.charging_timer = None
         super().closeEvent(event)
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self: 'LoginDialog', parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.unlock_icon: Optional[CustomUnlockIcon] = None
         self.authenticated_user: Optional[User] = None
@@ -1803,51 +1803,48 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     
 
     # Tambahkan keyPressEvent untuk menangkap keyboard input
-    def keyPressEvent(self, event: QKeyEvent) -> None:
+
+    def keyPressEvent(self: 'LoginDialog', event: QKeyEvent) -> None:
         key_text = event.text()
         # Jika user tekan angka 0-9 di keyboard
         if key_text in self.keypad_map:
-            widget = self.keypad_map[key_text]
+            widget: Optional[Union[RoundLabel, BackspaceButton, BackButton]] = self.keypad_map[key_text]
             if widget:
-                # Trigger animasi tenggelam
-                widget.trigger_press_animation()
-                # Append digit ke PIN
+                widget.trigger_press_animation()  # type: ignore[attr-defined]
                 append_digit(key_text)
         # Handle Backspace untuk hapus digit
         elif event.key() == Qt.Key.Key_Backspace:
             delete_last_digit()
-            # Trigger animasi backspace button
             if 'backspace' in self.keypad_map:
-                backspace_widget = self.keypad_map['backspace']
+                backspace_widget: Optional[BackspaceButton] = self.keypad_map['backspace']  # type: ignore
                 if backspace_widget:
-                    backspace_widget.trigger_press_animation()
+                    backspace_widget.trigger_press_animation()  # type: ignore[attr-defined]
         # Handle Escape untuk back ke lock.py
         elif event.key() == Qt.Key.Key_Escape:
             self.request_back_to_lock = True
             self.reject()
         QDialog.keyPressEvent(self, event)
 
-    def keyReleaseEvent(self, event: QKeyEvent) -> None:
+
+    def keyReleaseEvent(self: 'LoginDialog', event: QKeyEvent) -> None:
         key_text = event.text()
         # Jika user lepas angka 0-9 di keyboard
         if key_text in self.keypad_map:
-            widget = self.keypad_map[key_text]
+            widget: Optional[Union[RoundLabel, BackspaceButton, BackButton]] = self.keypad_map[key_text]
             if widget:
-                # Trigger animasi timbul
-                widget.trigger_release_animation()
+                widget.trigger_release_animation()  # type: ignore[attr-defined]
         # Handle Backspace release
         elif event.key() == Qt.Key.Key_Backspace:
-            # Trigger animasi backspace button
             if 'backspace' in self.keypad_map:
-                backspace_widget = self.keypad_map['backspace']
+                backspace_widget: Optional[BackspaceButton] = self.keypad_map['backspace']  # type: ignore
                 if backspace_widget:
-                    backspace_widget.trigger_release_animation()
+                    backspace_widget.trigger_release_animation()  # type: ignore[attr-defined]
         # Handle Escape release untuk back
         elif event.key() == Qt.Key.Key_Escape:
             if 'back' in self.keypad_map:
-                back_widget = self.keypad_map['back']
+                back_widget: Optional[BackButton] = self.keypad_map['back']  # type: ignore
                 if back_widget:
-                    back_widget.trigger_release_animation()
+                    back_widget.trigger_release_animation()  # type: ignore[attr-defined]
         QDialog.keyReleaseEvent(self, event)
 
     dialog.keyPressEvent = keyPressEvent.__get__(dialog)
