@@ -39,14 +39,7 @@ class CustomButton(QPushButton):
         painter.setRenderHint(QPainter.Antialiasing)
         rect = self.rect().adjusted(1, 1, -1, -1)
         radius = 14
-        # --- Shadow/Glow effect (drawn behind button) ---
-        if self._hovered or self._pressed:
-            shadow_color = QColor(80, 180, 255, 80) if self.primary else QColor(60, 60, 80, 80)
-            painter.save()
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(shadow_color)
-            painter.drawRoundedRect(rect.adjusted(-4, -4, 4, 4), radius+6, radius+6)
-            painter.restore()
+        # Hilangkan efek shadow/glow pada tombol
 
         # --- Button background ---
         if self._custom_bg is not None:
