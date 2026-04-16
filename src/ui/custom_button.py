@@ -4,6 +4,9 @@ from PySide6.QtGui import QPainter, QLinearGradient, QColor, QBrush, QPen, QFont
 from PySide6.QtCore import Qt, QRectF, QSize, QEvent
 
 class CustomButton(QPushButton):
+        def sizeHint(self):
+            from PySide6.QtCore import QSize
+            return QSize(100, 10)
     def __init__(self, text, *, primary=False, icon: QIcon = None, icon_size: QSize = QSize(20, 20), parent=None):
         super().__init__(text, parent)
         self.primary = primary
