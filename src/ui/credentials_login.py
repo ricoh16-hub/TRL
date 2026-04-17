@@ -61,7 +61,7 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     shackle_y = body_y - shackle_h * 0.82
 
     # Arc shackle dinaikkan sedikit agar tidak menempel ke bodi
-    shackle_gap = size * 0.03  # Jarak antara arc shackle dan bodi
+    shackle_gap = size * 0.06  # Jarak antara arc shackle dan bodi (lebih besar)
     arc = QPainterPath()
     left_leg_x = shackle_x + leg_offset
     right_leg_x = shackle_x + shackle_w - leg_offset
