@@ -431,7 +431,6 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     top_glow = ShimmerGlow()
     card_layout.addWidget(top_glow)
     # Jalankan shimmer hanya 2 kali saat form dibuat
-                shackle_x = body_x + (body_w - shackle_w) / 2  # benar-benar tengah body
         top_glow.start_shimmer()
 
     username_label = QLabel("User")
