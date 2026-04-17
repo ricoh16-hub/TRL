@@ -47,7 +47,8 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     # Shackle: arc lebih sempit, kaki masuk ke body
     shackle_w = body_w * 0.62
     shackle_h = body_h * 0.95
-    shackle_x = body_x + (body_w - shackle_w) / 2  # tengah body
+    body_center_x = body_x + body_w / 2
+    shackle_x = body_center_x - shackle_w / 2  # benar-benar tengah body
     shackle_y = body_y - shackle_h * 0.82
     shackle_radius = shackle_w / 2
 
