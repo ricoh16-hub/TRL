@@ -69,14 +69,7 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     arc.lineTo(right_leg_x, body_y)
     painter.drawPath(arc)
 
-    # Kaki shackle (dua garis vertikal masuk ke body, jika keluar bodi akan otomatis terpotong)
-    leg_top_y = body_y
-    leg_bot_y = body_y + leg_h
-    painter.save()
-    painter.setClipRect(body_x, body_y, body_w, body_h)
-    painter.drawLine(left_leg_x, leg_top_y, left_leg_x, leg_bot_y)
-    painter.drawLine(right_leg_x, leg_top_y, right_leg_x, leg_bot_y)
-    painter.restore()
+    # Tidak ada kaki shackle, agar tidak ada garis vertikal aneh di dalam bodi gembok
 
     painter.end()
     return pixmap
