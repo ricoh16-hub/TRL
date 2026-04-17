@@ -33,15 +33,26 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     painter.setPen(pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
 
+
     body_w = size * 0.48
     body_h = size * 0.34
     body_x = (size - body_w) / 2
     body_y = size * 0.5
     painter.drawRoundedRect(body_x, body_y, body_w, body_h, size * 0.08, size * 0.08)
 
+    # Center the arc precisely above the rectangle
+    arc_width = body_w * 0.92  # slightly wider than the body for visual balance
+    arc_height = size * 0.24
+    arc_x = (size - arc_width) / 2
+    arc_y = body_y - arc_height * 0.72  # position arc so its bottom touches the rectangle
+
     arc = QPainterPath()
-    arc.moveTo(size * 0.34, size * 0.52)
-    arc.cubicTo(size * 0.34, size * 0.28, size * 0.66, size * 0.28, size * 0.66, size * 0.52)
+    arc.moveTo(arc_x, body_y)
+    arc.cubicTo(
+        arc_x, arc_y,
+        arc_x + arc_width, arc_y,
+        arc_x + arc_width, body_y
+    )
     painter.drawPath(arc)
 
     painter.end()
