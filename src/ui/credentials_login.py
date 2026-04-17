@@ -49,25 +49,11 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     painter.drawRoundedRect(body_x, body_y, body_w, body_h, rounded, rounded)
 
 
-    # Shackle: arc dan kaki SELALU di dalam bodi
-    leg_h = body_h * 0.18
-    leg_offset_ratio = 0.09
-    # Hitung lebar shackle maksimum agar kaki + offset tidak pernah keluar bodi
-    shackle_w_max = body_w - 2 * (body_w * leg_offset_ratio)
-    shackle_w = min(body_w * 0.5, shackle_w_max)
-    leg_offset = shackle_w * leg_offset_ratio
-    shackle_x = body_x + (body_w - shackle_w) / 2
-    shackle_h = body_h * 0.7  # Lebih pendek, shackle lebih kecil
-    shackle_y = body_y - shackle_h * 0.82
-
-    # Arc shackle dinaikkan sedikit agar tidak menempel ke bodi
-    # Tiru shackle dari lock.py: setengah lingkaran (arc) di atas bodi
-    body_width = body_w
-    body_height = body_h
-    shackle_width = body_width * 0.51  # 11/21.5
-    shackle_height = body_height * 0.75  # 13.5/18
-    shackle_x = body_x + (body_width - shackle_width) / 2
-    shackle_y = body_y - shackle_height * 0.95  # naikkan lagi agar jarak lebih besar
+    # Shackle: selalu di tengah bodi, proporsional
+    shackle_width = body_w * 0.51  # 11/21.5
+    shackle_height = body_h * 0.75  # 13.5/18
+    shackle_x = body_x + (body_w - shackle_width) / 2
+    shackle_y = body_y - shackle_height * 0.95
     shackle_rect = QRectF(shackle_x, shackle_y, shackle_width, shackle_height)
     shackle_pen = QPen(color, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap)
     painter.setPen(shackle_pen)
