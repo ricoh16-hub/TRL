@@ -234,8 +234,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     # Samakan background utama dengan login.py (charging & tidak charging)
     _STYLE_NORMAL = _BASE_SHEET.format(
         bg0="#222a36", bg1="#3a4a5c",
-        card_border="rgba(255,255,255,1)",
-        card_bg0="rgba(36, 54, 84, 0.90)", card_bg1="rgba(255, 255, 255, 0.18)",
+        card_border="rgba(180, 180, 180, 0.35)",
+        card_bg0="rgba(30, 30, 30, 0.90)", card_bg1="rgba(60, 60, 60, 0.90)",
         glow="rgba(255,255,255,0.28)",
         label_color="#FFFFFF",
         input_border="rgba(255,255,255,0.18)",
@@ -303,7 +303,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     card_shadow2 = QGraphicsDropShadowEffect(card)
     card_shadow2.setBlurRadius(32)
     card_shadow2.setOffset(0, 0)
-    card_shadow2.setColor(QColor(80, 180, 255, 40))
+    card_shadow2.setColor(QColor(180, 180, 180, 40))
     # Agar kedua efek tampil, letakkan shadow kedua di parent panel
     card.setGraphicsEffect(card_shadow)
     card.parentWidget().setGraphicsEffect(card_shadow2) if card.parentWidget() else None
