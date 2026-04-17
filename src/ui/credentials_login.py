@@ -198,7 +198,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         QFrame#inputRow {{
             border: 1px solid {input_border};
             border-radius: 12px;
-            background: rgba(18, 33, 83, 0.68);
+            background: {input_row_bg};
         }}
         QLabel#fieldIcon {{
             min-width: 24px;
@@ -238,7 +238,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         card_bg0="rgba(30, 30, 30, 0.90)", card_bg1="rgba(60, 60, 60, 0.90)",
         glow="rgba(255,255,255,0.28)",
         label_color="#FFFFFF",
-        input_border="rgba(255,255,255,0.18)",
+        input_border="rgba(180, 180, 180, 0.35)",
+        input_row_bg="rgba(40, 40, 60, 0.68)",
         status_color="#FFFFFF",
         cancel_border="#FFFFFF",
         cancel_color="#FFFFFF",
@@ -254,6 +255,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         glow="rgba(80, 180, 255, 0.95)",
         label_color="rgba(80, 180, 255, 0.90)",
         input_border="rgba(80, 180, 255, 0.42)",
+        input_row_bg="rgba(18, 33, 83, 0.68)",
         status_color="rgba(80, 200, 255, 0.90)",
         cancel_border="rgba(80, 180, 255, 0.40)",
         cancel_color="#50B4FF",
