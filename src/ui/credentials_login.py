@@ -34,28 +34,31 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     painter.setBrush(Qt.BrushStyle.NoBrush)
 
 
-    # Body persegi proporsional
-    body_w = size * 0.48
-    body_h = size * 0.36
-    body_x = (size - body_w) / 2
-    body_y = size * 0.54
-    painter.drawRoundedRect(body_x, body_y, body_w, body_h, size * 0.09, size * 0.09)
+    # Ikon anak kunci (key)
+    # Kepala bulat
+    head_radius = size * 0.18
+    head_center_x = size * 0.38
+    head_center_y = size * 0.38
+    painter.drawEllipse(head_center_x - head_radius, head_center_y - head_radius, head_radius * 2, head_radius * 2)
 
-    # Arc: benar-benar setengah lingkaran, simetris, dan presisi
-    arc_radius = body_w * 0.5
-    arc_center_x = size / 2
-    arc_center_y = body_y
-    arc_rect_x = arc_center_x - arc_radius
-    arc_rect_y = arc_center_y - arc_radius
-    arc_rect_w = arc_radius * 2
-    arc_rect_h = arc_radius * 2
+    # Lubang kunci (inner circle)
+    hole_radius = head_radius * 0.38
+    painter.drawEllipse(head_center_x - hole_radius, head_center_y - hole_radius, hole_radius * 2, hole_radius * 2)
 
-    arc = QPainterPath()
-    # Mulai dari kiri bawah lingkaran
-    arc.moveTo(arc_rect_x, arc_center_y)
-    # arcTo: rect, startAngle, spanAngle (0 derajat = kanan, positif CCW)
-    arc.arcTo(arc_rect_x, arc_rect_y, arc_rect_w, arc_rect_h, 180, -180)
-    painter.drawPath(arc)
+    # Batang kunci
+    shaft_start_x = head_center_x + head_radius * 0.7
+    shaft_start_y = head_center_y
+    shaft_end_x = size * 0.78
+    shaft_end_y = head_center_y
+    painter.drawLine(shaft_start_x, shaft_start_y, shaft_end_x, shaft_end_y)
+
+    # Gigi kunci (dua buah)
+    tooth1_x = shaft_end_x - size * 0.08
+    tooth1_y = shaft_end_y + size * 0.08
+    painter.drawLine(shaft_end_x, shaft_end_y, tooth1_x, tooth1_y)
+    tooth2_x = tooth1_x - size * 0.06
+    tooth2_y = tooth1_y - size * 0.06
+    painter.drawLine(tooth1_x, tooth1_y, tooth2_x, tooth2_y)
 
     painter.end()
     return pixmap
