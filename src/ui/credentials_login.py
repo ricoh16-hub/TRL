@@ -43,19 +43,31 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     body_y = size * 0.54 - body_h * 0.18
     painter.drawRoundedRect(body_x, body_y, body_w, body_h, size * 0.13, size * 0.13)
 
-    # Arc setengah lingkaran di atas body (lebih besar)
-    arc_radius = body_w * 0.52
-    arc_center_x = size / 2
-    arc_center_y = body_y
-    arc_rect_x = arc_center_x - arc_radius
-    arc_rect_y = arc_center_y - arc_radius
-    arc_rect_w = arc_radius * 2
-    arc_rect_h = arc_radius * 2
+
+    # Shackle: arc lebih sempit, kaki masuk ke body
+    shackle_w = body_w * 0.62
+    shackle_h = body_h * 0.95
+    shackle_x = (size - shackle_w) / 2
+    shackle_y = body_y - shackle_h * 0.82
+    shackle_radius = shackle_w / 2
 
     arc = QPainterPath()
-    arc.moveTo(arc_rect_x, arc_center_y)
-    arc.arcTo(arc_rect_x, arc_rect_y, arc_rect_w, arc_rect_h, 180, -180)
+    # Mulai dari kiri bawah shackle
+    arc.moveTo(shackle_x, body_y)
+    # Arc setengah lingkaran
+    arc.arcTo(shackle_x, shackle_y, shackle_w, shackle_h, 180, -180)
+    arc.lineTo(shackle_x + shackle_w, body_y)
     painter.drawPath(arc)
+
+    # Kaki shackle (dua garis vertikal masuk ke body)
+    leg_h = body_h * 0.18
+    leg_offset = shackle_w * 0.09
+    left_leg_x = shackle_x + leg_offset
+    right_leg_x = shackle_x + shackle_w - leg_offset
+    leg_top_y = body_y
+    leg_bot_y = body_y + leg_h
+    painter.drawLine(left_leg_x, leg_top_y, left_leg_x, leg_bot_y)
+    painter.drawLine(right_leg_x, leg_top_y, right_leg_x, leg_bot_y)
 
     painter.end()
     return pixmap
