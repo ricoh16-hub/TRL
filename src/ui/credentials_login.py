@@ -52,7 +52,7 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     # Shackle: selalu di tengah bodi, proporsional
     shackle_width = body_w * 0.51  # 11/21.5
     shackle_height = body_h * 0.75  # 13.5/18
-    shackle_x = body_x + (body_w - shackle_width) / 2
+    shackle_x = body_x + (body_w - shackle_width) / 2 - body_w * 0.05  # geser ke kiri 5% lebar bodi
     shackle_y = body_y - shackle_height * 0.95
     shackle_rect = QRectF(shackle_x, shackle_y, shackle_width, shackle_height)
     shackle_pen = QPen(color, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap)
