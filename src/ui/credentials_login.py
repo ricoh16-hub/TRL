@@ -49,28 +49,29 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     painter.drawRoundedRect(body_x, body_y, body_w, body_h, rounded, rounded)
 
 
-    # Shackle: arc lebih sempit, kaki masuk ke body
-    shackle_w = body_w * 0.5
+    # Shackle: arc dan kaki SELALU di dalam bodi
+    leg_h = body_h * 0.18
+    leg_offset_ratio = 0.09
+    # Hitung lebar shackle maksimum agar kaki + offset tidak pernah keluar bodi
+    shackle_w_max = body_w - 2 * (body_w * leg_offset_ratio)
+    shackle_w = min(body_w * 0.5, shackle_w_max)
+    leg_offset = shackle_w * leg_offset_ratio
+    shackle_x = body_x + (body_w - shackle_w) / 2
     shackle_h = body_h * 0.95
-    shackle_x = body_x + (body_w - shackle_w) / 2  # benar-benar tengah body
     shackle_y = body_y - shackle_h * 0.82
-    shackle_radius = shackle_w / 2
 
+    # Arc shackle
     arc = QPainterPath()
-    # Mulai dari kiri bawah shackle
-    arc.moveTo(shackle_x, body_y)
-    # Arc setengah lingkaran
+    left_leg_x = shackle_x + leg_offset
+    right_leg_x = shackle_x + shackle_w - leg_offset
+    arc.moveTo(left_leg_x, body_y)
     arc.arcTo(shackle_x, shackle_y, shackle_w, shackle_h, 180, -180)
-    arc.lineTo(shackle_x + shackle_w, body_y)
+    arc.lineTo(right_leg_x, body_y)
     painter.drawPath(arc)
 
     # Kaki shackle (dua garis vertikal masuk ke body, tidak pernah keluar bodi)
-    leg_h = body_h * 0.18
-    leg_offset = shackle_w * 0.09
-    left_leg_x = max(body_x, shackle_x + leg_offset)
-    right_leg_x = min(body_x + body_w, shackle_x + shackle_w - leg_offset)
     leg_top_y = body_y
-    leg_bot_y = min(body_y + leg_h, body_y + body_h)  # tidak pernah lebih dari bawah bodi
+    leg_bot_y = min(body_y + leg_h, body_y + body_h)
     painter.drawLine(left_leg_x, leg_top_y, left_leg_x, leg_bot_y)
     painter.drawLine(right_leg_x, leg_top_y, right_leg_x, leg_bot_y)
 
