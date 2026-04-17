@@ -35,38 +35,27 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
 
 
     # Putar seluruh ikon 45 derajat CCW (kiri)
-    painter.save()
-    center = size / 2
-    painter.translate(center, center)
-    painter.rotate(45)
-    painter.translate(-center, -center)
+    # Gembok modern: body persegi rounded, arc setengah lingkaran di atas
+    # Body persegi rounded
+    body_w = size * 0.48
+    body_h = size * 0.36
+    body_x = (size - body_w) / 2
+    body_y = size * 0.54
+    painter.drawRoundedRect(body_x, body_y, body_w, body_h, size * 0.09, size * 0.09)
 
-    # Kepala bulat di kiri atas (setelah rotasi)
-    head_radius = size * 0.18
-    head_center_x = size * 0.36
-    head_center_y = size * 0.36
-    painter.drawEllipse(head_center_x - head_radius, head_center_y - head_radius, head_radius * 2, head_radius * 2)
+    # Arc setengah lingkaran di atas body
+    arc_radius = body_w * 0.5
+    arc_center_x = size / 2
+    arc_center_y = body_y
+    arc_rect_x = arc_center_x - arc_radius
+    arc_rect_y = arc_center_y - arc_radius
+    arc_rect_w = arc_radius * 2
+    arc_rect_h = arc_radius * 2
 
-    # Lubang kunci (inner circle)
-    hole_radius = head_radius * 0.38
-    painter.drawEllipse(head_center_x - hole_radius, head_center_y - hole_radius, hole_radius * 2, hole_radius * 2)
-
-    # Batang kunci ke kanan bawah
-    shaft_start_x = head_center_x + head_radius * 0.15
-    shaft_start_y = head_center_y + head_radius * 0.15
-    shaft_end_x = size * 0.74
-    shaft_end_y = size * 0.74
-    painter.drawLine(shaft_start_x, shaft_start_y, shaft_end_x, shaft_end_y)
-
-    # Gigi kunci (dua buah, satu ke bawah, satu ke kanan)
-    tooth1_x = shaft_end_x
-    tooth1_y = shaft_end_y + size * 0.09
-    painter.drawLine(shaft_end_x, shaft_end_y, tooth1_x, tooth1_y)
-    tooth2_x = shaft_end_x + size * 0.09
-    tooth2_y = shaft_end_y
-    painter.drawLine(shaft_end_x, shaft_end_y, tooth2_x, tooth2_y)
-
-    painter.restore()
+    arc = QPainterPath()
+    arc.moveTo(arc_rect_x, arc_center_y)
+    arc.arcTo(arc_rect_x, arc_rect_y, arc_rect_w, arc_rect_h, 180, -180)
+    painter.drawPath(arc)
 
     painter.end()
     return pixmap
