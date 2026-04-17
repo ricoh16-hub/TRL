@@ -64,13 +64,13 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     arc.lineTo(shackle_x + shackle_w, body_y)
     painter.drawPath(arc)
 
-    # Kaki shackle (dua garis vertikal masuk ke body)
+    # Kaki shackle (dua garis vertikal masuk ke body, tidak pernah keluar bodi)
     leg_h = body_h * 0.18
     leg_offset = shackle_w * 0.09
-    left_leg_x = shackle_x + leg_offset
-    right_leg_x = shackle_x + shackle_w - leg_offset
+    left_leg_x = max(body_x, shackle_x + leg_offset)
+    right_leg_x = min(body_x + body_w, shackle_x + shackle_w - leg_offset)
     leg_top_y = body_y
-    leg_bot_y = body_y + leg_h
+    leg_bot_y = min(body_y + leg_h, body_y + body_h)  # tidak pernah lebih dari bawah bodi
     painter.drawLine(left_leg_x, leg_top_y, left_leg_x, leg_bot_y)
     painter.drawLine(right_leg_x, leg_top_y, right_leg_x, leg_bot_y)
 
