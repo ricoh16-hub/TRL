@@ -34,26 +34,27 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     painter.setBrush(Qt.BrushStyle.NoBrush)
 
 
+    # Body persegi proporsional
     body_w = size * 0.48
-    body_h = size * 0.34
+    body_h = size * 0.36
     body_x = (size - body_w) / 2
-    body_y = size * 0.5
-    painter.drawRoundedRect(body_x, body_y, body_w, body_h, size * 0.08, size * 0.08)
+    body_y = size * 0.54
+    painter.drawRoundedRect(body_x, body_y, body_w, body_h, size * 0.09, size * 0.09)
 
-    # PREMIUM: Arc presisi, simetris, dan proporsional
-    arc_margin = body_w * 0.05  # arc sedikit lebih kecil dari body
-    arc_w = body_w - 2 * arc_margin
-    arc_h = body_h * 0.95  # tinggi arc proporsional terhadap body
-    arc_x = body_x + arc_margin
-    arc_y = body_y - arc_h * 0.82  # sedikit overlap agar menyatu
+    # Arc: benar-benar setengah lingkaran, simetris, dan presisi
+    arc_radius = body_w * 0.5
+    arc_center_x = size / 2
+    arc_center_y = body_y
+    arc_rect_x = arc_center_x - arc_radius
+    arc_rect_y = arc_center_y - arc_radius
+    arc_rect_w = arc_radius * 2
+    arc_rect_h = arc_radius * 2
 
     arc = QPainterPath()
-    arc.moveTo(arc_x, body_y)
-    arc.cubicTo(
-        arc_x, arc_y,
-        arc_x + arc_w, arc_y,
-        arc_x + arc_w, body_y
-    )
+    # Mulai dari kiri bawah lingkaran
+    arc.moveTo(arc_rect_x, arc_center_y)
+    # arcTo: rect, startAngle, spanAngle (0 derajat = kanan, positif CCW)
+    arc.arcTo(arc_rect_x, arc_rect_y, arc_rect_w, arc_rect_h, 180, -180)
     painter.drawPath(arc)
 
     painter.end()
