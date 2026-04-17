@@ -26,7 +26,7 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    stroke = max(1.4, size * 0.08)
+    stroke = 1
     pen = QPen(color, stroke)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -115,7 +115,7 @@ def _draw_check_icon(size: int, color: QColor) -> QPixmap:
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    stroke = max(1.2, size * 0.09)
+    stroke = 1
     pen = QPen(color, stroke)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
