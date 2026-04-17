@@ -65,14 +65,14 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     shackle_h_adj = shackle_h - shackle_gap
     left_leg_x = shackle_x + leg_offset
     right_leg_x = shackle_x + shackle_w - leg_offset
-    leg_top_y = body_y - shackle_gap + shackle_h_adj * 0.5
-    leg_bot_y = body_y - shackle_gap
-    # Path utuh: mulai dari kaki kiri, naik, arc, turun ke kaki kanan
+    u_top_y = body_y - shackle_gap - shackle_h_adj * 0.5
+    u_bot_y = body_y - shackle_gap
+    # Path huruf U kapital terbalik (rectilinear)
     shackle_path = QPainterPath()
-    shackle_path.moveTo(left_leg_x, leg_bot_y)
-    shackle_path.lineTo(left_leg_x, leg_top_y)
-    shackle_path.arcTo(left_leg_x, leg_top_y - (right_leg_x - left_leg_x)/2, right_leg_x - left_leg_x, right_leg_x - left_leg_x, 180, -180)
-    shackle_path.lineTo(right_leg_x, leg_bot_y)
+    shackle_path.moveTo(left_leg_x, u_bot_y)
+    shackle_path.lineTo(left_leg_x, u_top_y)
+    shackle_path.lineTo(right_leg_x, u_top_y)
+    shackle_path.lineTo(right_leg_x, u_bot_y)
     painter.drawPath(shackle_path)
 
     # Tidak ada kaki shackle, agar tidak ada garis vertikal aneh di dalam bodi gembok
