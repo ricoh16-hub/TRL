@@ -40,18 +40,19 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     body_y = size * 0.5
     painter.drawRoundedRect(body_x, body_y, body_w, body_h, size * 0.08, size * 0.08)
 
-    # Center the arc precisely above the rectangle
-    arc_width = body_w * 0.92  # slightly wider than the body for visual balance
-    arc_height = size * 0.24
-    arc_x = (size - arc_width) / 2
-    arc_y = body_y - arc_height * 0.72  # position arc so its bottom touches the rectangle
+    # PREMIUM: Arc presisi, simetris, dan proporsional
+    arc_margin = body_w * 0.05  # arc sedikit lebih kecil dari body
+    arc_w = body_w - 2 * arc_margin
+    arc_h = body_h * 0.95  # tinggi arc proporsional terhadap body
+    arc_x = body_x + arc_margin
+    arc_y = body_y - arc_h * 0.82  # sedikit overlap agar menyatu
 
     arc = QPainterPath()
     arc.moveTo(arc_x, body_y)
     arc.cubicTo(
         arc_x, arc_y,
-        arc_x + arc_width, arc_y,
-        arc_x + arc_width, body_y
+        arc_x + arc_w, arc_y,
+        arc_x + arc_w, body_y
     )
     painter.drawPath(arc)
 
