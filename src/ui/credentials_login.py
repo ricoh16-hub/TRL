@@ -35,16 +35,15 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
 
 
     # Putar seluruh ikon 45 derajat CCW (kiri)
-    # Gembok modern: body persegi rounded, arc setengah lingkaran di atas
-    # Body persegi rounded
-    body_w = size * 0.48
-    body_h = size * 0.36
+    # Gembok modern diperbesar: body dan arc lebih dominan
+    body_w = size * 0.68
+    body_h = size * 0.48
     body_x = (size - body_w) / 2
-    body_y = size * 0.54
-    painter.drawRoundedRect(body_x, body_y, body_w, body_h, size * 0.09, size * 0.09)
+    body_y = size * 0.54 - body_h * 0.18
+    painter.drawRoundedRect(body_x, body_y, body_w, body_h, size * 0.13, size * 0.13)
 
-    # Arc setengah lingkaran di atas body
-    arc_radius = body_w * 0.5
+    # Arc setengah lingkaran di atas body (lebih besar)
+    arc_radius = body_w * 0.52
     arc_center_x = size / 2
     arc_center_y = body_y
     arc_rect_x = arc_center_x - arc_radius
