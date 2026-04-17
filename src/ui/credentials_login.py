@@ -38,7 +38,7 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     painter.save()
     center = size / 2
     painter.translate(center, center)
-    painter.rotate(-45)
+    painter.rotate(45)
     painter.translate(-center, -center)
 
     # Kepala bulat di atas (sebelum rotasi)
