@@ -37,7 +37,7 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
 
     # Putar seluruh ikon 45 derajat CCW (kiri)
     # Gembok modern diperbesar: body dan arc lebih dominan
-    body_w = size * 0.82  # tambah lebar body
+    body_w = size * 0.95  # tambah lagi lebar body
     body_h = size * 0.48
     body_x = (size - body_w) / 2  # jangan digeser, biarkan shackle tetap
     body_y = size * 0.54 - body_h * 0.18
