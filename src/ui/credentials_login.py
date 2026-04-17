@@ -34,31 +34,31 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     painter.setBrush(Qt.BrushStyle.NoBrush)
 
 
-    # Ikon anak kunci (key)
-    # Kepala bulat
+    # Ikon anak kunci (key) vertikal
+    # Kepala bulat di atas
     head_radius = size * 0.18
-    head_center_x = size * 0.38
-    head_center_y = size * 0.38
+    head_center_x = size * 0.5
+    head_center_y = size * 0.32
     painter.drawEllipse(head_center_x - head_radius, head_center_y - head_radius, head_radius * 2, head_radius * 2)
 
     # Lubang kunci (inner circle)
     hole_radius = head_radius * 0.38
     painter.drawEllipse(head_center_x - hole_radius, head_center_y - hole_radius, hole_radius * 2, hole_radius * 2)
 
-    # Batang kunci
-    shaft_start_x = head_center_x + head_radius * 0.7
-    shaft_start_y = head_center_y
-    shaft_end_x = size * 0.78
-    shaft_end_y = head_center_y
+    # Batang kunci ke bawah
+    shaft_start_x = head_center_x
+    shaft_start_y = head_center_y + head_radius
+    shaft_end_x = head_center_x
+    shaft_end_y = size * 0.74
     painter.drawLine(shaft_start_x, shaft_start_y, shaft_end_x, shaft_end_y)
 
     # Gigi kunci (dua buah)
-    tooth1_x = shaft_end_x - size * 0.08
+    tooth1_x = shaft_end_x - size * 0.06
     tooth1_y = shaft_end_y + size * 0.08
     painter.drawLine(shaft_end_x, shaft_end_y, tooth1_x, tooth1_y)
-    tooth2_x = tooth1_x - size * 0.06
-    tooth2_y = tooth1_y - size * 0.06
-    painter.drawLine(tooth1_x, tooth1_y, tooth2_x, tooth2_y)
+    tooth2_x = shaft_end_x + size * 0.06
+    tooth2_y = shaft_end_y + size * 0.04
+    painter.drawLine(shaft_end_x, shaft_end_y, tooth2_x, tooth2_y)
 
     painter.end()
     return pixmap
