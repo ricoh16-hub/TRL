@@ -39,7 +39,7 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     # Gembok modern diperbesar: body dan arc lebih dominan
     body_w = size * 0.82  # tambah lebar body
     body_h = size * 0.48
-    body_x = (size - body_w) / 2 - size * 0.07  # geser body ke kiri agar penambahan lebar ke kiri
+    body_x = (size - body_w) / 2  # jangan digeser, biarkan shackle tetap
     body_y = size * 0.54 - body_h * 0.18
     painter.drawRoundedRect(body_x, body_y, body_w, body_h, size * 0.13, size * 0.13)
 
