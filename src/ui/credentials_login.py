@@ -30,6 +30,7 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     pen = QPen(color, stroke)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    pen.setCosmetic(True)
     painter.setPen(pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
 
