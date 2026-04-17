@@ -61,20 +61,7 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     shackle_y = body_y - shackle_h * 0.82
 
     # Arc shackle dinaikkan sedikit agar tidak menempel ke bodi
-    # --- Gambar ulang shackle: huruf U terbalik (∩) ---
-    shackle_gap = size * 0.07  # Jarak dari bodi
-    shackle_h = body_h * 0.4   # Tinggi shackle 40% bodi
-    shackle_w = body_w * 0.5   # Lebar shackle 50% bodi
-    shackle_x = body_x + (body_w - shackle_w) / 2
-    left_leg_x = shackle_x
-    right_leg_x = shackle_x + shackle_w
-    u_top_y = body_y - shackle_gap - shackle_h
-    u_bot_y = body_y - shackle_gap
-    # Gambar dua garis vertikal (kaki)
-    painter.drawLine(left_leg_x, u_bot_y, left_leg_x, u_top_y)
-    painter.drawLine(right_leg_x, u_bot_y, right_leg_x, u_top_y)
-    # Gambar garis horizontal atas
-    painter.drawLine(left_leg_x, u_top_y, right_leg_x, u_top_y)
+    # Tidak ada shackle (U terbalik dihapus seluruhnya)
 
     # Tidak ada kaki shackle, agar tidak ada garis vertikal aneh di dalam bodi gembok
 
