@@ -60,13 +60,14 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     shackle_h = body_h * 0.95
     shackle_y = body_y - shackle_h * 0.82
 
-    # Arc shackle
+    # Arc shackle dinaikkan sedikit agar tidak menempel ke bodi
+    shackle_gap = size * 0.03  # Jarak antara arc shackle dan bodi
     arc = QPainterPath()
     left_leg_x = shackle_x + leg_offset
     right_leg_x = shackle_x + shackle_w - leg_offset
-    arc.moveTo(left_leg_x, body_y)
-    arc.arcTo(shackle_x, shackle_y, shackle_w, shackle_h, 180, -180)
-    arc.lineTo(right_leg_x, body_y)
+    arc.moveTo(left_leg_x, body_y - shackle_gap)
+    arc.arcTo(shackle_x, shackle_y - shackle_gap, shackle_w, shackle_h, 180, -180)
+    arc.lineTo(right_leg_x, body_y - shackle_gap)
     painter.drawPath(arc)
 
     # Tidak ada kaki shackle, agar tidak ada garis vertikal aneh di dalam bodi gembok
