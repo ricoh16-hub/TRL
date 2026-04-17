@@ -34,8 +34,14 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     painter.setBrush(Qt.BrushStyle.NoBrush)
 
 
-    # Ikon anak kunci (key) vertikal
-    # Kepala bulat di atas
+    # Putar seluruh ikon 45 derajat CCW (kiri)
+    painter.save()
+    center = size / 2
+    painter.translate(center, center)
+    painter.rotate(-45)
+    painter.translate(-center, -center)
+
+    # Kepala bulat di atas (sebelum rotasi)
     head_radius = size * 0.18
     head_center_x = size * 0.5
     head_center_y = size * 0.32
@@ -59,6 +65,8 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     tooth2_x = shaft_end_x + size * 0.06
     tooth2_y = shaft_end_y + size * 0.04
     painter.drawLine(shaft_end_x, shaft_end_y, tooth2_x, tooth2_y)
+
+    painter.restore()
 
     painter.end()
     return pixmap
