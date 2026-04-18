@@ -150,7 +150,7 @@ def _draw_check_icon(size: int, color: QColor) -> QPixmap:
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    stroke = 2
+    stroke = 1.5
     pen = QPen(color, stroke)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
