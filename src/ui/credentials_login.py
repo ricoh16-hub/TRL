@@ -72,10 +72,12 @@ def _draw_eye_icon(size=24, iris_color=QColor(80, 180, 255), pupil_color=QColor(
     else:
         # Mata tertutup: tambahkan garis miring (backslash) dari kiri atas ke kanan bawah
         # Warna garis mengikuti outline_color (biru saat charging, #c9defc saat tidak charging)
-        slash_pen = QPen(outline_color, 2)
+        # Gunakan warna merah terang dan ketebalan 3px agar sangat kontras
+        slash_pen = QPen(QColor(255, 0, 0), 3)
         painter.setPen(slash_pen)
-        # Tambahkan 10% ke panjang backslash: dari 8% ke 92% (sebelumnya 18% ke 82%)
-        painter.drawLine(int(size * 0.08), int(size * 0.18), int(size * 0.92), int(size * 0.82))
+        # Dari sudut kiri atas almond ke kanan bawah almond
+        margin = size * 0.13
+        painter.drawLine(int(margin), int(margin), int(size - margin), int(size - margin))
         painter.end()
     return pixmap
 
@@ -512,7 +514,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     toggle_password_btn.setIconSize(QSize(16, 16))
     # Set initial outline color (non-charging)
     # Outline color non-charging disamakan dengan ikon gembok
-    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), crossed=False, outline_color=QColor("#c9defc"))))
+    # Set ikon awal: crossed=True karena mode Password (karakter disembunyikan)
+    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), crossed=True, outline_color=QColor("#c9defc"))))
     toggle_password_btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
     password_layout.addWidget(password_icon)
@@ -573,7 +576,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         password_input.setEchoMode(QLineEdit.EchoMode.Normal if is_hidden else QLineEdit.EchoMode.Password)
         # Ikuti warna outline dari status charging
         outline_color = QColor("#50B4FF") if _charging_cache.get("prev") else QColor("#c9defc")
-        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), crossed=is_hidden, outline_color=outline_color)))
+        # crossed=True jika mode Password (karakter disembunyikan/titik)
+        crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
+        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), crossed=crossed, outline_color=outline_color)))
 
     def on_submit() -> None:
         username = username_input.text().strip()
@@ -623,7 +628,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         _set_icon(password_icon, _draw_lock_icon(18, icon_color))
         _set_icon(status_icon, _draw_check_icon(16, check_color))
         outline_color = QColor("#50B4FF") if charging else QColor("#c9defc")
-        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, crossed=False, outline_color=outline_color)))
+        # Ikuti status visibilitas password
+        crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
+        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, crossed=crossed, outline_color=outline_color)))
 
         # Update label colors (username, password, status)
         username_label.setStyleSheet("color: #FFFFFF; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
