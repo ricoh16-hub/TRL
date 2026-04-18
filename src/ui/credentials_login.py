@@ -619,9 +619,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         _set_icon(password_icon, _draw_lock_icon(18, icon_color))
         _set_icon(status_icon, _draw_check_icon(16, check_color))
         outline_color = QColor("#50B4FF") if charging else QColor("#c9defc")
+        pupil_color = outline_color
         # Ikuti status visibilitas password
         crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
-        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, crossed=crossed, outline_color=outline_color)))
+        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
 
         # Update label colors (username, password, status)
         username_label.setStyleSheet("color: #FFFFFF; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
