@@ -503,7 +503,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     # Set initial outline color (non-charging)
     # Outline color non-charging disamakan dengan ikon gembok
     # Set ikon awal: crossed=True karena mode Password (karakter disembunyikan)
-    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), crossed=True, outline_color=QColor("#c9defc"))))
+    # Set ikon awal dengan pupil_color konsisten (putih, non-charging)
+    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), pupil_color=QColor("#FFFFFF"), crossed=True, outline_color=QColor("#c9defc"))))
     toggle_password_btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
     password_layout.addWidget(password_icon)
@@ -563,10 +564,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         is_hidden = password_input.echoMode() == QLineEdit.EchoMode.Password
         password_input.setEchoMode(QLineEdit.EchoMode.Normal if is_hidden else QLineEdit.EchoMode.Password)
         # Ikuti warna outline dari status charging
-        outline_color = QColor("#50B4FF") if _charging_cache.get("prev") else QColor("#c9defc")
-        # crossed=True jika mode Password (karakter disembunyikan/titik)
+        charging = bool(_charging_cache.get("prev"))
+        outline_color = QColor("#50B4FF") if charging else QColor("#c9defc")
+        pupil_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
         crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
-        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), crossed=crossed, outline_color=outline_color)))
+        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
 
     def on_submit() -> None:
         username = username_input.text().strip()
