@@ -38,38 +38,35 @@ def _draw_eye_icon(size=24, iris_color=QColor(80, 180, 255), pupil_color=QColor(
     painter.drawPath(path)
 
 
-    if not crossed:
-        # Mata terbuka: pupil dan highlight saja (tanpa iris)
-        center = (size/2, size/2)
-        pupil_radius = size * 0.10
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(pupil_color))
-        painter.drawEllipse(
-            int(center[0] - pupil_radius),
-            int(center[1] - pupil_radius),
-            int(pupil_radius * 2),
-            int(pupil_radius * 2)
-        )
+    # Pupil dan highlight selalu digambar, baik mata terbuka maupun tertutup
+    center = (size/2, size/2)
+    pupil_radius = size * 0.10
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QBrush(pupil_color))
+    painter.drawEllipse(
+        int(center[0] - pupil_radius),
+        int(center[1] - pupil_radius),
+        int(pupil_radius * 2),
+        int(pupil_radius * 2)
+    )
 
-        highlight_w = size * 0.08
-        highlight_h = size * 0.04
-        painter.setBrush(QBrush(highlight_color))
-        painter.drawEllipse(
-            int(center[0] - pupil_radius * 0.5),
-            int(center[1] - pupil_radius * 0.5),
-            int(highlight_w),
-            int(highlight_h)
-        )
-        painter.end()
-    else:
+    highlight_w = size * 0.08
+    highlight_h = size * 0.04
+    painter.setBrush(QBrush(highlight_color))
+    painter.drawEllipse(
+        int(center[0] - pupil_radius * 0.5),
+        int(center[1] - pupil_radius * 0.5),
+        int(highlight_w),
+        int(highlight_h)
+    )
+
+    if crossed:
         # Mata tertutup: tambahkan garis miring (backslash) dari kiri atas ke kanan bawah
-        # Warna garis mengikuti outline_color (biru saat charging, #c9defc saat tidak charging)
         slash_pen = QPen(outline_color, 1.5)
         painter.setPen(slash_pen)
-        # Dari sudut kiri atas almond ke kanan bawah almond
         margin = size * 0.13
         painter.drawLine(int(margin), int(margin), int(size - margin), int(size - margin))
-        painter.end()
+    painter.end()
     return pixmap
 
 
