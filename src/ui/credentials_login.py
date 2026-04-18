@@ -37,24 +37,16 @@ def _draw_eye_icon(size=24, iris_color=QColor(80, 180, 255), pupil_color=QColor(
     path.quadTo(size/2, size - margin, margin, size/2)
     painter.drawPath(path)
 
-    if not crossed:
-        # Mata terbuka: iris, pupil, highlight
-        iris_radius = size * 0.22
-        iris_center = (size/2, size/2)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(iris_color))
-        painter.drawEllipse(
-            int(iris_center[0] - iris_radius),
-            int(iris_center[1] - iris_radius),
-            int(iris_radius * 2),
-            int(iris_radius * 2)
-        )
 
+    if not crossed:
+        # Mata terbuka: pupil dan highlight saja (tanpa iris)
+        center = (size/2, size/2)
         pupil_radius = size * 0.10
+        painter.setPen(Qt.NoPen)
         painter.setBrush(QBrush(pupil_color))
         painter.drawEllipse(
-            int(iris_center[0] - pupil_radius),
-            int(iris_center[1] - pupil_radius),
+            int(center[0] - pupil_radius),
+            int(center[1] - pupil_radius),
             int(pupil_radius * 2),
             int(pupil_radius * 2)
         )
@@ -63,8 +55,8 @@ def _draw_eye_icon(size=24, iris_color=QColor(80, 180, 255), pupil_color=QColor(
         highlight_h = size * 0.04
         painter.setBrush(QBrush(highlight_color))
         painter.drawEllipse(
-            int(iris_center[0] - iris_radius * 0.5),
-            int(iris_center[1] - iris_radius * 0.5),
+            int(center[0] - pupil_radius * 0.5),
+            int(center[1] - pupil_radius * 0.5),
             int(highlight_w),
             int(highlight_h)
         )
