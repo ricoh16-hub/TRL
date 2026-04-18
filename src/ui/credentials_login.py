@@ -27,7 +27,7 @@ def _draw_eye_icon(size=24, iris_color=QColor(80, 180, 255), pupil_color=QColor(
     painter.setRenderHint(QPainter.Antialiasing)
 
     # Almond (eye) outline
-    outline_pen = QPen(outline_color, 2)
+    outline_pen = QPen(outline_color, 1.5)
     painter.setPen(outline_pen)
     painter.setBrush(Qt.NoBrush)
     path = QPainterPath()
