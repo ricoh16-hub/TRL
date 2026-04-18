@@ -1,7 +1,7 @@
 from typing import Optional
 
 from PySide6.QtCore import QSize, Qt, QRectF
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QBrush
 from PySide6.QtWidgets import (
     QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QToolButton, QVBoxLayout, QWidget
 )
@@ -18,6 +18,69 @@ try:
     from database.models import User
 except ImportError:
     from src.database.models import User
+
+# Modern almond-shaped eye icon with iris, pupil, and highlight
+def _draw_eye_icon(size=24, iris_color=QColor(80, 180, 255), pupil_color=QColor(30, 30, 30), highlight_color=QColor(255, 255, 255), crossed=False, outline_color=QColor(60, 60, 60)):
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+
+    # Almond (eye) outline
+    outline_pen = QPen(outline_color, 2)
+    painter.setPen(outline_pen)
+    painter.setBrush(Qt.NoBrush)
+    path = QPainterPath()
+    margin = size * 0.13
+    path.moveTo(margin, size/2)
+    path.quadTo(size/2, margin, size - margin, size/2)
+    path.quadTo(size/2, size - margin, margin, size/2)
+    painter.drawPath(path)
+
+    # Iris (centered, colored circle)
+    iris_radius = size * 0.22
+    iris_center = (size/2, size/2)
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QBrush(iris_color))
+    painter.drawEllipse(
+        int(iris_center[0] - iris_radius),
+        int(iris_center[1] - iris_radius),
+        int(iris_radius * 2),
+        int(iris_radius * 2)
+    )
+
+    # Pupil (smaller, dark circle)
+    pupil_radius = size * 0.10
+    painter.setBrush(QBrush(pupil_color))
+    painter.drawEllipse(
+        int(iris_center[0] - pupil_radius),
+        int(iris_center[1] - pupil_radius),
+        int(pupil_radius * 2),
+        int(pupil_radius * 2)
+    )
+
+    # Highlight (small white ellipse, top left of iris)
+    highlight_w = size * 0.08
+    highlight_h = size * 0.04
+    painter.setBrush(QBrush(highlight_color))
+    painter.drawEllipse(
+        int(iris_center[0] - iris_radius * 0.5),
+        int(iris_center[1] - iris_radius * 0.5),
+        int(highlight_w),
+        int(highlight_h)
+    )
+
+    painter.end()
+
+    # If crossed, draw a diagonal line (mata dicoret)
+    if crossed:
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        cross_pen = QPen(QColor(180, 60, 60), 2)
+        painter.setPen(cross_pen)
+        painter.drawLine(int(size * 0.18), int(size * 0.18), int(size * 0.82), int(size * 0.82))
+        painter.end()
+    return pixmap
 
 
 def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
@@ -92,39 +155,6 @@ def _draw_user_icon(size: int, color: QColor) -> QPixmap:
     painter.end()
     return pixmap
 
-
-def _draw_eye_icon(size: int, color: QColor, crossed: bool = False) -> QPixmap:
-    pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-    stroke = max(1.2, size * 0.08)
-    pen = QPen(color, stroke)
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-    painter.setPen(pen)
-    painter.setBrush(Qt.BrushStyle.NoBrush)
-
-    outer = QPainterPath()
-    outer.moveTo(size * 0.14, size * 0.5)
-    outer.cubicTo(size * 0.27, size * 0.28, size * 0.73, size * 0.28, size * 0.86, size * 0.5)
-    outer.cubicTo(size * 0.73, size * 0.72, size * 0.27, size * 0.72, size * 0.14, size * 0.5)
-    painter.drawPath(outer)
-
-    iris_size = size * 0.24
-    iris_x = (size - iris_size) / 2
-    iris_y = (size - iris_size) / 2
-    painter.drawEllipse(iris_x, iris_y, iris_size, iris_size)
-
-    if crossed:
-        slash = QPen(color, stroke)
-        slash.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(slash)
-        painter.drawLine(int(size * 0.2), int(size * 0.82), int(size * 0.82), int(size * 0.2))
-
-    painter.end()
-    return pixmap
 
 
 def _draw_check_icon(size: int, color: QColor) -> QPixmap:
@@ -483,7 +513,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     toggle_password_btn = QToolButton()
     toggle_password_btn.setObjectName("togglePassword")
     toggle_password_btn.setIconSize(QSize(16, 16))
-    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), crossed=False)))
+    # Set initial outline color (non-charging)
+    # Outline color non-charging disamakan dengan ikon gembok
+    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), crossed=False, outline_color=QColor("#c9defc"))))
     toggle_password_btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
     password_layout.addWidget(password_icon)
@@ -542,7 +574,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     def toggle_password_visibility() -> None:
         is_hidden = password_input.echoMode() == QLineEdit.EchoMode.Password
         password_input.setEchoMode(QLineEdit.EchoMode.Normal if is_hidden else QLineEdit.EchoMode.Password)
-        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(14, QColor("#d3e6ff"), crossed=is_hidden)))
+        # Ikuti warna outline dari status charging
+        outline_color = QColor("#50B4FF") if _charging_cache.get("prev") else QColor("#c9defc")
+        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), crossed=is_hidden, outline_color=outline_color)))
 
     def on_submit() -> None:
         username = username_input.text().strip()
@@ -591,7 +625,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         _set_icon(username_icon, _draw_user_icon(18, icon_color))
         _set_icon(password_icon, _draw_lock_icon(18, icon_color))
         _set_icon(status_icon, _draw_check_icon(16, check_color))
-        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, crossed=False)))
+        outline_color = QColor("#50B4FF") if charging else QColor("#c9defc")
+        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, crossed=False, outline_color=outline_color)))
 
         # Update label colors (username, password, status)
         username_label.setStyleSheet("color: #FFFFFF; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
