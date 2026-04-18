@@ -37,48 +37,45 @@ def _draw_eye_icon(size=24, iris_color=QColor(80, 180, 255), pupil_color=QColor(
     path.quadTo(size/2, size - margin, margin, size/2)
     painter.drawPath(path)
 
-    # Iris (centered, colored circle)
-    iris_radius = size * 0.22
-    iris_center = (size/2, size/2)
-    painter.setPen(Qt.NoPen)
-    painter.setBrush(QBrush(iris_color))
-    painter.drawEllipse(
-        int(iris_center[0] - iris_radius),
-        int(iris_center[1] - iris_radius),
-        int(iris_radius * 2),
-        int(iris_radius * 2)
-    )
+    if not crossed:
+        # Mata terbuka: iris, pupil, highlight
+        iris_radius = size * 0.22
+        iris_center = (size/2, size/2)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(iris_color))
+        painter.drawEllipse(
+            int(iris_center[0] - iris_radius),
+            int(iris_center[1] - iris_radius),
+            int(iris_radius * 2),
+            int(iris_radius * 2)
+        )
 
-    # Pupil (smaller, dark circle)
-    pupil_radius = size * 0.10
-    painter.setBrush(QBrush(pupil_color))
-    painter.drawEllipse(
-        int(iris_center[0] - pupil_radius),
-        int(iris_center[1] - pupil_radius),
-        int(pupil_radius * 2),
-        int(pupil_radius * 2)
-    )
+        pupil_radius = size * 0.10
+        painter.setBrush(QBrush(pupil_color))
+        painter.drawEllipse(
+            int(iris_center[0] - pupil_radius),
+            int(iris_center[1] - pupil_radius),
+            int(pupil_radius * 2),
+            int(pupil_radius * 2)
+        )
 
-    # Highlight (small white ellipse, top left of iris)
-    highlight_w = size * 0.08
-    highlight_h = size * 0.04
-    painter.setBrush(QBrush(highlight_color))
-    painter.drawEllipse(
-        int(iris_center[0] - iris_radius * 0.5),
-        int(iris_center[1] - iris_radius * 0.5),
-        int(highlight_w),
-        int(highlight_h)
-    )
-
-    painter.end()
-
-    # If crossed, draw a diagonal line (mata dicoret)
-    if crossed:
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-        cross_pen = QPen(QColor(180, 60, 60), 2)
-        painter.setPen(cross_pen)
-        painter.drawLine(int(size * 0.18), int(size * 0.18), int(size * 0.82), int(size * 0.82))
+        highlight_w = size * 0.08
+        highlight_h = size * 0.04
+        painter.setBrush(QBrush(highlight_color))
+        painter.drawEllipse(
+            int(iris_center[0] - iris_radius * 0.5),
+            int(iris_center[1] - iris_radius * 0.5),
+            int(highlight_w),
+            int(highlight_h)
+        )
+        painter.end()
+    else:
+        # Mata tertutup: tambahkan garis miring (backslash) dari kiri atas ke kanan bawah
+        # Warna garis mengikuti outline_color (biru saat charging, #c9defc saat tidak charging)
+        slash_pen = QPen(outline_color, 2)
+        painter.setPen(slash_pen)
+        # Tambahkan 10% ke panjang backslash: dari 8% ke 92% (sebelumnya 18% ke 82%)
+        painter.drawLine(int(size * 0.08), int(size * 0.18), int(size * 0.92), int(size * 0.82))
         painter.end()
     return pixmap
 
