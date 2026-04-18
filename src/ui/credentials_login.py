@@ -520,7 +520,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     status_row.setSpacing(8)
     status_icon = QLabel()
     status_icon.setObjectName("statusIcon")
-    _set_icon(status_icon, _draw_check_icon(17, QColor("#FFFFFF")))
+    _set_icon(status_icon, _draw_check_icon(19, QColor("#FFFFFF")))
     # Tambahkan efek glow putih pada status_icon agar konsisten dengan status_text
     status_icon_glow = QGraphicsDropShadowEffect(status_icon)
     status_icon_glow.setBlurRadius(12)
