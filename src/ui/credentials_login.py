@@ -72,8 +72,7 @@ def _draw_eye_icon(size=24, iris_color=QColor(80, 180, 255), pupil_color=QColor(
     else:
         # Mata tertutup: tambahkan garis miring (backslash) dari kiri atas ke kanan bawah
         # Warna garis mengikuti outline_color (biru saat charging, #c9defc saat tidak charging)
-        # Gunakan warna merah terang dan ketebalan 3px agar sangat kontras
-        slash_pen = QPen(QColor(255, 0, 0), 3)
+        slash_pen = QPen(outline_color, 3)
         painter.setPen(slash_pen)
         # Dari sudut kiri atas almond ke kanan bawah almond
         margin = size * 0.13
