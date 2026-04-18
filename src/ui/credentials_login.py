@@ -622,7 +622,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         # Update icon colors
         _set_icon(username_icon, _draw_user_icon(18, icon_color))
         _set_icon(password_icon, _draw_lock_icon(18, icon_color))
-        _set_icon(status_icon, _draw_check_icon(16, check_color))
+        _set_icon(status_icon, _draw_check_icon(19, check_color))
         outline_color = QColor("#50B4FF") if charging else QColor("#c9defc")
         pupil_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
         # Ikuti status visibilitas password
