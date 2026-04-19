@@ -570,12 +570,12 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     cancel_btn.setObjectName("cancelButtonFixed")
     cancel_btn.setMinimumSize(100, 41)
     cancel_btn.setMaximumSize(100, 41)
-    cancel_btn.setStyleSheet("")  # Kosongkan stylesheet agar tidak override
+    cancel_btn.setStyleSheet("")  # type: ignore  # Kosongkan stylesheet agar tidak override
     submit_btn = CustomButton("Sign In", primary=True)
     submit_btn.setObjectName("submitButtonFixed")
     submit_btn.setMinimumSize(100, 41)
     submit_btn.setMaximumSize(100, 41)
-    submit_btn.setStyleSheet("")
+    submit_btn.setStyleSheet("")  # type: ignore
     from PySide6.QtWidgets import QGraphicsEffect
     from typing import cast
     for btn in [cancel_btn, submit_btn]:
@@ -647,9 +647,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
 
         # Update label colors (username, password, status)
-        username_label.setStyleSheet("color: #FFFFFF; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
-        password_label.setStyleSheet("color: #FFFFFF; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
-        status_text.setStyleSheet("color: #FFFFFF; font-size: 12px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")
+        username_label.setStyleSheet("color: #FFFFFF; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")  # type: ignore
+        password_label.setStyleSheet("color: #FFFFFF; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")  # type: ignore
+        status_text.setStyleSheet("color: #FFFFFF; font-size: 12px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")  # type: ignore
 
         # Update glow/outline effect
         glow_color = QColor("#50B4FF" if charging else "#FFFFFF")
@@ -665,7 +665,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         submit_btn.primary = True
         for btn in [cancel_btn, submit_btn]:
             btn._custom_bg = None  # type: ignore
-            btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")
+            btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")  # type: ignore
             btn.update()
 
         # Update card shadow
