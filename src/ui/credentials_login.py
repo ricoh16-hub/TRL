@@ -19,29 +19,36 @@ try:
 except ImportError:
     from src.database.models import User
 
+
 # Modern almond-shaped eye icon with iris, pupil, and highlight
-def _draw_eye_icon(size=24, iris_color=QColor(80, 180, 255), pupil_color=QColor(30, 30, 30), highlight_color=QColor(255, 255, 255), crossed=False, outline_color=QColor(60, 60, 60)):
+def _draw_eye_icon(
+    size: int = 24,
+    iris_color: QColor = QColor(80, 180, 255),
+    pupil_color: QColor = QColor(30, 30, 30),
+    highlight_color: QColor = QColor(255, 255, 255),
+    crossed: bool = False,
+    outline_color: QColor = QColor(60, 60, 60)
+) -> QPixmap:
     pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.transparent)
+    pixmap.fill(Qt.transparent)  # type: ignore
     painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
     # Almond (eye) outline
     outline_pen = QPen(outline_color, 1.5)
     painter.setPen(outline_pen)
-    painter.setBrush(Qt.NoBrush)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
     path = QPainterPath()
     margin = size * 0.13
-    path.moveTo(margin, size/2)
-    path.quadTo(size/2, margin, size - margin, size/2)
-    path.quadTo(size/2, size - margin, margin, size/2)
+    path.moveTo(margin, size // 2)
+    path.quadTo(size // 2, margin, size - margin, size // 2)
+    path.quadTo(size // 2, size - margin, margin, size // 2)
     painter.drawPath(path)
 
-
     # Pupil dan highlight selalu digambar, baik mata terbuka maupun tertutup
-    center = (size/2, size/2)
+    center = (size / 2, size / 2)
     pupil_radius = size * 0.10
-    painter.setPen(Qt.NoPen)
+    painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(QBrush(pupil_color))
     painter.drawEllipse(
         int(center[0] - pupil_radius),
@@ -70,9 +77,10 @@ def _draw_eye_icon(size=24, iris_color=QColor(80, 180, 255), pupil_color=QColor(
     return pixmap
 
 
+
 def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.GlobalColor.transparent)
+    pixmap.fill(Qt.transparent)  # type: ignore
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -83,7 +91,6 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     pen.setCosmetic(True)
     painter.setPen(pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
-
 
     # Putar seluruh ikon 45 derajat CCW (kiri)
     # Gembok modern diperbesar: body dan arc lebih dominan
@@ -96,8 +103,9 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     body_x = (size - body_w) / 2 if body_w < body_w_max else margin
     body_y = size * 0.54 - body_h * 0.18
     rounded = min(size * 0.11, body_h * 0.32)
-    painter.drawRoundedRect(body_x, body_y, body_w, body_h, rounded, rounded)
-
+    painter.drawRoundedRect(
+        int(body_x), int(body_y), int(body_w), int(body_h), int(rounded), int(rounded)
+    )
 
     # Shackle: selalu di tengah bodi, proporsional
     shackle_width = body_w * 0.51  # 11/21.5
@@ -116,9 +124,10 @@ def _draw_lock_icon(size: int, color: QColor) -> QPixmap:
     return pixmap
 
 
+
 def _draw_user_icon(size: int, color: QColor) -> QPixmap:
     pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.GlobalColor.transparent)
+    pixmap.fill(Qt.transparent)  # type: ignore
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -132,7 +141,9 @@ def _draw_user_icon(size: int, color: QColor) -> QPixmap:
     head_size = size * 0.30
     head_x = (size - head_size) / 2
     head_y = size * 0.16
-    painter.drawEllipse(head_x, head_y, head_size, head_size)
+    painter.drawEllipse(
+        int(head_x), int(head_y), int(head_size), int(head_size)
+    )
 
     shoulder = QPainterPath()
     shoulder.moveTo(size * 0.18, size * 0.78)
@@ -146,7 +157,7 @@ def _draw_user_icon(size: int, color: QColor) -> QPixmap:
 
 def _draw_check_icon(size: int, color: QColor) -> QPixmap:
     pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.GlobalColor.transparent)
+    pixmap.fill(Qt.transparent)  # type: ignore
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -157,7 +168,9 @@ def _draw_check_icon(size: int, color: QColor) -> QPixmap:
     painter.setPen(pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
 
-    painter.drawRoundedRect(size * 0.14, size * 0.14, size * 0.72, size * 0.72, size * 0.16, size * 0.16)
+    painter.drawRoundedRect(
+        int(size * 0.14), int(size * 0.14), int(size * 0.72), int(size * 0.72), int(size * 0.16), int(size * 0.16)
+    )
     path = QPainterPath()
     path.moveTo(size * 0.28, size * 0.53)
     path.lineTo(size * 0.44, size * 0.68)
@@ -343,17 +356,19 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     card_shadow2.setColor(QColor(180, 180, 180, 40))
     # Agar kedua efek tampil, letakkan shadow kedua di parent panel
     card.setGraphicsEffect(card_shadow)
-    card.parentWidget().setGraphicsEffect(card_shadow2) if card.parentWidget() else None
+    parent_widget = card.parentWidget()
+    if parent_widget is not None:
+        parent_widget.setGraphicsEffect(card_shadow2)
     card_layout = QVBoxLayout(card)
     card_layout.setContentsMargins(24, 18, 24, 22)
     card_layout.setSpacing(10)
 
-    from PySide6.QtCore import QPropertyAnimation, Property
+    # from PySide6.QtCore import QPropertyAnimation, Property  # Unused, remove
     from PySide6.QtGui import QPainter, QLinearGradient, QBrush
 
 
     class ShimmerGlow(QFrame):
-        def __init__(self, parent=None):
+        def __init__(self, parent: Optional[QWidget] = None):
             super().__init__(parent)
             self.setObjectName("topGlow")
             self.setFixedHeight(2)
@@ -371,7 +386,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             shimmer_anim.setStartValue(0.0)
             shimmer_anim.setEndValue(1.0)
             shimmer_anim.setDuration(2000)  # 2 detik per siklus
-            shimmer_anim.setEasingCurve(QEasingCurve.Linear)
+            shimmer_anim.setEasingCurve(QEasingCurve.Type.Linear)
             pause = QPauseAnimation(600)  # jeda 0.6 detik
             self._anim_group.addAnimation(shimmer_anim)
             self._anim_group.addAnimation(pause)
@@ -395,19 +410,21 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             self._charging = charging
             self.update()
 
-        def getShimmerPos(self):
-            return self._shimmer_pos
 
-        def setShimmerPos(self, value):
-            self._shimmer_pos = value
+        def getShimmerPos(self) -> float:
+            return float(self._shimmer_pos)
+
+        def setShimmerPos(self, value: float) -> None:
+            self._shimmer_pos = float(value)
             self.update()
 
         from PySide6.QtCore import Property
         shimmerPos = Property(float, getShimmerPos, setShimmerPos)
 
-        def paintEvent(self, event):
+        from PySide6.QtGui import QPaintEvent
+        def paintEvent(self, event: QPaintEvent) -> None:
             painter = QPainter(self)
-            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             w = self.width()
             h = self.height()
             base = self._color_charging if self._charging else self._color_normal
@@ -419,7 +436,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             grad.setColorAt(0.8, base)
             grad.setColorAt(1.0, QColor(0,0,0,0))
             painter.setBrush(QBrush(grad))
-            painter.setPen(Qt.NoPen)
+            painter.setPen(Qt.PenStyle.NoPen)
             if self._shimmer_active:
                 # shimmer effect: overlay moving white highlight
                 from PySide6.QtGui import QLinearGradient as QLG
@@ -559,8 +576,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     submit_btn.setMinimumSize(100, 41)
     submit_btn.setMaximumSize(100, 41)
     submit_btn.setStyleSheet("")
+    from PySide6.QtWidgets import QGraphicsEffect
+    from typing import cast
     for btn in [cancel_btn, submit_btn]:
-        btn.setGraphicsEffect(None)
+        btn.setGraphicsEffect(cast(QGraphicsEffect, None))
     buttons.addWidget(cancel_btn, 0)
     buttons.addWidget(submit_btn, 0)
     root_layout.addLayout(buttons)
@@ -616,8 +635,6 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         icon_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
         check_color = QColor("#FFFFFF")
         eye_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
-        label_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
-        status_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
 
         # Update icon colors
         _set_icon(username_icon, _draw_user_icon(18, icon_color))
@@ -647,28 +664,31 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         cancel_btn.primary = True
         submit_btn.primary = True
         for btn in [cancel_btn, submit_btn]:
-            btn._custom_bg = None
+            btn._custom_bg = None  # type: ignore
             btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")
             btn.update()
 
         # Update card shadow
+        parent_widget = card.parentWidget()
         if charging:
             card_shadow.setBlurRadius(16)
             card_shadow.setOffset(3, 4)
             card_shadow.setColor(QColor(80, 180, 255, 130))
-            if card.parentWidget():
-                card.parentWidget().setGraphicsEffect(None)
+            if parent_widget is not None:
+                from PySide6.QtWidgets import QGraphicsEffect
+                from typing import cast
+                parent_widget.setGraphicsEffect(cast(QGraphicsEffect, None))
         else:
             card_shadow.setBlurRadius(16)
             card_shadow.setOffset(3, 4)
             card_shadow.setColor(QColor(255, 255, 255, 60))
             # Aktifkan shadow biru kedua saat tidak charging
-            if card.parentWidget():
+            if parent_widget is not None:
                 card_shadow2 = QGraphicsDropShadowEffect(card)
                 card_shadow2.setBlurRadius(32)
                 card_shadow2.setOffset(0, 0)
                 card_shadow2.setColor(QColor(80, 180, 255, 40))
-                card.parentWidget().setGraphicsEffect(card_shadow2)
+                parent_widget.setGraphicsEffect(card_shadow2)
 
         # Update shimmer Top Glow sesuai charging
         if hasattr(top_glow, 'setCharging'):
