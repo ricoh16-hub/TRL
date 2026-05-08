@@ -289,11 +289,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         input_border="rgba(180, 180, 180, 0.35)",
         input_row_bg="rgba(40, 40, 60, 0.68)",
         status_color="#FFFFFF",
-        cancel_border="#FFFFFF",
-        cancel_color="#FFFFFF",
-        submit_border="#FFFFFF",
-        submit0="#222a36", submit1="#3a4a5c",
-        submit_h0="#3a4a5c", submit_h1="#edf4ff",
+        cancel_border="#D3D3D3",
+        cancel_color="#333333",
+        submit_border="#D3D3D3",
+        submit0="#C0C0C0", submit1="#E8E8E8",
+        submit_h0="#E8E8E8", submit_h1="#FFFFFF",
     )
 
     _STYLE_CHARGING = _BASE_SHEET.format(
@@ -659,12 +659,21 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                 eff.setColor(QColor(glow_color.red(), glow_color.green(), glow_color.blue(), glow_alpha))
                 eff.setBlurRadius(12 if charging else 7)
 
-        # Update tombol Cancel dan Sign In agar warna sesuai status charging
-        # Selalu paksa kedua tombol menjadi primary (warna sama & efek sama) di semua state
-        cancel_btn.primary = True
-        submit_btn.primary = True
+        # Update tombol Cancel dan Sign In agar warna silver-white sesuai status charging
+        if charging:
+            # Charging: Silver kombinasi biru
+            cancel_btn.primary = False
+            submit_btn.primary = False
+            cancel_btn._custom_bg = QColor("#B0B8C8")  # type: ignore  # Silver-blue
+            submit_btn._custom_bg = QColor("#C8D4E8")  # type: ignore  # Light silver-blue
+        else:
+            # Not Charging: Silver kombinasi putih
+            cancel_btn.primary = False
+            submit_btn.primary = False
+            cancel_btn._custom_bg = QColor("#D3D3D3")  # type: ignore  # Silver
+            submit_btn._custom_bg = QColor("#E8E8E8")  # type: ignore  # Light silver
+        
         for btn in [cancel_btn, submit_btn]:
-            btn._custom_bg = None  # type: ignore
             btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")  # type: ignore
             btn.update()
 

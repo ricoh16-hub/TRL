@@ -63,9 +63,9 @@ class CustomButton(QPushButton):
             painter.setBrush(QBrush(bg))
             painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(rect, radius, radius)
-            # Outline tipis jika putih: gunakan abu-abu
-            if self._custom_bg.red() == 255 and self._custom_bg.green() == 255 and self._custom_bg.blue() == 255:
-                painter.setPen(QPen(QColor(208, 211, 216), 1))  # #D0D3D8
+            # Outline tipis untuk putih dan silver: gunakan abu-abu
+            if (self._custom_bg.red() > 200 and self._custom_bg.green() > 200 and self._custom_bg.blue() > 200):
+                painter.setPen(QPen(QColor(180, 180, 180), 1))  # #B4B4B4 (grey outline)
                 painter.setBrush(Qt.NoBrush)
                 painter.drawRoundedRect(rect, radius, radius)
         elif self.primary:
@@ -94,11 +94,11 @@ class CustomButton(QPushButton):
         # Pilih warna teks kontras dengan background
         if self._custom_bg is not None:
             bg = QColor(self._custom_bg)
-            # Jika putih atau sangat terang, pakai teks gelap
-            if bg.red() > 240 and bg.green() > 240 and bg.blue() > 240:
-                color = QColor("#22304A")  # biru gelap
+            # Jika putih atau sangat terang (atau silver), pakai teks gelap
+            if bg.red() > 200 and bg.green() > 200 and bg.blue() > 200:
+                color = QColor("#333333")  # Dark grey untuk kontras dengan silver/white
             else:
-                color = QColor("#FFFFFF")
+                color = QColor("#FFFFFF")  # Putih untuk warna gelap
         elif self.primary:
             color = QColor("#FFFFFF")
         else:
