@@ -308,7 +308,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
         }}
         QLineEdit#fieldInput::placeholder {{
-            color: rgba(255, 255, 255, 0.76);
+            color: rgba(214, 228, 255, 0.42);
         }}
         QToolButton#togglePassword {{
             border: none;
@@ -329,12 +329,12 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     # Samakan background utama dengan login.py (charging & tidak charging)
     _STYLE_NORMAL = _BASE_SHEET.format(
         bg0="#222a36", bg1="#3a4a5c",
-        card_border="rgba(105, 127, 149, 0.70)",
-        card_bg0="#3B5770", card_bg1="#4A6A8A",
-        glow="rgba(148, 173, 196, 0.24)",
+        card_border="rgba(64, 88, 108, 0.95)",
+        card_bg0="#1F3244", card_bg1="#2A4C67",
+        glow="rgba(104, 126, 146, 0.32)",
         label_color="#FFFFFF",
-        input_border="rgba(220, 230, 243, 0.85)",
-        input_row_bg="rgba(233, 241, 255, 0.16)",
+        input_border="rgba(180, 180, 180, 0.35)",
+        input_row_bg="rgba(28, 45, 62, 0.42)",
         status_color="#FFFFFF",
         cancel_border="#D3D3D3",
         cancel_color="#333333",
