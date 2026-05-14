@@ -386,9 +386,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     )
 
     _TITLE_NORMAL = (
-        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#d7ecff;'>"
-        "Secure <span style='color:#ffffff;'>Access</span> <span style='color:#b9d8ef;'>Point</span></p>"
-        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(210,232,250,0.78); font-weight:400;'>"
+        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#F6FBFF;'>"
+        "Secure <span style='color:#FFD166;'>Access</span> Point</p>"
+        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(219,238,252,0.90); font-weight:400;'>"
         "Enter your credentials to continue securely</p>"
     )
     _TITLE_CHARGING = (
@@ -411,9 +411,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     title.setTextFormat(Qt.TextFormat.RichText)
     title.setAlignment(Qt.AlignmentFlag.AlignCenter)
     title_glow = QGraphicsDropShadowEffect(title)
-    title_glow.setBlurRadius(10)
+    title_glow.setBlurRadius(13)
     title_glow.setOffset(0, 0)
-    title_glow.setColor(QColor(185, 216, 239, 52))
+    title_glow.setColor(QColor(255, 209, 102, 64))
     title.setGraphicsEffect(title_glow)
     root_layout.addWidget(title)
     root_layout.addSpacing(20)
@@ -713,8 +713,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         title.setText(_TITLE_CHARGING if charging else _TITLE_NORMAL)
         if isinstance(title.graphicsEffect(), QGraphicsDropShadowEffect):
             title_effect = title.graphicsEffect()
-            title_effect.setBlurRadius(0 if charging else 10)
-            title_effect.setColor(QColor(0, 0, 0, 0) if charging else QColor(185, 216, 239, 52))
+            title_effect.setBlurRadius(0 if charging else 13)
+            title_effect.setColor(QColor(0, 0, 0, 0) if charging else QColor(255, 209, 102, 64))
         icon_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
         check_color = QColor("#FFFFFF")
         eye_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
