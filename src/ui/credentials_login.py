@@ -354,7 +354,13 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         glow="rgba(135, 180, 215, 0.48)",
         label_color="#FFFFFF",
         input_border="rgba(138, 165, 187, 0.45)",
-        input_row_bg="rgba(15, 31, 47, 0.45)",
+        input_row_bg=(
+            "qlineargradient("
+            "x1:0, y1:0, x2:1, y2:1, "
+            "stop:0 rgba(16, 38, 61, 0.70), "
+            "stop:1 rgba(36, 68, 95, 0.52)"
+            ")"
+        ),
         status_color="#FFFFFF",
         cancel_border="#D3D3D3",
         cancel_color="#333333",
@@ -380,9 +386,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     )
 
     _TITLE_NORMAL = (
-        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#9CD2F2;'>"
-        "Secure <span style='color:#F2FAFF;'>Access</span> Point</p>"
-        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(200,230,250,0.82); font-weight:400;'>"
+        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#d7ecff;'>"
+        "Secure <span style='color:#ffffff;'>Access</span> <span style='color:#b9d8ef;'>Point</span></p>"
+        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(210,232,250,0.78); font-weight:400;'>"
         "Enter your credentials to continue securely</p>"
     )
     _TITLE_CHARGING = (
@@ -404,6 +410,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     title.setObjectName("title")
     title.setTextFormat(Qt.TextFormat.RichText)
     title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    title_glow = QGraphicsDropShadowEffect(title)
+    title_glow.setBlurRadius(10)
+    title_glow.setOffset(0, 0)
+    title_glow.setColor(QColor(185, 216, 239, 52))
+    title.setGraphicsEffect(title_glow)
     root_layout.addWidget(title)
     root_layout.addSpacing(20)
 
@@ -700,6 +711,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     def _apply_charging(charging: bool) -> None:
         dialog.setStyleSheet(_STYLE_CHARGING if charging else _STYLE_NORMAL)
         title.setText(_TITLE_CHARGING if charging else _TITLE_NORMAL)
+        if isinstance(title.graphicsEffect(), QGraphicsDropShadowEffect):
+            title_effect = title.graphicsEffect()
+            title_effect.setBlurRadius(0 if charging else 10)
+            title_effect.setColor(QColor(0, 0, 0, 0) if charging else QColor(185, 216, 239, 52))
         icon_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
         check_color = QColor("#FFFFFF")
         eye_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
