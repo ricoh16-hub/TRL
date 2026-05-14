@@ -194,12 +194,20 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
     cancel_btn.setPrimary(False)
     submit_btn.setPrimary(False)
 
+    def _set_button_shadow(button: CustomButton, color: QColor, blur: int, offset_y: int) -> None:
+        shadow = QGraphicsDropShadowEffect(button)
+        shadow.setBlurRadius(blur)
+        shadow.setOffset(0, offset_y)
+        shadow.setColor(color)
+        button.setGraphicsEffect(shadow)
+
     if charging:
         # Buat kedua tombol seragam dengan gradien dan warna yang sama
-        common_gradient = (QColor("#2C89DB"), QColor("#58BCFF"))
-        common_hover_gradient = (QColor("#3595EC"), QColor("#73C9FF"))
-        common_border = QColor("#59B6FF")
+        common_gradient = (QColor("#1F6FAF"), QColor("#43A8E8"))
+        common_hover_gradient = (QColor("#2B83C9"), QColor("#5BBEFF"))
+        common_border = QColor(105, 195, 255, 165)
         common_text_color = QColor("#FFFFFF")
+        common_shadow = QColor(80, 180, 255, 88)
 
         cancel_btn._custom_bg = None  # type: ignore[attr-defined]
         cancel_btn._custom_hover_bg = None  # type: ignore[attr-defined]
@@ -214,20 +222,32 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         submit_btn._custom_hover_gradient = common_hover_gradient  # type: ignore[attr-defined]
         submit_btn._custom_border = common_border  # type: ignore[attr-defined]
         submit_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
-    else:
-        cancel_btn._custom_bg = QColor("#F5F3F1")  # type: ignore[attr-defined]
-        cancel_btn._custom_hover_bg = QColor("#FFFFFF")  # type: ignore[attr-defined]
-        cancel_btn._custom_gradient = None  # type: ignore[attr-defined]
-        cancel_btn._custom_hover_gradient = None  # type: ignore[attr-defined]
-        cancel_btn._custom_border = QColor("#D8D4CF")  # type: ignore[attr-defined]
-        cancel_btn._custom_text_color = QColor("#163A72")  # type: ignore[attr-defined]
 
-        submit_btn._custom_bg = QColor("#F5F3F1")  # type: ignore[attr-defined]
-        submit_btn._custom_hover_bg = QColor("#FFFFFF")  # type: ignore[attr-defined]
-        submit_btn._custom_gradient = None  # type: ignore[attr-defined]
-        submit_btn._custom_hover_gradient = None  # type: ignore[attr-defined]
-        submit_btn._custom_border = QColor("#D8D4CF")  # type: ignore[attr-defined]
-        submit_btn._custom_text_color = QColor("#163A72")  # type: ignore[attr-defined]
+        _set_button_shadow(cancel_btn, common_shadow, 13, 2)
+        _set_button_shadow(submit_btn, common_shadow, 13, 2)
+    else:
+        common_gradient = (QColor("#25506F"), QColor("#3B779C"))
+        common_hover_gradient = (QColor("#2E6388"), QColor("#4B8EB8"))
+        common_border = QColor(135, 190, 230, 155)
+        common_text_color = QColor("#F4FAFF")
+        common_shadow = QColor(95, 150, 190, 110)
+
+        cancel_btn._custom_bg = None  # type: ignore[attr-defined]
+        cancel_btn._custom_hover_bg = None  # type: ignore[attr-defined]
+        cancel_btn._custom_gradient = common_gradient  # type: ignore[attr-defined]
+        cancel_btn._custom_hover_gradient = common_hover_gradient  # type: ignore[attr-defined]
+        cancel_btn._custom_border = common_border  # type: ignore[attr-defined]
+        cancel_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
+
+        submit_btn._custom_bg = None  # type: ignore[attr-defined]
+        submit_btn._custom_hover_bg = None  # type: ignore[attr-defined]
+        submit_btn._custom_gradient = common_gradient  # type: ignore[attr-defined]
+        submit_btn._custom_hover_gradient = common_hover_gradient  # type: ignore[attr-defined]
+        submit_btn._custom_border = common_border  # type: ignore[attr-defined]
+        submit_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
+
+        _set_button_shadow(cancel_btn, common_shadow, 13, 2)
+        _set_button_shadow(submit_btn, common_shadow, 13, 2)
 
     cancel_btn.update()
     submit_btn.update()
@@ -329,12 +349,12 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     # Samakan background utama dengan login.py (charging & tidak charging)
     _STYLE_NORMAL = _BASE_SHEET.format(
         bg0="#222a36", bg1="#3a4a5c",
-        card_border="rgba(34, 49, 64, 0.98)",
-        card_bg0="#0F1F2F", card_bg1="#1A2B40",
-        glow="rgba(70, 88, 106, 0.28)",
+        card_border="rgba(135, 170, 205, 0.78)",
+        card_bg0="#10263D", card_bg1="#24445F",
+        glow="rgba(135, 180, 215, 0.48)",
         label_color="#FFFFFF",
-        input_border="rgba(180, 180, 180, 0.35)",
-        input_row_bg="rgba(18, 28, 40, 0.62)",
+        input_border="rgba(138, 165, 187, 0.45)",
+        input_row_bg="rgba(15, 31, 47, 0.45)",
         status_color="#FFFFFF",
         cancel_border="#D3D3D3",
         cancel_color="#333333",
@@ -360,9 +380,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     )
 
     _TITLE_NORMAL = (
-        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#ecf2ff;'>"
-        "Secure <span style='color:#5f8fff;'>Access</span> Point</p>"
-        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(233,241,255,0.65); font-weight:400;'>"
+        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#9CD2F2;'>"
+        "Secure <span style='color:#F2FAFF;'>Access</span> Point</p>"
+        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(200,230,250,0.82); font-weight:400;'>"
         "Enter your credentials to continue securely</p>"
     )
     _TITLE_CHARGING = (
@@ -389,18 +409,18 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     card = QFrame()
     card.setObjectName("cardPanel")
-    # Shadow utama (putih)
+    # Shadow utama menggunakan warna border card panel yang lebih kuat
     card_shadow = QGraphicsDropShadowEffect(card)
     card_shadow.setBlurRadius(16)
     card_shadow.setOffset(3, 4)
-    card_shadow.setColor(QColor(255, 255, 255, 60))
+    card_shadow.setColor(QColor(95, 120, 145, 190))
     card.setGraphicsEffect(card_shadow)
 
-    # Shadow kedua (biru muda transparan, harmonis dengan background)
+    # Shadow kedua sebagai outer glow dengan warna border yang lebih terang
     card_shadow2 = QGraphicsDropShadowEffect(card)
     card_shadow2.setBlurRadius(32)
     card_shadow2.setOffset(0, 0)
-    card_shadow2.setColor(QColor(180, 180, 180, 40))
+    card_shadow2.setColor(QColor(170, 205, 235, 145))
     # Agar kedua efek tampil, letakkan shadow kedua di parent panel
     card.setGraphicsEffect(card_shadow)
     parent_widget = card.parentWidget()
@@ -722,13 +742,13 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         else:
             card_shadow.setBlurRadius(16)
             card_shadow.setOffset(3, 4)
-            card_shadow.setColor(QColor(255, 255, 255, 60))
-            # Aktifkan shadow biru kedua saat tidak charging
+            card_shadow.setColor(QColor(95, 120, 145, 190))
+            # Aktifkan outer shadow selaras dengan border saat tidak charging
             if parent_widget is not None:
                 card_shadow2 = QGraphicsDropShadowEffect(card)
                 card_shadow2.setBlurRadius(32)
                 card_shadow2.setOffset(0, 0)
-                card_shadow2.setColor(QColor(80, 180, 255, 40))
+                card_shadow2.setColor(QColor(170, 205, 235, 145))
                 parent_widget.setGraphicsEffect(card_shadow2)
 
         # Update shimmer Top Glow sesuai charging

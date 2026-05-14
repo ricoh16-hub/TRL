@@ -24,12 +24,26 @@ def test_action_buttons_use_non_charging_palette() -> None:
 
     assert cancel_btn.primary is False
     assert submit_btn.primary is False
-    assert cancel_btn._custom_bg.name().lower() == "#f5f3f1"  # type: ignore[attr-defined]
-    assert submit_btn._custom_bg.name().lower() == "#f5f3f1"  # type: ignore[attr-defined]
-    assert cancel_btn._custom_text_color.name().lower() == "#163a72"  # type: ignore[attr-defined]
-    assert submit_btn._custom_text_color.name().lower() == "#163a72"  # type: ignore[attr-defined]
-    assert cancel_btn._custom_gradient is None  # type: ignore[attr-defined]
-    assert submit_btn._custom_gradient is None  # type: ignore[attr-defined]
+    assert cancel_btn._custom_bg is None  # type: ignore[attr-defined]
+    assert submit_btn._custom_bg is None  # type: ignore[attr-defined]
+    assert cancel_btn._custom_hover_bg is None  # type: ignore[attr-defined]
+    assert submit_btn._custom_hover_bg is None  # type: ignore[attr-defined]
+    assert cancel_btn._custom_gradient[0].name().lower() == "#25506f"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_gradient[1].name().lower() == "#3b779c"  # type: ignore[attr-defined]
+    assert submit_btn._custom_gradient[0].name().lower() == "#25506f"  # type: ignore[attr-defined]
+    assert submit_btn._custom_gradient[1].name().lower() == "#3b779c"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_hover_gradient[0].name().lower() == "#2e6388"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_hover_gradient[1].name().lower() == "#4b8eb8"  # type: ignore[attr-defined]
+    assert submit_btn._custom_hover_gradient[0].name().lower() == "#2e6388"  # type: ignore[attr-defined]
+    assert submit_btn._custom_hover_gradient[1].name().lower() == "#4b8eb8"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_border.name().lower() == "#87bee6"  # type: ignore[attr-defined]
+    assert submit_btn._custom_border.name().lower() == "#87bee6"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_border.alpha() == 155  # type: ignore[attr-defined]
+    assert submit_btn._custom_border.alpha() == 155  # type: ignore[attr-defined]
+    assert cancel_btn._custom_text_color.name().lower() == "#f4faff"  # type: ignore[attr-defined]
+    assert submit_btn._custom_text_color.name().lower() == "#f4faff"  # type: ignore[attr-defined]
+    assert cancel_btn.graphicsEffect() is not None
+    assert submit_btn.graphicsEffect() is not None
 
 
 def test_action_buttons_use_charging_palette() -> None:
@@ -43,9 +57,17 @@ def test_action_buttons_use_charging_palette() -> None:
     assert submit_btn.primary is False
     assert cancel_btn._custom_bg is None  # type: ignore[attr-defined]
     assert submit_btn._custom_bg is None  # type: ignore[attr-defined]
-    assert cancel_btn._custom_gradient[0].name().lower() == "#2c89db"  # type: ignore[attr-defined]
-    assert cancel_btn._custom_gradient[1].name().lower() == "#58bcff"  # type: ignore[attr-defined]
-    assert submit_btn._custom_gradient[0].name().lower() == "#2c89db"  # type: ignore[attr-defined]
-    assert submit_btn._custom_gradient[1].name().lower() == "#58bcff"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_gradient[0].name().lower() == "#1f6faf"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_gradient[1].name().lower() == "#43a8e8"  # type: ignore[attr-defined]
+    assert submit_btn._custom_gradient[0].name().lower() == "#1f6faf"  # type: ignore[attr-defined]
+    assert submit_btn._custom_gradient[1].name().lower() == "#43a8e8"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_hover_gradient[0].name().lower() == "#2b83c9"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_hover_gradient[1].name().lower() == "#5bbeff"  # type: ignore[attr-defined]
+    assert submit_btn._custom_hover_gradient[0].name().lower() == "#2b83c9"  # type: ignore[attr-defined]
+    assert submit_btn._custom_hover_gradient[1].name().lower() == "#5bbeff"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_border.name().lower() == "#69c3ff"  # type: ignore[attr-defined]
+    assert submit_btn._custom_border.name().lower() == "#69c3ff"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_border.alpha() == 165  # type: ignore[attr-defined]
+    assert submit_btn._custom_border.alpha() == 165  # type: ignore[attr-defined]
     assert cancel_btn._custom_text_color.name().lower() == "#ffffff"  # type: ignore[attr-defined]
     assert submit_btn._custom_text_color.name().lower() == "#ffffff"  # type: ignore[attr-defined]
