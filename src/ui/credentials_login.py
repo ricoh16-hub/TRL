@@ -6,8 +6,12 @@ from PySide6.QtWidgets import (
     QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QToolButton, QVBoxLayout, QWidget
 )
 from PySide6.QtWidgets import QGraphicsDropShadowEffect
-from ui.custom_button import CustomButton
 from PySide6.QtGui import QColor
+
+try:
+    from ui.custom_button import CustomButton
+except ImportError:
+    from src.ui.custom_button import CustomButton
 
 try:
     from ui.flow_auth import authenticate_credentials_step
@@ -184,6 +188,49 @@ def _draw_check_icon(size: int, color: QColor) -> QPixmap:
 def _set_icon(label: QLabel, pixmap: QPixmap) -> None:
     label.setPixmap(pixmap)
     label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+
+def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButton, charging: bool) -> None:
+    cancel_btn.setPrimary(False)
+    submit_btn.setPrimary(False)
+
+    if charging:
+        # Buat kedua tombol seragam dengan gradien dan warna yang sama
+        common_gradient = (QColor("#2C89DB"), QColor("#58BCFF"))
+        common_hover_gradient = (QColor("#3595EC"), QColor("#73C9FF"))
+        common_border = QColor("#59B6FF")
+        common_text_color = QColor("#FFFFFF")
+
+        cancel_btn._custom_bg = None  # type: ignore[attr-defined]
+        cancel_btn._custom_hover_bg = None  # type: ignore[attr-defined]
+        cancel_btn._custom_gradient = common_gradient  # type: ignore[attr-defined]
+        cancel_btn._custom_hover_gradient = common_hover_gradient  # type: ignore[attr-defined]
+        cancel_btn._custom_border = common_border  # type: ignore[attr-defined]
+        cancel_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
+
+        submit_btn._custom_bg = None  # type: ignore[attr-defined]
+        submit_btn._custom_hover_bg = None  # type: ignore[attr-defined]
+        submit_btn._custom_gradient = common_gradient  # type: ignore[attr-defined]
+        submit_btn._custom_hover_gradient = common_hover_gradient  # type: ignore[attr-defined]
+        submit_btn._custom_border = common_border  # type: ignore[attr-defined]
+        submit_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
+    else:
+        cancel_btn._custom_bg = QColor("#F5F3F1")  # type: ignore[attr-defined]
+        cancel_btn._custom_hover_bg = QColor("#FFFFFF")  # type: ignore[attr-defined]
+        cancel_btn._custom_gradient = None  # type: ignore[attr-defined]
+        cancel_btn._custom_hover_gradient = None  # type: ignore[attr-defined]
+        cancel_btn._custom_border = QColor("#D8D4CF")  # type: ignore[attr-defined]
+        cancel_btn._custom_text_color = QColor("#163A72")  # type: ignore[attr-defined]
+
+        submit_btn._custom_bg = QColor("#F5F3F1")  # type: ignore[attr-defined]
+        submit_btn._custom_hover_bg = QColor("#FFFFFF")  # type: ignore[attr-defined]
+        submit_btn._custom_gradient = None  # type: ignore[attr-defined]
+        submit_btn._custom_hover_gradient = None  # type: ignore[attr-defined]
+        submit_btn._custom_border = QColor("#D8D4CF")  # type: ignore[attr-defined]
+        submit_btn._custom_text_color = QColor("#163A72")  # type: ignore[attr-defined]
+
+    cancel_btn.update()
+    submit_btn.update()
 
 
 def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[QWidget] = None) -> Optional[User]:
@@ -580,6 +627,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     from typing import cast
     for btn in [cancel_btn, submit_btn]:
         btn.setGraphicsEffect(cast(QGraphicsEffect, None))
+    _apply_action_button_theme(cancel_btn, submit_btn, charging=False)
     buttons.addWidget(cancel_btn, 0)
     buttons.addWidget(submit_btn, 0)
     root_layout.addLayout(buttons)
@@ -659,23 +707,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                 eff.setColor(QColor(glow_color.red(), glow_color.green(), glow_color.blue(), glow_alpha))
                 eff.setBlurRadius(12 if charging else 7)
 
-        # Update tombol Cancel dan Sign In agar warna silver-white sesuai status charging
-        if charging:
-            # Charging: Silver kombinasi biru
-            cancel_btn.primary = False
-            submit_btn.primary = False
-            cancel_btn._custom_bg = QColor("#B0B8C8")  # type: ignore  # Silver-blue
-            submit_btn._custom_bg = QColor("#C8D4E8")  # type: ignore  # Light silver-blue
-        else:
-            # Not Charging: Silver kombinasi putih
-            cancel_btn.primary = False
-            submit_btn.primary = False
-            cancel_btn._custom_bg = QColor("#D3D3D3")  # type: ignore  # Silver
-            submit_btn._custom_bg = QColor("#E8E8E8")  # type: ignore  # Light silver
-        
-        for btn in [cancel_btn, submit_btn]:
-            btn.setStyleSheet("border: none; background: transparent; font-weight: 700; font-family: 'SF Pro Display', Arial, sans-serif;")  # type: ignore
-            btn.update()
+        _apply_action_button_theme(cancel_btn, submit_btn, charging)
 
         # Update card shadow
         parent_widget = card.parentWidget()
