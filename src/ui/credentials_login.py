@@ -392,9 +392,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         "Enter your credentials to continue securely</p>"
     )
     _TITLE_CHARGING = (
-        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#50B4FF;'>"
-        "Secure <span style='color:#7dd8ff;'>Access</span> Point</p>"
-        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(80,200,255,0.75); font-weight:400;'>"
+        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#8EE8FF;'>"
+        "Secure <span style='color:#FFFFFF;'>Access</span> Point</p>"
+        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(142,232,255,0.88); font-weight:400;'>"
         "Enter your credentials to continue securely</p>"
     )
 
@@ -713,8 +713,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         title.setText(_TITLE_CHARGING if charging else _TITLE_NORMAL)
         if isinstance(title.graphicsEffect(), QGraphicsDropShadowEffect):
             title_effect = title.graphicsEffect()
-            title_effect.setBlurRadius(0 if charging else 13)
-            title_effect.setColor(QColor(0, 0, 0, 0) if charging else QColor(255, 209, 102, 64))
+            title_effect.setBlurRadius(14 if charging else 13)
+            title_effect.setColor(QColor(80, 180, 255, 86) if charging else QColor(255, 209, 102, 64))
         icon_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
         check_color = QColor("#FFFFFF")
         eye_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
