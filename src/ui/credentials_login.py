@@ -329,12 +329,12 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     # Samakan background utama dengan login.py (charging & tidak charging)
     _STYLE_NORMAL = _BASE_SHEET.format(
         bg0="#222a36", bg1="#3a4a5c",
-        card_border="rgba(64, 88, 108, 0.95)",
-        card_bg0="#1F3244", card_bg1="#2A4C67",
-        glow="rgba(104, 126, 146, 0.32)",
+        card_border="rgba(34, 49, 64, 0.98)",
+        card_bg0="#0F1F2F", card_bg1="#1A2B40",
+        glow="rgba(70, 88, 106, 0.28)",
         label_color="#FFFFFF",
         input_border="rgba(180, 180, 180, 0.35)",
-        input_row_bg="rgba(28, 45, 62, 0.42)",
+        input_row_bg="rgba(18, 28, 40, 0.62)",
         status_color="#FFFFFF",
         cancel_border="#D3D3D3",
         cancel_color="#333333",
