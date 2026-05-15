@@ -392,9 +392,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         "Enter your credentials to continue securely</p>"
     )
     _TITLE_CHARGING = (
-        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#8EE8FF;'>"
+        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#50B4FF;'>"
         "Secure <span style='color:#FFFFFF;'>Access</span> Point</p>"
-        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(142,232,255,0.88); font-weight:400;'>"
+        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(80,180,255,0.88); font-weight:400;'>"
         "Enter your credentials to continue securely</p>"
     )
 
