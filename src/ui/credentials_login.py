@@ -226,11 +226,11 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         _set_button_shadow(cancel_btn, common_shadow, 13, 2)
         _set_button_shadow(submit_btn, common_shadow, 13, 2)
     else:
-        common_gradient = (QColor("#25506F"), QColor("#3B779C"))
-        common_hover_gradient = (QColor("#2E6388"), QColor("#4B8EB8"))
-        common_border = QColor(135, 190, 230, 155)
-        common_text_color = QColor("#F4FAFF")
-        common_shadow = QColor(95, 150, 190, 110)
+        common_gradient = (QColor("#164F63"), QColor("#248FA0"))
+        common_hover_gradient = (QColor("#1E657A"), QColor("#35D6E7"))
+        common_border = QColor(53, 214, 231, 145)
+        common_text_color = QColor("#FFFFFF")
+        common_shadow = QColor(53, 214, 231, 70)
 
         cancel_btn._custom_bg = None  # type: ignore[attr-defined]
         cancel_btn._custom_hover_bg = None  # type: ignore[attr-defined]
