@@ -349,7 +349,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     # Samakan background utama dengan login.py (charging & tidak charging)
     _STYLE_NORMAL = _BASE_SHEET.format(
         bg0="#222a36", bg1="#3a4a5c",
-        card_border="rgba(135, 170, 205, 0.78)",
+        card_border="rgba(53, 214, 231, 0.42)",
         card_bg0="#10263D", card_bg1="#24445F",
         glow="rgba(135, 180, 215, 0.48)",
         label_color="#FFFFFF",
@@ -424,19 +424,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     card_shadow = QGraphicsDropShadowEffect(card)
     card_shadow.setBlurRadius(16)
     card_shadow.setOffset(3, 4)
-    card_shadow.setColor(QColor(95, 120, 145, 190))
+    card_shadow.setColor(QColor(53, 214, 231, 105))
     card.setGraphicsEffect(card_shadow)
-
-    # Shadow kedua sebagai outer glow dengan warna border yang lebih terang
-    card_shadow2 = QGraphicsDropShadowEffect(card)
-    card_shadow2.setBlurRadius(32)
-    card_shadow2.setOffset(0, 0)
-    card_shadow2.setColor(QColor(170, 205, 235, 145))
-    # Agar kedua efek tampil, letakkan shadow kedua di parent panel
-    card.setGraphicsEffect(card_shadow)
-    parent_widget = card.parentWidget()
-    if parent_widget is not None:
-        parent_widget.setGraphicsEffect(card_shadow2)
     card_layout = QVBoxLayout(card)
     card_layout.setContentsMargins(24, 18, 24, 22)
     card_layout.setSpacing(10)
@@ -757,14 +746,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         else:
             card_shadow.setBlurRadius(16)
             card_shadow.setOffset(3, 4)
-            card_shadow.setColor(QColor(95, 120, 145, 190))
-            # Aktifkan outer shadow selaras dengan border saat tidak charging
+            card_shadow.setColor(QColor(53, 214, 231, 105))
             if parent_widget is not None:
-                card_shadow2 = QGraphicsDropShadowEffect(card)
-                card_shadow2.setBlurRadius(32)
-                card_shadow2.setOffset(0, 0)
-                card_shadow2.setColor(QColor(170, 205, 235, 145))
-                parent_widget.setGraphicsEffect(card_shadow2)
+                from PySide6.QtWidgets import QGraphicsEffect
+                from typing import cast
+                parent_widget.setGraphicsEffect(cast(QGraphicsEffect, None))
 
         # Update shimmer Top Glow sesuai charging
         if hasattr(top_glow, 'setCharging'):
