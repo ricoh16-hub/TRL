@@ -351,9 +351,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         bg0="#222a36", bg1="#3a4a5c",
         card_border="rgba(53, 214, 231, 0.42)",
         card_bg0="#10263D", card_bg1="#24445F",
-        glow="rgba(135, 180, 215, 0.48)",
+        glow="rgba(53, 214, 231, 0.72)",
         label_color="#FFFFFF",
-        input_border="rgba(138, 165, 187, 0.45)",
+        input_border="rgba(53, 214, 231, 0.32)",
         input_row_bg=(
             "qlineargradient("
             "x1:0, y1:0, x2:1, y2:1, "
@@ -386,9 +386,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     )
 
     _TITLE_NORMAL = (
-        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#F6FBFF;'>"
-        "Secure <span style='color:#FFD166;'>Access</span> Point</p>"
-        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(219,238,252,0.90); font-weight:400;'>"
+        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#35D6E7;'>"
+        "Secure <span style='color:#FFFFFF;'>Access</span> Point</p>"
+        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(53,214,231,0.82); font-weight:400;'>"
         "Enter your credentials to continue securely</p>"
     )
     _TITLE_CHARGING = (
@@ -442,8 +442,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             self._charging = False
             self._color_charging = QColor(80, 180, 255, 180)
             self._color_charging_core = QColor(80, 180, 255, 255)
-            self._color_normal = QColor(202, 227, 255, 160)
-            self._color_normal_core = QColor(202, 227, 255, 255)
+            self._color_normal = QColor(53, 214, 231, 150)
+            self._color_normal_core = QColor(53, 214, 231, 230)
             self._shimmer_active = True
             self._shimmer_pos = 0.0
             from PySide6.QtCore import QEasingCurve, QSequentialAnimationGroup, QPauseAnimation, QPropertyAnimation
@@ -528,7 +528,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     username_glow = QGraphicsDropShadowEffect(username_label)
     username_glow.setBlurRadius(7)
     username_glow.setOffset(0, 0)
-    username_glow.setColor(QColor(255, 255, 255, 70))
+    username_glow.setColor(QColor(53, 214, 231, 70))
     username_label.setGraphicsEffect(username_glow)
     card_layout.addWidget(username_label)
     card_layout.addSpacing(8)  # Tambahkan jarak 8px antara label dan textbox user
@@ -542,7 +542,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     username_icon = QLabel()
     username_icon.setObjectName("fieldIcon")
-    _set_icon(username_icon, _draw_user_icon(18, QColor("#c9defc")))
+    _set_icon(username_icon, _draw_user_icon(18, QColor("#35D6E7")))
 
     username_input = QLineEdit()
     username_input.setObjectName("fieldInput")
@@ -560,7 +560,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     password_glow = QGraphicsDropShadowEffect(password_label)
     password_glow.setBlurRadius(7)
     password_glow.setOffset(0, 0)
-    password_glow.setColor(QColor(255, 255, 255, 70))
+    password_glow.setColor(QColor(53, 214, 231, 70))
     password_label.setGraphicsEffect(password_glow)
     card_layout.addWidget(password_label)
     card_layout.addSpacing(8)  # Tambahkan jarak 8px antara label dan textbox password
@@ -574,7 +574,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     password_icon = QLabel()
     password_icon.setObjectName("fieldIcon")
-    _set_icon(password_icon, _draw_lock_icon(18, QColor("#c9defc")))
+    _set_icon(password_icon, _draw_lock_icon(18, QColor("#35D6E7")))
 
     password_input = QLineEdit()
     password_input.setObjectName("fieldInput")
@@ -585,10 +585,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     toggle_password_btn.setObjectName("togglePassword")
     toggle_password_btn.setIconSize(QSize(16, 16))
     # Set initial outline color (non-charging)
-    # Outline color non-charging disamakan dengan ikon gembok
+    # Outline color non-charging disamakan dengan aksen card panel
     # Set ikon awal: crossed=True karena mode Password (karakter disembunyikan)
-    # Set ikon awal dengan pupil_color konsisten (putih, non-charging)
-    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), pupil_color=QColor("#FFFFFF"), crossed=True, outline_color=QColor("#c9defc"))))
+    # Set ikon awal dengan pupil_color konsisten dengan aksen card panel
+    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#35D6E7"), pupil_color=QColor("#35D6E7"), crossed=True, outline_color=QColor("#35D6E7"))))
     toggle_password_btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
     password_layout.addWidget(password_icon)
@@ -618,7 +618,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     status_glow = QGraphicsDropShadowEffect(status_text)
     status_glow.setBlurRadius(7)
     status_glow.setOffset(0, 0)
-    status_glow.setColor(QColor(255, 255, 255, 70))
+    status_glow.setColor(QColor(53, 214, 231, 70))
     status_text.setGraphicsEffect(status_glow)
     status_row.addWidget(status_icon)
     status_row.addWidget(status_text)
@@ -658,10 +658,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         password_input.setEchoMode(QLineEdit.EchoMode.Normal if is_hidden else QLineEdit.EchoMode.Password)
         # Ikuti warna outline dari status charging
         charging = bool(_charging_cache.get("prev"))
-        outline_color = QColor("#50B4FF") if charging else QColor("#c9defc")
-        pupil_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
+        outline_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
+        pupil_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
         crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
-        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#d3e6ff"), pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
+        eye_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
+        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
 
     def on_submit() -> None:
         username = username_input.text().strip()
@@ -704,16 +705,16 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             title_effect = title.graphicsEffect()
             title_effect.setBlurRadius(14 if charging else 13)
             title_effect.setColor(QColor(80, 180, 255, 86) if charging else QColor(255, 209, 102, 64))
-        icon_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
+        icon_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
         check_color = QColor("#FFFFFF")
-        eye_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
+        eye_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
 
         # Update icon colors
         _set_icon(username_icon, _draw_user_icon(18, icon_color))
         _set_icon(password_icon, _draw_lock_icon(18, icon_color))
         _set_icon(status_icon, _draw_check_icon(19, check_color))
-        outline_color = QColor("#50B4FF") if charging else QColor("#c9defc")
-        pupil_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
+        outline_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
+        pupil_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
         # Ikuti status visibilitas password
         crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
         toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
@@ -724,7 +725,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         status_text.setStyleSheet("color: #FFFFFF; font-size: 12px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")  # type: ignore
 
         # Update glow/outline effect
-        glow_color = QColor("#50B4FF" if charging else "#FFFFFF")
+        glow_color = QColor("#50B4FF" if charging else "#35D6E7")
         glow_alpha = 120 if charging else 70
         for eff in [username_label.graphicsEffect(), password_label.graphicsEffect(), status_text.graphicsEffect()]:
             if isinstance(eff, QGraphicsDropShadowEffect):
