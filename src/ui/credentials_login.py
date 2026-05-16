@@ -1,9 +1,9 @@
 from typing import Optional
 
-from PySide6.QtCore import QSize, Qt, QRectF
+from PySide6.QtCore import QPoint, QSize, Qt, QRectF
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QBrush
 from PySide6.QtWidgets import (
-    QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QToolButton, QVBoxLayout, QWidget
+    QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QToolButton, QVBoxLayout, QWidget
 )
 from PySide6.QtWidgets import QGraphicsDropShadowEffect
 from PySide6.QtGui import QColor
@@ -251,6 +251,213 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
 
     cancel_btn.update()
     submit_btn.update()
+
+
+def _draw_warning_icon(size: int, accent: QColor) -> QPixmap:
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)  # type: ignore
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    rect = QRectF(1.5, 1.5, size - 3, size - 3)
+    painter.setPen(QPen(QColor(accent.red(), accent.green(), accent.blue(), 165), 1.3))
+    painter.setBrush(QColor(accent.red(), accent.green(), accent.blue(), 32))
+    painter.drawEllipse(rect)
+
+    mark_color = QColor("#FFFFFF")
+    painter.setPen(QPen(mark_color, 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+    center_x = size / 2
+    painter.drawLine(int(center_x), int(size * 0.26), int(center_x), int(size * 0.57))
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(mark_color)
+    dot_size = max(3, int(size * 0.10))
+    painter.drawEllipse(
+        int(center_x - dot_size / 2),
+        int(size * 0.70),
+        dot_size,
+        dot_size,
+    )
+
+    painter.end()
+    return pixmap
+
+
+def _show_credentials_warning(parent: QWidget, title: str, message: str, charging: bool, width: int) -> None:
+    accent = "#50B4FF" if charging else "#35D6E7"
+    accent_rgb = "80, 180, 255" if charging else "53, 214, 231"
+    card_border_alpha = "0.38" if charging else "0.30"
+    panel_bg0 = "#111B2B" if charging else "#142433"
+    panel_bg1 = "#182A42" if charging else "#1D3544"
+
+    warning = QDialog(parent)
+    warning.setObjectName("credentialsWarningDialog")
+    warning.setWindowTitle(title)
+    warning.setModal(True)
+    warning.setWindowFlags(warning.windowFlags() | Qt.WindowType.FramelessWindowHint)
+    warning.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    warning_width = max(300, width)
+    warning.setFixedSize(warning_width, 158)
+    warning.setStyleSheet(f"""
+        QDialog#credentialsWarningDialog {{
+            background: transparent;
+        }}
+        QFrame#warningPanel {{
+            border: 1px solid rgba({accent_rgb}, {card_border_alpha});
+            border-radius: 16px;
+            background: qlineargradient(
+                x1:0, y1:0, x2:1, y2:1,
+                stop:0 {panel_bg0},
+                stop:1 {panel_bg1}
+            );
+        }}
+        QFrame#warningTitleBar {{
+            border: none;
+            background: transparent;
+        }}
+        QFrame#warningSeparator {{
+            border: none;
+            background: rgba(255, 255, 255, 0.075);
+        }}
+        QLabel#warningIcon {{
+            min-width: 30px;
+            max-width: 30px;
+        }}
+        QLabel#warningWindowTitle {{
+            color: rgba(244, 248, 255, 0.92);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+        }}
+        QToolButton#warningClose {{
+            color: rgba(244, 248, 255, 0.68);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.035);
+            font-size: 11px;
+            font-weight: 700;
+            font-family: Arial, sans-serif;
+        }}
+        QToolButton#warningClose:hover {{
+            color: #FFFFFF;
+            border: 1px solid rgba({accent_rgb}, 0.50);
+            background: rgba({accent_rgb}, 0.12);
+        }}
+        QToolButton#warningClose:pressed {{
+            background: rgba({accent_rgb}, 0.20);
+        }}
+        QLabel#warningHeadline {{
+            color: {accent};
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+            font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+        }}
+        QLabel#warningMessage {{
+            color: rgba(244, 248, 255, 0.82);
+            font-size: 12px;
+            font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+        }}
+    """)
+
+    layout = QVBoxLayout(warning)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
+
+    panel = QFrame(warning)
+    panel.setObjectName("warningPanel")
+
+    panel_layout = QVBoxLayout(panel)
+    panel_layout.setContentsMargins(0, 0, 0, 0)
+    panel_layout.setSpacing(0)
+
+    title_bar_frame = QFrame(panel)
+    title_bar_frame.setObjectName("warningTitleBar")
+    title_bar_frame.setFixedHeight(38)
+    title_bar_frame.setCursor(Qt.CursorShape.ArrowCursor)
+    title_bar = QHBoxLayout(title_bar_frame)
+    title_bar.setContentsMargins(16, 0, 10, 0)
+    title_bar.setSpacing(10)
+
+    window_title = QLabel("Credential Verification", title_bar_frame)
+    window_title.setObjectName("warningWindowTitle")
+    window_title.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+    window_title.setMaximumWidth(max(120, warning_width - 74))
+    title_bar.addWidget(window_title)
+    title_bar.addStretch(1)
+
+    close_btn = QToolButton(title_bar_frame)
+    close_btn.setObjectName("warningClose")
+    close_btn.setText("X")
+    close_btn.setFixedSize(22, 22)
+    close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    close_btn.clicked.connect(warning.accept)
+    title_bar.addWidget(close_btn)
+    panel_layout.addWidget(title_bar_frame)
+
+    drag_offset: dict[str, QPoint | None] = {"point": None}
+
+    def _start_drag(event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            drag_offset["point"] = event.globalPosition().toPoint() - warning.frameGeometry().topLeft()
+            event.accept()
+
+    def _move_drag(event) -> None:
+        if drag_offset["point"] is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            warning.move(event.globalPosition().toPoint() - drag_offset["point"])
+            event.accept()
+
+    def _stop_drag(event) -> None:
+        drag_offset["point"] = None
+        event.accept()
+
+    title_bar_frame.mousePressEvent = _start_drag  # type: ignore[method-assign]
+    title_bar_frame.mouseMoveEvent = _move_drag  # type: ignore[method-assign]
+    title_bar_frame.mouseReleaseEvent = _stop_drag  # type: ignore[method-assign]
+
+    separator = QFrame(panel)
+    separator.setObjectName("warningSeparator")
+    separator.setFixedHeight(1)
+    panel_layout.addWidget(separator)
+
+    content_row = QHBoxLayout()
+    content_row.setContentsMargins(18, 18, 18, 20)
+    content_row.setSpacing(10)
+
+    icon_label = QLabel(panel)
+    icon_label.setObjectName("warningIcon")
+    icon_label.setPixmap(_draw_warning_icon(30, QColor(accent)))
+    icon_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+    content_row.addWidget(icon_label)
+
+    text_column = QVBoxLayout()
+    text_column.setContentsMargins(0, 0, 0, 0)
+    text_column.setSpacing(5)
+
+    headline_label = QLabel(title, panel)
+    headline_label.setObjectName("warningHeadline")
+    headline_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+    headline_label.setMaximumWidth(max(180, warning_width - 88))
+    text_column.addWidget(headline_label)
+
+    message_label = QLabel(message, panel)
+    message_label.setObjectName("warningMessage")
+    message_label.setWordWrap(True)
+    message_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+    message_label.setMaximumWidth(max(180, warning_width - 88))
+    text_column.addWidget(message_label)
+    content_row.addLayout(text_column, 1)
+
+    panel_layout.addLayout(content_row)
+
+    layout.addWidget(panel)
+    if parent is not None:
+        parent_top_left = parent.mapToGlobal(parent.rect().topLeft())
+        warning.move(
+            parent_top_left.x() + (parent.width() - warning.width()) // 2,
+            parent_top_left.y() + (parent.height() - warning.height()) // 2,
+        )
+    warning.exec()
 
 
 def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[QWidget] = None) -> Optional[User]:
@@ -668,7 +875,13 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         username = username_input.text().strip()
         password = password_input.text()
         if not username or not password:
-            QMessageBox.warning(dialog, "Validasi", "Username dan password wajib diisi.")
+            _show_credentials_warning(
+                dialog,
+                "Credentials Required",
+                "Enter both username and password to continue.",
+                bool(_charging_cache.get("prev")),
+                card.width(),
+            )
             return
 
         authenticated_user = authenticate_credentials_step(
@@ -679,7 +892,13 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             user_agent="PySide6",
         )
         if authenticated_user is None:
-            QMessageBox.warning(dialog, "Login Ditolak", "Username/password tidak valid atau akun terkunci.")
+            _show_credentials_warning(
+                dialog,
+                "Sign In Failed",
+                "The username or password is incorrect, or this account is locked.",
+                bool(_charging_cache.get("prev")),
+                card.width(),
+            )
             return
 
         result_user["user"] = authenticated_user
