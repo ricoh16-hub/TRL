@@ -303,14 +303,44 @@ def _draw_close_icon(size: int, color: QColor) -> QPixmap:
 
 
 class CredentialsWarningDialog(QDialog):
+    PALETTES = {
+        False: {
+            "accent": "#35D6E7",
+            "accent_rgb": "53, 214, 231",
+            "border_alpha": "0.34",
+            "panel_bg0": "#10263D",
+            "panel_bg1": "#24445F",
+        },
+        True: {
+            "accent": "#50B4FF",
+            "accent_rgb": "80, 180, 255",
+            "border_alpha": "0.38",
+            "panel_bg0": "rgba(8, 20, 65, 0.96)",
+            "panel_bg1": "rgba(16, 36, 98, 0.96)",
+        },
+    }
+    WIDTH_MIN = 300
+    HEIGHT = 152
+    RADIUS = 18
+    TITLE_BAR_HEIGHT = 36
+    TITLE_MAX_RESERVED_WIDTH = 74
+    TEXT_MAX_RESERVED_WIDTH = 88
+    TEXT_MAX_MIN_WIDTH = 180
+    TITLE_MAX_MIN_WIDTH = 120
+    CLOSE_ICON_SIZE = 14
+    CLOSE_BUTTON_SIZE = 20
+    CREDENTIAL_ICON_SIZE = 26
+    SEPARATOR_HEIGHT = 1
+
     def __init__(self, parent: QWidget, title: str, message: str, charging: bool, width: int) -> None:
         super().__init__(parent)
         self._title = title
         self._message = message
         self._charging = charging
-        self._warning_width = max(300, width)
-        self._accent = QColor("#50B4FF" if charging else "#35D6E7")
-        self._accent_rgb = "80, 180, 255" if charging else "53, 214, 231"
+        self._palette = self.PALETTES[charging]
+        self._warning_width = max(self.WIDTH_MIN, width)
+        self._accent = QColor(self._palette["accent"])
+        self._accent_rgb = self._palette["accent_rgb"]
         self._drag_offset: QPoint | None = None
         self._close_btn: QToolButton | None = None
 
@@ -325,23 +355,20 @@ class CredentialsWarningDialog(QDialog):
         self.setModal(True)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setFixedSize(self._warning_width, 152)
+        self.setFixedSize(self._warning_width, self.HEIGHT)
 
     def _apply_theme(self) -> None:
-        card_border_alpha = "0.38" if self._charging else "0.34"
-        panel_bg0 = "rgba(8, 20, 65, 0.96)" if self._charging else "#10263D"
-        panel_bg1 = "rgba(16, 36, 98, 0.96)" if self._charging else "#24445F"
         self.setStyleSheet(f"""
             QDialog#credentialsWarningDialog {{
                 background: transparent;
             }}
             QFrame#warningPanel {{
-                border: 1px solid rgba({self._accent_rgb}, {card_border_alpha});
-                border-radius: 18px;
+                border: 1px solid rgba({self._accent_rgb}, {self._palette["border_alpha"]});
+                border-radius: {self.RADIUS}px;
                 background: qlineargradient(
                     x1:0, y1:0, x2:1, y2:1,
-                    stop:0 {panel_bg0},
-                    stop:1 {panel_bg1}
+                    stop:0 {self._palette["panel_bg0"]},
+                    stop:1 {self._palette["panel_bg1"]}
                 );
             }}
             QFrame#warningTitleBar {{
@@ -411,7 +438,7 @@ class CredentialsWarningDialog(QDialog):
     def _build_title_bar(self, panel: QFrame) -> QFrame:
         title_bar_frame = QFrame(panel)
         title_bar_frame.setObjectName("warningTitleBar")
-        title_bar_frame.setFixedHeight(36)
+        title_bar_frame.setFixedHeight(self.TITLE_BAR_HEIGHT)
         title_bar_frame.setCursor(Qt.CursorShape.ArrowCursor)
         title_bar = QHBoxLayout(title_bar_frame)
         title_bar.setContentsMargins(16, 0, 10, 0)
@@ -420,15 +447,15 @@ class CredentialsWarningDialog(QDialog):
         window_title = QLabel("Secure Access", title_bar_frame)
         window_title.setObjectName("warningWindowTitle")
         window_title.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-        window_title.setMaximumWidth(max(120, self._warning_width - 74))
+        window_title.setMaximumWidth(max(self.TITLE_MAX_MIN_WIDTH, self._warning_width - self.TITLE_MAX_RESERVED_WIDTH))
         title_bar.addWidget(window_title)
         title_bar.addStretch(1)
 
         self._close_btn = QToolButton(title_bar_frame)
         self._close_btn.setObjectName("warningClose")
-        self._close_btn.setIcon(QIcon(_draw_close_icon(14, QColor(244, 248, 255, 185))))
-        self._close_btn.setIconSize(QSize(14, 14))
-        self._close_btn.setFixedSize(20, 20)
+        self._close_btn.setIcon(QIcon(_draw_close_icon(self.CLOSE_ICON_SIZE, QColor(244, 248, 255, 185))))
+        self._close_btn.setIconSize(QSize(self.CLOSE_ICON_SIZE, self.CLOSE_ICON_SIZE))
+        self._close_btn.setFixedSize(self.CLOSE_BUTTON_SIZE, self.CLOSE_BUTTON_SIZE)
         self._close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._close_btn.setToolTip("Close")
         self._close_btn.setAccessibleName("Close")
@@ -446,7 +473,7 @@ class CredentialsWarningDialog(QDialog):
     def _build_separator(self, panel: QFrame) -> QHBoxLayout:
         separator = QFrame(panel)
         separator.setObjectName("warningSeparator")
-        separator.setFixedHeight(1)
+        separator.setFixedHeight(self.SEPARATOR_HEIGHT)
         separator_row = QHBoxLayout()
         separator_row.setContentsMargins(16, 0, 16, 0)
         separator_row.addWidget(separator)
@@ -459,7 +486,7 @@ class CredentialsWarningDialog(QDialog):
 
         icon_label = QLabel(panel)
         icon_label.setObjectName("warningIcon")
-        icon_label.setPixmap(_draw_credentials_alert_icon(26, self._accent))
+        icon_label.setPixmap(_draw_credentials_alert_icon(self.CREDENTIAL_ICON_SIZE, self._accent))
         icon_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
         content_row.addWidget(icon_label)
 
@@ -470,14 +497,14 @@ class CredentialsWarningDialog(QDialog):
         headline_label = QLabel(self._title, panel)
         headline_label.setObjectName("warningHeadline")
         headline_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        headline_label.setMaximumWidth(max(180, self._warning_width - 88))
+        headline_label.setMaximumWidth(max(self.TEXT_MAX_MIN_WIDTH, self._warning_width - self.TEXT_MAX_RESERVED_WIDTH))
         text_column.addWidget(headline_label)
 
         message_label = QLabel(self._message, panel)
         message_label.setObjectName("warningMessage")
         message_label.setWordWrap(True)
         message_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        message_label.setMaximumWidth(max(180, self._warning_width - 88))
+        message_label.setMaximumWidth(max(self.TEXT_MAX_MIN_WIDTH, self._warning_width - self.TEXT_MAX_RESERVED_WIDTH))
         text_column.addWidget(message_label)
         content_row.addLayout(text_column, 1)
         return content_row
@@ -498,7 +525,7 @@ class CredentialsWarningDialog(QDialog):
         close_icon_color = QColor(self._accent) if hovered else QColor(244, 248, 255, 185)
         if hovered:
             close_icon_color.setAlpha(225)
-        self._close_btn.setIcon(QIcon(_draw_close_icon(14, close_icon_color)))
+        self._close_btn.setIcon(QIcon(_draw_close_icon(self.CLOSE_ICON_SIZE, close_icon_color)))
         self._close_btn.style().polish(self._close_btn)
 
     def _close_enter(self, event) -> None:

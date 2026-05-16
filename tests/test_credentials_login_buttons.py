@@ -89,10 +89,48 @@ def test_credentials_warning_dialog_matches_card_width() -> None:
 
     assert dialog.objectName() == "credentialsWarningDialog"
     assert dialog.width() == 333
-    assert dialog.height() == 152
+    assert dialog.height() == CredentialsWarningDialog.HEIGHT
+    assert "#10263D" in dialog.styleSheet()
+    assert "#24445F" in dialog.styleSheet()
 
     close_btn = dialog.findChild(QWidget, "warningClose")
     assert close_btn is not None
     assert close_btn.toolTip() == "Close"
     assert close_btn.accessibleName() == "Close"
     assert close_btn.focusPolicy() == Qt.FocusPolicy.StrongFocus
+
+
+def test_credentials_warning_dialog_supports_charging_palette() -> None:
+    _get_app()
+    parent = QWidget()
+    parent.resize(405, 699)
+
+    dialog = CredentialsWarningDialog(
+        parent,
+        "Credentials Required",
+        "Enter your username and password.",
+        charging=True,
+        width=333,
+    )
+
+    assert dialog.objectName() == "credentialsWarningDialog"
+    assert dialog.width() == 333
+    assert dialog.height() == CredentialsWarningDialog.HEIGHT
+    assert "#50B4FF" not in dialog.styleSheet()
+    assert "80, 180, 255" in dialog.styleSheet()
+
+
+def test_credentials_warning_dialog_enforces_minimum_width() -> None:
+    _get_app()
+    parent = QWidget()
+    parent.resize(405, 699)
+
+    dialog = CredentialsWarningDialog(
+        parent,
+        "Sign In Failed",
+        "Check your username and password.",
+        charging=False,
+        width=100,
+    )
+
+    assert dialog.width() == CredentialsWarningDialog.WIDTH_MIN
