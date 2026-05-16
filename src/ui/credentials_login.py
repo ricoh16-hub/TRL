@@ -597,6 +597,11 @@ class CredentialsWarningDialog(QDialog):
             return
         super().keyPressEvent(event)
 
+    def closeEvent(self, event) -> None:
+        if self._charging_timer is not None:
+            self._charging_timer.stop()
+        super().closeEvent(event)
+
 
 def _show_credentials_warning(parent: QWidget, title: str, message: str, charging: bool, width: int) -> None:
     CredentialsWarningDialog(parent, title, message, charging, width).exec()
