@@ -2,9 +2,10 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QWidget
 
-from src.ui.credentials_login import _apply_action_button_theme
+from src.ui.credentials_login import CredentialsWarningDialog, _apply_action_button_theme
 from src.ui.custom_button import CustomButton
 
 
@@ -71,3 +72,27 @@ def test_action_buttons_use_charging_palette() -> None:
     assert submit_btn._custom_border.alpha() == 165  # type: ignore[attr-defined]
     assert cancel_btn._custom_text_color.name().lower() == "#ffffff"  # type: ignore[attr-defined]
     assert submit_btn._custom_text_color.name().lower() == "#ffffff"  # type: ignore[attr-defined]
+
+
+def test_credentials_warning_dialog_matches_card_width() -> None:
+    _get_app()
+    parent = QWidget()
+    parent.resize(405, 699)
+
+    dialog = CredentialsWarningDialog(
+        parent,
+        "Sign In Failed",
+        "Check your username and password.",
+        charging=False,
+        width=333,
+    )
+
+    assert dialog.objectName() == "credentialsWarningDialog"
+    assert dialog.width() == 333
+    assert dialog.height() == 152
+
+    close_btn = dialog.findChild(QWidget, "warningClose")
+    assert close_btn is not None
+    assert close_btn.toolTip() == "Close"
+    assert close_btn.accessibleName() == "Close"
+    assert close_btn.focusPolicy() == Qt.FocusPolicy.StrongFocus
