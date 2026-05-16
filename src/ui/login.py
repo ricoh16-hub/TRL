@@ -1611,7 +1611,21 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
         )
 
     def is_pin_charging() -> bool:
+        try:
+            from ui.battery_status import get_battery_info
+        except ImportError:
+            from src.ui.battery_status import get_battery_info  # type: ignore
+
+        info = get_battery_info()
+        if info:
+            charging = info.get("charging")
+            if isinstance(charging, bool):
+                return charging
+            if isinstance(charging, int):
+                return bool(charging)
         return bool(getattr(label_pin_entry, "charging", False))
+
+    dialog._pin_charging_provider = is_pin_charging  # type: ignore[attr-defined]
 
     def submit_pin() -> None:
         """Verifikasi PIN 6 digit. Buka MainForm jika benar, shake+clear jika salah."""
@@ -1655,6 +1669,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
                     is_pin_charging(),
                     333,
                     "Security PIN",
+                    "pin",
                 ),
             )
 

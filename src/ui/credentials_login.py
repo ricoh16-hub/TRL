@@ -320,6 +320,32 @@ class CredentialsWarningDialog(QDialog):
             "panel_bg1": "rgba(16, 36, 98, 0.96)",
         },
     }
+    PIN_PALETTES = {
+        False: {
+            "accent": "#FFFFFF",
+            "accent_rgb": "255, 255, 255",
+            "border_alpha": "0.26",
+            "panel_bg0": "rgba(34, 42, 54, 0.97)",
+            "panel_bg1": "rgba(58, 74, 92, 0.95)",
+            "title_bar_alpha": "0.030",
+            "separator_alpha": "0.090",
+            "headline_alpha": "0.92",
+            "message_alpha": "0.78",
+            "shadow": QColor(255, 255, 255, 38),
+        },
+        True: {
+            "accent": "#50B4FF",
+            "accent_rgb": "80, 180, 255",
+            "border_alpha": "0.46",
+            "panel_bg0": "rgba(28, 45, 70, 0.98)",
+            "panel_bg1": "rgba(42, 78, 112, 0.96)",
+            "title_bar_alpha": "0.040",
+            "separator_alpha": "0.155",
+            "headline_alpha": "0.94",
+            "message_alpha": "0.84",
+            "shadow": QColor(80, 180, 255, 86),
+        },
+    }
     WIDTH_MIN = 300
     HEIGHT = 152
     RADIUS = 18
@@ -341,19 +367,22 @@ class CredentialsWarningDialog(QDialog):
         charging: bool,
         width: int,
         window_title: str = "Secure Access",
+        visual_mode: str = "credentials",
     ) -> None:
         super().__init__(parent)
         self._title = title
         self._message = message
         self._window_title = window_title
+        self._visual_mode = visual_mode
         self._charging = charging
-        self._palette = self.PALETTES[charging]
+        self._palette = self._resolve_palette(charging)
         self._warning_width = max(self.WIDTH_MIN, width)
         self._accent = QColor(self._palette["accent"])
         self._accent_rgb = self._palette["accent_rgb"]
         self._drag_offset: QPoint | None = None
         self._close_btn: QToolButton | None = None
         self._icon_label: QLabel | None = None
+        self._panel: QFrame | None = None
         self._charging_timer: QTimer | None = None
 
         self._configure_window()
@@ -362,22 +391,34 @@ class CredentialsWarningDialog(QDialog):
         self._center_on_parent()
         self._start_charging_timer()
 
+    def _resolve_palette(self, charging: bool) -> dict[str, object]:
+        if self._visual_mode == "pin":
+            return self.PIN_PALETTES[charging]
+        return self.PALETTES[charging]
+
     def _set_charging(self, charging: bool) -> None:
         if self._charging == charging:
             return
         self._charging = charging
-        self._palette = self.PALETTES[charging]
+        self._palette = self._resolve_palette(charging)
         self._accent = QColor(self._palette["accent"])
         self._accent_rgb = self._palette["accent_rgb"]
         self._apply_theme()
         if self._icon_label is not None:
             self._icon_label.setPixmap(_draw_credentials_alert_icon(self.CREDENTIAL_ICON_SIZE, self._accent))
+        self._apply_panel_shadow()
         self._set_close_hover(False)
-        self.style().unpolish(self)
-        self.style().polish(self)
-        self.update()
+        self._refresh_theme_tree()
 
     def _read_current_charging(self) -> bool:
+        parent = self.parentWidget()
+        provider = getattr(parent, "_pin_charging_provider", None)
+        if self._visual_mode == "pin" and callable(provider):
+            try:
+                return bool(provider())
+            except Exception:
+                pass
+
         try:
             from ui.battery_status import get_battery_info
         except ImportError:
@@ -422,11 +463,11 @@ class CredentialsWarningDialog(QDialog):
             }}
             QFrame#warningTitleBar {{
                 border: none;
-                background: rgba(255, 255, 255, 0.025);
+                background: rgba(255, 255, 255, {self._palette.get("title_bar_alpha", "0.025")});
             }}
             QFrame#warningSeparator {{
                 border: none;
-                background: rgba({self._accent_rgb}, 0.10);
+                background: rgba({self._accent_rgb}, {self._palette.get("separator_alpha", "0.10")});
             }}
             QLabel#warningIcon {{
                 min-width: 30px;
@@ -452,34 +493,49 @@ class CredentialsWarningDialog(QDialog):
                 background: rgba(255, 255, 255, 0.085);
             }}
             QLabel#warningHeadline {{
-                color: rgba({self._accent_rgb}, 0.92);
+                color: rgba({self._accent_rgb}, {self._palette.get("headline_alpha", "0.92")});
                 font-size: 14px;
                 font-weight: 800;
                 letter-spacing: 0.2px;
                 font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
             }}
             QLabel#warningMessage {{
-                color: rgba(244, 248, 255, 0.80);
+                color: rgba(244, 248, 255, {self._palette.get("message_alpha", "0.80")});
                 font-size: 12px;
                 font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
             }}
         """)
+
+    def _apply_panel_shadow(self) -> None:
+        if self._panel is None:
+            return
+        # Keep the warning dialog inside its translucent window bounds.
+        # External QGraphicsDropShadowEffect can produce negative dirty rects on
+        # Windows layered windows when the charger state repaints the dialog.
+        self._panel.setGraphicsEffect(None)  # type: ignore[arg-type]
+
+    def _refresh_theme_tree(self) -> None:
+        for widget in [self, *self.findChildren(QWidget)]:
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+            widget.update()
 
     def _build_layout(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        panel = QFrame(self)
-        panel.setObjectName("warningPanel")
-        panel_layout = QVBoxLayout(panel)
+        self._panel = QFrame(self)
+        self._panel.setObjectName("warningPanel")
+        panel_layout = QVBoxLayout(self._panel)
         panel_layout.setContentsMargins(0, 0, 0, 0)
         panel_layout.setSpacing(0)
 
-        panel_layout.addWidget(self._build_title_bar(panel))
-        panel_layout.addLayout(self._build_separator(panel))
-        panel_layout.addLayout(self._build_content(panel))
-        layout.addWidget(panel)
+        panel_layout.addWidget(self._build_title_bar(self._panel))
+        panel_layout.addLayout(self._build_separator(self._panel))
+        panel_layout.addLayout(self._build_content(self._panel))
+        layout.addWidget(self._panel)
+        self._apply_panel_shadow()
 
         if self._close_btn is not None:
             self._close_btn.setFocus()
@@ -620,8 +676,9 @@ def _show_credentials_warning(
     charging: bool,
     width: int,
     window_title: str = "Secure Access",
+    visual_mode: str = "credentials",
 ) -> None:
-    CredentialsWarningDialog(parent, title, message, charging, width, window_title).exec()
+    CredentialsWarningDialog(parent, title, message, charging, width, window_title, visual_mode).exec()
 
 
 def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[QWidget] = None) -> Optional[User]:
