@@ -1,16 +1,16 @@
-
+from PySide6.QtCore import QEvent, QRectF, QSize, Qt
+from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import QPushButton
-from PySide6.QtGui import QPainter, QLinearGradient, QColor, QBrush, QPen, QFont, QIcon
-from PySide6.QtCore import Qt, QRectF, QSize, QEvent
+
 
 class CustomButton(QPushButton):
     def sizeHint(self):
-        from PySide6.QtCore import QSize
         return QSize(100, 5)
 
     def setStyleSheet(self, style):
-        # Paksa styleSheet kosong agar tidak override ukuran
+        # Keep painting fully controlled by this widget.
         super().setStyleSheet("")
+
     def __init__(self, text, *, primary=False, icon: QIcon = None, icon_size: QSize = QSize(20, 20), parent=None):
         super().__init__(text, parent)
         self.primary = primary
@@ -18,14 +18,20 @@ class CustomButton(QPushButton):
         self._pressed = False
         self._icon = icon
         self._icon_size = icon_size
-        self._custom_bg = None  # QColor or None
+        self._custom_bg = None
+        self._custom_hover_bg = None
+        self._custom_gradient = None
+        self._custom_hover_gradient = None
+        self._custom_border = None
+        self._custom_text_color = None
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet("border: none; background: transparent; font-weight: 600; font-family: 'SF Pro Display', Arial, sans-serif;")
         self.setMinimumHeight(5)
         self.setMaximumHeight(5)
         from PySide6.QtWidgets import QSizePolicy
+
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self._custom_radius = 10.5  # 14 * 0.75
+        self._custom_radius = 10.5
         self.setContentsMargins(0, 0, 0, 0)
         self.setMouseTracking(True)
         self.installEventFilter(self)
@@ -49,23 +55,47 @@ class CustomButton(QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         rect = self.rect().adjusted(1, 1, -1, -1)
-        radius = getattr(self, '_custom_radius', 14)
-        # --- Button background ---
-        if self._custom_bg is not None:
-            # Custom color (misal: warna gembok/putih)
+        radius = getattr(self, "_custom_radius", 14)
+
+        def _lighten(color: QColor, amount: int = 18) -> QColor:
+            return QColor(
+                min(color.red() + amount, 255),
+                min(color.green() + amount, 255),
+                min(color.blue() + amount, 255),
+                color.alpha(),
+            )
+
+        if self._custom_gradient is not None:
+            start_color, end_color = self._custom_gradient
+            if self._hovered and self._custom_hover_gradient is not None:
+                start_color, end_color = self._custom_hover_gradient
+
+            grad = QLinearGradient(rect.topLeft(), rect.topRight())
+            grad.setColorAt(0.0, QColor(start_color))
+            grad.setColorAt(1.0, QColor(end_color))
+            painter.setBrush(QBrush(grad))
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(rect, radius, radius)
+            if self._custom_border is not None:
+                painter.setPen(QPen(QColor(self._custom_border), 1))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRoundedRect(rect, radius, radius)
+        elif self._custom_bg is not None:
             bg = QColor(self._custom_bg)
-            if self._hovered:
-                # Hover: putih → abu muda, lain → lebih terang
-                if bg.red() == 255 and bg.green() == 255 and bg.blue() == 255:
-                    bg = QColor(240, 245, 255)
-                else:
-                    bg = QColor(min(bg.red()+18,255), min(bg.green()+18,255), min(bg.blue()+18,255), bg.alpha())
+            if self._hovered and self._custom_hover_bg is not None:
+                bg = QColor(self._custom_hover_bg)
+            elif self._hovered:
+                bg = _lighten(bg)
+
             painter.setBrush(QBrush(bg))
             painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(rect, radius, radius)
-            # Outline tipis untuk putih dan silver: gunakan abu-abu
-            if (self._custom_bg.red() > 200 and self._custom_bg.green() > 200 and self._custom_bg.blue() > 200):
-                painter.setPen(QPen(QColor(180, 180, 180), 1))  # #B4B4B4 (grey outline)
+            if self._custom_border is not None:
+                painter.setPen(QPen(QColor(self._custom_border), 1))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRoundedRect(rect, radius, radius)
+            elif self._custom_bg.red() > 200 and self._custom_bg.green() > 200 and self._custom_bg.blue() > 200:
+                painter.setPen(QPen(QColor(180, 180, 180), 1))
                 painter.setBrush(Qt.NoBrush)
                 painter.drawRoundedRect(rect, radius, radius)
         elif self.primary:
@@ -80,37 +110,30 @@ class CustomButton(QPushButton):
             painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(rect, radius, radius)
         else:
-            # Secondary style (Cancel)
             bg = QColor(60, 60, 80, 220) if not self._hovered else QColor(80, 80, 110, 230)
             painter.setBrush(bg)
             painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(rect, radius, radius)
 
-        # --- Draw text and icon ---
-        text = self.text()
-        font = QFont('SF Pro Display', 10)  # tetap 10px sesuai permintaan
+        font = QFont("SF Pro Display", 10)
         font.setBold(True)
         painter.setFont(font)
-        # Pilih warna teks kontras dengan background
-        if self._custom_bg is not None:
+        if self._custom_text_color is not None:
+            color = QColor(self._custom_text_color)
+        elif self._custom_bg is not None:
             bg = QColor(self._custom_bg)
-            # Jika putih atau sangat terang (atau silver), pakai teks gelap
-            if bg.red() > 200 and bg.green() > 200 and bg.blue() > 200:
-                color = QColor("#333333")  # Dark grey untuk kontras dengan silver/white
-            else:
-                color = QColor("#FFFFFF")  # Putih untuk warna gelap
-        elif self.primary:
-            color = QColor("#FFFFFF")
+            color = QColor("#333333") if bg.red() > 200 and bg.green() > 200 and bg.blue() > 200 else QColor("#FFFFFF")
         else:
             color = QColor("#FFFFFF")
         painter.setPen(color)
-        # Center text horizontally and vertically
-        text_rect = rect
-        painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignHCenter, text)
+        painter.drawText(rect, Qt.AlignVCenter | Qt.AlignHCenter, self.text())
         if self._icon:
-            icon_rect = QRectF(rect.right() - 24 - self._icon_size.width(),
-                               rect.center().y() - self._icon_size.height()/2,
-                               self._icon_size.width(), self._icon_size.height())
+            icon_rect = QRectF(
+                rect.right() - 24 - self._icon_size.width(),
+                rect.center().y() - self._icon_size.height() / 2,
+                self._icon_size.width(),
+                self._icon_size.height(),
+            )
             self._icon.paint(painter, icon_rect.toRect(), Qt.AlignCenter)
 
     def setPrimary(self, value: bool):
