@@ -1,6 +1,7 @@
+import os
 from typing import Optional
 
-from PySide6.QtCore import QPoint, QSize, Qt, QRectF
+from PySide6.QtCore import QPoint, QSize, Qt, QRectF, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QBrush
 from PySide6.QtWidgets import (
     QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QToolButton, QVBoxLayout, QWidget
@@ -343,11 +344,50 @@ class CredentialsWarningDialog(QDialog):
         self._accent_rgb = self._palette["accent_rgb"]
         self._drag_offset: QPoint | None = None
         self._close_btn: QToolButton | None = None
+        self._icon_label: QLabel | None = None
+        self._charging_timer: QTimer | None = None
 
         self._configure_window()
         self._apply_theme()
         self._build_layout()
         self._center_on_parent()
+        self._start_charging_timer()
+
+    def _set_charging(self, charging: bool) -> None:
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self._palette = self.PALETTES[charging]
+        self._accent = QColor(self._palette["accent"])
+        self._accent_rgb = self._palette["accent_rgb"]
+        self._apply_theme()
+        if self._icon_label is not None:
+            self._icon_label.setPixmap(_draw_credentials_alert_icon(self.CREDENTIAL_ICON_SIZE, self._accent))
+        self._set_close_hover(False)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+
+    def _read_current_charging(self) -> bool:
+        try:
+            from ui.battery_status import get_battery_info
+        except ImportError:
+            from src.ui.battery_status import get_battery_info  # type: ignore
+
+        info = get_battery_info()
+        if not info:
+            return self._charging
+        charging = info.get("charging")
+        if isinstance(charging, bool):
+            return charging
+        if isinstance(charging, int):
+            return bool(charging)
+        return self._charging
+
+    def _start_charging_timer(self) -> None:
+        self._charging_timer = QTimer(self)
+        self._charging_timer.timeout.connect(lambda: self._set_charging(self._read_current_charging()))
+        self._charging_timer.start(500)
 
     def _configure_window(self) -> None:
         self.setObjectName("credentialsWarningDialog")
@@ -484,11 +524,11 @@ class CredentialsWarningDialog(QDialog):
         content_row.setContentsMargins(18, 18, 18, 20)
         content_row.setSpacing(11)
 
-        icon_label = QLabel(panel)
-        icon_label.setObjectName("warningIcon")
-        icon_label.setPixmap(_draw_credentials_alert_icon(self.CREDENTIAL_ICON_SIZE, self._accent))
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-        content_row.addWidget(icon_label)
+        self._icon_label = QLabel(panel)
+        self._icon_label.setObjectName("warningIcon")
+        self._icon_label.setPixmap(_draw_credentials_alert_icon(self.CREDENTIAL_ICON_SIZE, self._accent))
+        self._icon_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+        content_row.addWidget(self._icon_label)
 
         text_column = QVBoxLayout()
         text_column.setContentsMargins(0, 0, 0, 0)
@@ -1019,15 +1059,34 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     from PySide6.QtCore import QTimer
     _charging_cache: dict[str, bool | None] = {"prev": None}
 
+    def _refresh_widget_style(widget: QWidget) -> None:
+        widget.style().unpolish(widget)
+        widget.style().polish(widget)
+        widget.update()
+
+    def _read_charging_state() -> bool:
+        info = get_battery_info()
+        if os.getenv("CREDENTIALS_CHARGING_DEBUG") == "1":
+            print(f"[DEBUG] credentials charging info: {info}")
+        if not info:
+            return bool(_charging_cache["prev"])
+        charging = info.get("charging")
+        if isinstance(charging, bool):
+            return charging
+        if isinstance(charging, int):
+            return bool(charging)
+        return bool(_charging_cache["prev"])
+
     def _apply_charging(charging: bool) -> None:
         dialog.setStyleSheet(_STYLE_CHARGING if charging else _STYLE_NORMAL)
+        _refresh_widget_style(dialog)
         title.setText(_TITLE_CHARGING if charging else _TITLE_NORMAL)
         if isinstance(title.graphicsEffect(), QGraphicsDropShadowEffect):
             title_effect = title.graphicsEffect()
             title_effect.setBlurRadius(14 if charging else 13)
             title_effect.setColor(QColor(80, 180, 255, 86) if charging else QColor(255, 209, 102, 64))
         icon_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
-        check_color = QColor("#FFFFFF")
+        check_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
         eye_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
 
         # Update icon colors
@@ -1040,10 +1099,20 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
         toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
 
-        # Update label colors (username, password, status)
-        username_label.setStyleSheet("color: #FFFFFF; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")  # type: ignore
-        password_label.setStyleSheet("color: #FFFFFF; font-size: 13px; font-weight: 700; letter-spacing: 0.8px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")  # type: ignore
-        status_text.setStyleSheet("color: #FFFFFF; font-size: 12px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;")  # type: ignore
+        # Inline styles must also switch color; otherwise they override the dialog QSS.
+        field_label_color = "rgba(80, 180, 255, 0.90)" if charging else "#FFFFFF"
+        status_label_color = "rgba(80, 200, 255, 0.90)" if charging else "#FFFFFF"
+        field_label_style = (
+            f"color: {field_label_color}; "
+            "font-size: 13px; font-weight: 700; letter-spacing: 0.8px; "
+            "font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;"
+        )
+        username_label.setStyleSheet(field_label_style)  # type: ignore
+        password_label.setStyleSheet(field_label_style)  # type: ignore
+        status_text.setStyleSheet(
+            f"color: {status_label_color}; "
+            "font-size: 12px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;"
+        )  # type: ignore
 
         # Update glow/outline effect
         glow_color = QColor("#50B4FF" if charging else "#35D6E7")
@@ -1078,17 +1147,40 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         if hasattr(top_glow, 'setCharging'):
             top_glow.setCharging(charging)
 
+        for widget in (
+            title,
+            card,
+            top_glow,
+            username_label,
+            username_row,
+            username_icon,
+            username_input,
+            password_label,
+            password_row,
+            password_icon,
+            password_input,
+            toggle_password_btn,
+            status_icon,
+            status_text,
+            cancel_btn,
+            submit_btn,
+        ):
+            _refresh_widget_style(widget)
+
+        dialog.update()
+
     def _update_charging() -> None:
-        info = get_battery_info()
-        charging = bool(info.get("charging", False)) if info else False
+        charging = _read_charging_state()
         if _charging_cache["prev"] == charging:
             return
+        if os.getenv("CREDENTIALS_CHARGING_DEBUG") == "1":
+            print(f"[DEBUG] credentials charging changed: {_charging_cache['prev']} -> {charging}")
         _charging_cache["prev"] = charging
         _apply_charging(charging)
 
     _charging_timer = QTimer(dialog)
     _charging_timer.timeout.connect(_update_charging)
-    _charging_timer.start(1000)
+    _charging_timer.start(500)
     _update_charging()  # update awal
     # -------------------------------------------------------------------
 

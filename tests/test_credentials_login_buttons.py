@@ -120,6 +120,26 @@ def test_credentials_warning_dialog_supports_charging_palette() -> None:
     assert "80, 180, 255" in dialog.styleSheet()
 
 
+def test_credentials_warning_dialog_can_switch_palette_after_opening() -> None:
+    _get_app()
+    parent = QWidget()
+    parent.resize(405, 699)
+
+    dialog = CredentialsWarningDialog(
+        parent,
+        "Sign In Failed",
+        "Check your username and password.",
+        charging=False,
+        width=333,
+    )
+
+    assert "53, 214, 231" in dialog.styleSheet()
+    dialog._set_charging(True)
+    assert "80, 180, 255" in dialog.styleSheet()
+    dialog._set_charging(False)
+    assert "53, 214, 231" in dialog.styleSheet()
+
+
 def test_credentials_warning_dialog_enforces_minimum_width() -> None:
     _get_app()
     parent = QWidget()
