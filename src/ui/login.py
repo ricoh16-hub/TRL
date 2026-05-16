@@ -9,6 +9,11 @@ from PySide6.QtGui import QLinearGradient
 # Import widgets from lock.py
 from ui.lock import BatteryLogoWidget, KeyCapWidget, GearIconWidget, WiFiLogoWidget, show_lock
 
+try:
+    from ui.credentials_login import _show_credentials_warning
+except ImportError:
+    from src.ui.credentials_login import _show_credentials_warning  # type: ignore
+
 AuthenticateFn = Callable[[str, str, object | None], User | None]
 VerifyPinFn = Callable[[str], User | None]
 
@@ -1605,6 +1610,9 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
             "Silakan coba lagi. Percobaan PIN direset.",
         )
 
+    def is_pin_charging() -> bool:
+        return bool(getattr(label_pin_entry, "charging", False))
+
     def submit_pin() -> None:
         """Verifikasi PIN 6 digit. Buka MainForm jika benar, shake+clear jika salah."""
         nonlocal _pin_value, failed_attempts, pin_locked_out
@@ -1640,10 +1648,13 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
             QTimer.singleShot(400, lambda: set_pin_value(""))
             QTimer.singleShot(
                 420,
-                lambda: QMessageBox.warning(
+                lambda: _show_credentials_warning(
                     dialog,
-                    "PIN Salah",
-                    f"PIN salah. Sisa percobaan: {sisa_coba}.",
+                    "Incorrect PIN",
+                    f"Incorrect PIN. Attempts remaining: {sisa_coba}.",
+                    is_pin_charging(),
+                    333,
+                    "Security PIN",
                 ),
             )
 

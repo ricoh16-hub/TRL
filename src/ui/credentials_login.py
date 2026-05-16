@@ -333,10 +333,19 @@ class CredentialsWarningDialog(QDialog):
     CREDENTIAL_ICON_SIZE = 26
     SEPARATOR_HEIGHT = 1
 
-    def __init__(self, parent: QWidget, title: str, message: str, charging: bool, width: int) -> None:
+    def __init__(
+        self,
+        parent: QWidget,
+        title: str,
+        message: str,
+        charging: bool,
+        width: int,
+        window_title: str = "Secure Access",
+    ) -> None:
         super().__init__(parent)
         self._title = title
         self._message = message
+        self._window_title = window_title
         self._charging = charging
         self._palette = self.PALETTES[charging]
         self._warning_width = max(self.WIDTH_MIN, width)
@@ -484,7 +493,7 @@ class CredentialsWarningDialog(QDialog):
         title_bar.setContentsMargins(16, 0, 10, 0)
         title_bar.setSpacing(10)
 
-        window_title = QLabel("Secure Access", title_bar_frame)
+        window_title = QLabel(self._window_title, title_bar_frame)
         window_title.setObjectName("warningWindowTitle")
         window_title.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         window_title.setMaximumWidth(max(self.TITLE_MAX_MIN_WIDTH, self._warning_width - self.TITLE_MAX_RESERVED_WIDTH))
@@ -527,8 +536,8 @@ class CredentialsWarningDialog(QDialog):
         self._icon_label = QLabel(panel)
         self._icon_label.setObjectName("warningIcon")
         self._icon_label.setPixmap(_draw_credentials_alert_icon(self.CREDENTIAL_ICON_SIZE, self._accent))
-        self._icon_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-        content_row.addWidget(self._icon_label)
+        self._icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        content_row.addWidget(self._icon_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         text_column = QVBoxLayout()
         text_column.setContentsMargins(0, 0, 0, 0)
@@ -547,6 +556,7 @@ class CredentialsWarningDialog(QDialog):
         message_label.setMaximumWidth(max(self.TEXT_MAX_MIN_WIDTH, self._warning_width - self.TEXT_MAX_RESERVED_WIDTH))
         text_column.addWidget(message_label)
         content_row.addLayout(text_column, 1)
+        content_row.setAlignment(text_column, Qt.AlignmentFlag.AlignVCenter)
         return content_row
 
     def _center_on_parent(self) -> None:
@@ -603,8 +613,15 @@ class CredentialsWarningDialog(QDialog):
         super().closeEvent(event)
 
 
-def _show_credentials_warning(parent: QWidget, title: str, message: str, charging: bool, width: int) -> None:
-    CredentialsWarningDialog(parent, title, message, charging, width).exec()
+def _show_credentials_warning(
+    parent: QWidget,
+    title: str,
+    message: str,
+    charging: bool,
+    width: int,
+    window_title: str = "Secure Access",
+) -> None:
+    CredentialsWarningDialog(parent, title, message, charging, width, window_title).exec()
 
 
 def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[QWidget] = None) -> Optional[User]:
