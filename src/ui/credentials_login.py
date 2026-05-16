@@ -1091,7 +1091,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             title_effect.setBlurRadius(14 if charging else 13)
             title_effect.setColor(QColor(80, 180, 255, 86) if charging else QColor(255, 209, 102, 64))
         icon_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
-        check_color = QColor("#50B4FF") if charging else QColor("#FFFFFF")
+        check_color = QColor("#FFFFFF")
         eye_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
 
         # Update icon colors
@@ -1105,8 +1105,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
 
         # Inline styles must also switch color; otherwise they override the dialog QSS.
-        field_label_color = "rgba(80, 180, 255, 0.90)" if charging else "#FFFFFF"
-        status_label_color = "rgba(80, 200, 255, 0.90)" if charging else "#FFFFFF"
+        field_label_color = "#FFFFFF"
+        status_label_color = "#FFFFFF"
         field_label_style = (
             f"color: {field_label_color}; "
             "font-size: 13px; font-weight: 700; letter-spacing: 0.8px; "
