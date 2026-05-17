@@ -188,6 +188,7 @@ class WiFiLogoWidget(QWidget):
 # Battery logo widget
 class BatteryLogoWidget(QWidget):
     """Widget to display a battery logo with glassmorphism style"""
+    chargingChanged = Signal(bool)
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -201,7 +202,8 @@ class BatteryLogoWidget(QWidget):
         # Timer untuk update status baterai
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_battery_status)
-        self.timer.start(10)  # update setiap 0.01 detik
+        self.timer.start(200)  # responsive without excessive power-status polling
+        self.update_battery_status()
     def get_scale(self) -> float:
         return getattr(self, '_scale', 1.0)
 
@@ -222,15 +224,18 @@ class BatteryLogoWidget(QWidget):
                 self.battery_percent = int(percent) if isinstance(percent, (int, float, str)) else 100
                 self.battery_level = self.battery_percent / 100.0
                 charging = info.get('charging', False)
-                self.charging = bool(charging) if isinstance(charging, (bool, int)) else False
+                next_charging = bool(charging) if isinstance(charging, (bool, int)) else False
             else:
                 self.battery_percent = 100
                 self.battery_level = 1.0
-                self.charging = False
+                next_charging = False
         except Exception:
             self.battery_percent = 100
             self.battery_level = 1.0
-            self.charging = False
+            next_charging = False
+        if next_charging != self.charging:
+            self.charging = next_charging
+            self.chargingChanged.emit(self.charging)
         self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:
@@ -1051,12 +1056,20 @@ class PremiumDateLabel(QWidget):
         painter.end()
 
 class AuthenticLockScreen(QDialog):
-    def update_time_label_styles(self):
-        charging = False
-        if hasattr(self, 'battery_logo') and self.battery_logo:
-            charging = getattr(self.battery_logo, 'charging', False)
-        
-        # Update custom widget labels dengan method set_charging
+    def update_time_label_styles(self, charging: Optional[bool] = None) -> None:
+        if charging is None:
+            charging = False
+            if hasattr(self, 'battery_logo') and self.battery_logo:
+                charging = getattr(self.battery_logo, 'charging', False)
+        charging = bool(charging)
+        required_labels = ("hour_label", "minute_label", "dot_label", "date_label")
+        if not all(hasattr(self, label_name) for label_name in required_labels):
+            return
+        if getattr(self, '_time_charging_state', None) == charging:
+            return
+        self._time_charging_state = charging
+
+        # Update semua elemen jam sebagai satu paket: jam, menit, separator, dan tanggal.
         self.hour_label.set_charging(charging)
         self.minute_label.set_charging(charging)
         self.dot_label.set_charging(charging)
@@ -1278,9 +1291,12 @@ class AuthenticLockScreen(QDialog):
         
         # SOLUSI Z-ORDER: Time container juga transparan untuk mouse events
         self.time_container.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._time_charging_state: Optional[bool] = None
+        self.battery_logo.chargingChanged.connect(self.update_time_label_styles)
         
         # Update time and date
         self.update_time_date()
+        self.update_time_label_styles()
         self.date_label.adjustSize()
         self.time_container.adjustSize()
         # Pastikan posisi label langsung benar sejak awal
