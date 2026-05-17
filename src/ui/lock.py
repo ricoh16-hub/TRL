@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, Protocol, runtime_checkable
 
-from PySide6.QtCore import QEvent, QPointF, QPropertyAnimation, QRect, Qt, QTimer, Signal, QEasingCurve, Property
+from PySide6.QtCore import QEvent, QPointF, QPropertyAnimation, QRect, QRectF, Qt, QTimer, Signal, QEasingCurve, Property
 from PySide6.QtGui import QBrush, QCloseEvent, QColor, QEnterEvent, QFont, QKeyEvent, QLinearGradient, QMouseEvent, QPaintEvent, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QDialog, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QWidget
 
@@ -17,10 +17,8 @@ class BatteryWidgetProtocol(Protocol):
 
 GLASS_STYLE = """
 QDialog {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-        stop:0 #222a36, stop:1 #3a4a5c);
-    border-radius: 24px;
-    border: 1px solid rgba(255,255,255,0.18);
+    background: transparent;
+    border: none;
     }
 """
 
@@ -1065,6 +1063,9 @@ class AuthenticLockScreen(QDialog):
         required_labels = ("hour_label", "minute_label", "dot_label", "date_label")
         if not all(hasattr(self, label_name) for label_name in required_labels):
             return
+        if getattr(self, '_background_charging', None) != charging:
+            self._background_charging = charging
+            self.update()
         if getattr(self, '_time_charging_state', None) == charging:
             return
         self._time_charging_state = charging
@@ -1077,7 +1078,69 @@ class AuthenticLockScreen(QDialog):
         
 
     def paintEvent(self, event: QPaintEvent) -> None:
-        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(0.5, 0.5, self.width() - 1.0, self.height() - 1.0)
+        radius = 22.0
+        charging = bool(getattr(self, '_background_charging', False))
+
+        if charging:
+            top_color = QColor(18, 30, 43)
+            mid_color = QColor(31, 47, 64)
+            bottom_color = QColor(20, 36, 55)
+            accent_top = QColor(103, 224, 255, 34)
+            accent_bottom = QColor(55, 138, 238, 18)
+            border_color = QColor(103, 224, 255, 64)
+            inner_highlight = QColor(232, 250, 255, 34)
+            lower_shadow = QColor(4, 16, 30, 44)
+        else:
+            top_color = QColor(26, 32, 41)
+            mid_color = QColor(41, 49, 60)
+            bottom_color = QColor(31, 39, 50)
+            accent_top = QColor(255, 255, 255, 18)
+            accent_bottom = QColor(205, 216, 228, 10)
+            border_color = QColor(255, 255, 255, 45)
+            inner_highlight = QColor(255, 255, 255, 27)
+            lower_shadow = QColor(0, 0, 0, 42)
+
+        painter.fillRect(event.rect(), bottom_color)
+
+        background = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        background.setColorAt(0.0, top_color)
+        background.setColorAt(0.48, mid_color)
+        background.setColorAt(1.0, bottom_color)
+
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(background))
+        painter.drawPath(path)
+
+        painter.setClipPath(path)
+        accent = QLinearGradient(rect.left(), rect.top(), rect.right(), rect.bottom())
+        accent.setColorAt(0.0, accent_top)
+        accent.setColorAt(0.58, QColor(accent_top.red(), accent_top.green(), accent_top.blue(), max(4, accent_top.alpha() // 3)))
+        accent.setColorAt(1.0, accent_bottom)
+        painter.setBrush(QBrush(accent))
+        painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
+        top_highlight = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.top() + 18.0)
+        top_highlight.setColorAt(0.0, inner_highlight)
+        top_highlight.setColorAt(1.0, QColor(inner_highlight.red(), inner_highlight.green(), inner_highlight.blue(), 0))
+        painter.setBrush(QBrush(top_highlight))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        bottom_depth = QLinearGradient(rect.left(), rect.bottom() - 24.0, rect.left(), rect.bottom())
+        bottom_depth.setColorAt(0.0, QColor(lower_shadow.red(), lower_shadow.green(), lower_shadow.blue(), 0))
+        bottom_depth.setColorAt(1.0, lower_shadow)
+        painter.setBrush(QBrush(bottom_depth))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        painter.setClipping(False)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(border_color, 1.0))
+        painter.drawRoundedRect(rect, radius, radius)
+        painter.end()
 
     def cleanup(self) -> None:
         """Stop timers and clean up resources."""
@@ -1116,6 +1179,8 @@ class AuthenticLockScreen(QDialog):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         # Increase width only, keep height unchanged
         self.setFixedSize(405, int(18.5 * 0.3937 * 96))
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
+        self._background_charging = False
         self.setStyleSheet(GLASS_STYLE)
         # Tempatkan window di tengah layar seperti boot.py
         from PySide6.QtWidgets import QApplication
