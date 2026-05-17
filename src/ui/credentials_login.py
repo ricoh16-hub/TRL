@@ -1,7 +1,7 @@
 import os
 from typing import Optional
 
-from PySide6.QtCore import QPoint, QSize, Qt, QRectF, QTimer
+from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, QSize, Qt, QRectF, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QBrush
 from PySide6.QtWidgets import (
     QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QToolButton, QVBoxLayout, QWidget
@@ -254,7 +254,12 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
     submit_btn.update()
 
 
-def _draw_credentials_alert_icon(size: int, accent: QColor) -> QPixmap:
+def _draw_credentials_alert_icon(
+    size: int,
+    accent: QColor,
+    mark_color: QColor | None = None,
+    fill_alpha: int = 22,
+) -> QPixmap:
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.transparent)  # type: ignore
     painter = QPainter(pixmap)
@@ -262,10 +267,11 @@ def _draw_credentials_alert_icon(size: int, accent: QColor) -> QPixmap:
 
     rect = QRectF(2.0, 2.0, size - 4, size - 4)
     painter.setPen(QPen(QColor(accent.red(), accent.green(), accent.blue(), 120), 1.1))
-    painter.setBrush(QColor(accent.red(), accent.green(), accent.blue(), 22))
+    painter.setBrush(QColor(accent.red(), accent.green(), accent.blue(), fill_alpha))
     painter.drawEllipse(rect)
 
-    mark_color = QColor(255, 255, 255, 210)
+    if mark_color is None:
+        mark_color = QColor(255, 255, 255, 210)
     painter.setPen(QPen(mark_color, 1.4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
     painter.setBrush(Qt.BrushStyle.NoBrush)
     body = QRectF(size * 0.31, size * 0.47, size * 0.38, size * 0.28)
@@ -324,25 +330,37 @@ class CredentialsWarningDialog(QDialog):
         False: {
             "accent": "#FFFFFF",
             "accent_rgb": "255, 255, 255",
-            "border_alpha": "0.26",
-            "panel_bg0": "rgba(34, 42, 54, 0.97)",
-            "panel_bg1": "rgba(58, 74, 92, 0.95)",
-            "title_bar_alpha": "0.030",
-            "separator_alpha": "0.090",
+            "border_alpha": "0.34",
+            "panel_bg0": "rgba(30, 36, 46, 0.97)",
+            "panel_bg1": "rgba(48, 58, 72, 0.95)",
+            "title_bar_alpha": "0.045",
+            "separator_alpha": "0.14",
             "headline_alpha": "0.92",
-            "message_alpha": "0.78",
-            "shadow": QColor(255, 255, 255, 38),
+            "message_alpha": "0.82",
+            "close_hover_rgb": "80, 180, 255",
+            "close_hover_border_alpha": "0.42",
+            "close_hover_bg_alpha": "0.08",
+            "close_pressed_bg_alpha": "0.13",
+            "close_glow_alpha": 70,
+            "icon_fill_alpha": 30,
+            "shadow": QColor(255, 255, 255, 56),
         },
         True: {
             "accent": "#50B4FF",
             "accent_rgb": "80, 180, 255",
             "border_alpha": "0.46",
-            "panel_bg0": "rgba(28, 45, 70, 0.98)",
-            "panel_bg1": "rgba(42, 78, 112, 0.96)",
-            "title_bar_alpha": "0.040",
-            "separator_alpha": "0.155",
+            "panel_bg0": "rgba(24, 40, 66, 0.98)",
+            "panel_bg1": "rgba(36, 70, 106, 0.96)",
+            "title_bar_alpha": "0.045",
+            "separator_alpha": "0.18",
             "headline_alpha": "0.94",
-            "message_alpha": "0.84",
+            "message_alpha": "0.86",
+            "close_hover_rgb": "80, 180, 255",
+            "close_hover_border_alpha": "0.58",
+            "close_hover_bg_alpha": "0.115",
+            "close_pressed_bg_alpha": "0.18",
+            "close_glow_alpha": 90,
+            "icon_fill_alpha": 34,
             "shadow": QColor(80, 180, 255, 86),
         },
     }
@@ -355,6 +373,8 @@ class CredentialsWarningDialog(QDialog):
     TEXT_MAX_MIN_WIDTH = 180
     TITLE_MAX_MIN_WIDTH = 120
     CLOSE_ICON_SIZE = 14
+    CLOSE_ICON_HOVER_SIZE = 15
+    CLOSE_ICON_PRESSED_SIZE = 13
     CLOSE_BUTTON_SIZE = 20
     CREDENTIAL_ICON_SIZE = 26
     SEPARATOR_HEIGHT = 1
@@ -384,6 +404,7 @@ class CredentialsWarningDialog(QDialog):
         self._icon_label: QLabel | None = None
         self._panel: QFrame | None = None
         self._charging_timer: QTimer | None = None
+        self._close_icon_anim: QPropertyAnimation | None = None
 
         self._configure_window()
         self._apply_theme()
@@ -405,10 +426,25 @@ class CredentialsWarningDialog(QDialog):
         self._accent_rgb = self._palette["accent_rgb"]
         self._apply_theme()
         if self._icon_label is not None:
-            self._icon_label.setPixmap(_draw_credentials_alert_icon(self.CREDENTIAL_ICON_SIZE, self._accent))
+            self._icon_label.setPixmap(self._draw_warning_icon())
         self._apply_panel_shadow()
         self._set_close_hover(False)
         self._refresh_theme_tree()
+
+    def _pin_accent_color(self) -> QColor:
+        color = QColor(self._accent)
+        color.setAlphaF(float(self._palette.get("headline_alpha", "0.92")))
+        return color
+
+    def _draw_warning_icon(self) -> QPixmap:
+        if self._visual_mode == "pin":
+            return _draw_credentials_alert_icon(
+                self.CREDENTIAL_ICON_SIZE,
+                self._accent,
+                self._pin_accent_color(),
+                int(self._palette.get("icon_fill_alpha", 34)),
+            )
+        return _draw_credentials_alert_icon(self.CREDENTIAL_ICON_SIZE, self._accent)
 
     def _read_current_charging(self) -> bool:
         parent = self.parentWidget()
@@ -448,6 +484,27 @@ class CredentialsWarningDialog(QDialog):
         self.setFixedSize(self._warning_width, self.HEIGHT)
 
     def _apply_theme(self) -> None:
+        title_rgb = self._accent_rgb if self._visual_mode == "pin" else "244, 248, 255"
+        title_alpha = (
+            self._palette.get("headline_alpha", "0.92")
+            if self._visual_mode == "pin"
+            else "0.74"
+        )
+        title_bar_bg_rgb = self._accent_rgb if self._visual_mode == "pin" else "255, 255, 255"
+        title_bar_bg_alpha = self._palette.get("title_bar_alpha", "0.050" if self._visual_mode == "pin" else "0.025")
+        close_hover_rgb = self._palette.get("close_hover_rgb", self._accent_rgb)
+        close_hover_border_rgb = close_hover_rgb if self._visual_mode == "pin" else "255, 255, 255"
+        close_hover_border_alpha = self._palette.get("close_hover_border_alpha", "0.58" if self._visual_mode == "pin" else "0.18")
+        close_hover_bg_rgb = close_hover_rgb if self._visual_mode == "pin" else "255, 255, 255"
+        close_hover_bg_alpha = self._palette.get("close_hover_bg_alpha", "0.115" if self._visual_mode == "pin" else "0.052")
+        close_pressed_bg_rgb = close_hover_rgb if self._visual_mode == "pin" else "255, 255, 255"
+        close_pressed_bg_alpha = self._palette.get("close_pressed_bg_alpha", "0.18" if self._visual_mode == "pin" else "0.085")
+        message_rgb = self._accent_rgb if self._visual_mode == "pin" else "244, 248, 255"
+        message_alpha = (
+            self._palette.get("message_alpha", "0.86")
+            if self._visual_mode == "pin"
+            else self._palette.get("message_alpha", "0.80")
+        )
         self.setStyleSheet(f"""
             QDialog#credentialsWarningDialog {{
                 background: transparent;
@@ -463,7 +520,7 @@ class CredentialsWarningDialog(QDialog):
             }}
             QFrame#warningTitleBar {{
                 border: none;
-                background: rgba(255, 255, 255, {self._palette.get("title_bar_alpha", "0.025")});
+                background: rgba({title_bar_bg_rgb}, {title_bar_bg_alpha});
             }}
             QFrame#warningSeparator {{
                 border: none;
@@ -474,7 +531,7 @@ class CredentialsWarningDialog(QDialog):
                 max-width: 30px;
             }}
             QLabel#warningWindowTitle {{
-                color: rgba(244, 248, 255, 0.74);
+                color: rgba({title_rgb}, {title_alpha});
                 font-size: 11px;
                 font-weight: 700;
                 letter-spacing: 0.2px;
@@ -486,11 +543,11 @@ class CredentialsWarningDialog(QDialog):
                 background: transparent;
             }}
             QToolButton#warningClose:hover {{
-                border: 1px solid rgba(255, 255, 255, 0.18);
-                background: rgba(255, 255, 255, 0.052);
+                border: 1px solid rgba({close_hover_border_rgb}, {close_hover_border_alpha});
+                background: rgba({close_hover_bg_rgb}, {close_hover_bg_alpha});
             }}
             QToolButton#warningClose:pressed {{
-                background: rgba(255, 255, 255, 0.085);
+                background: rgba({close_pressed_bg_rgb}, {close_pressed_bg_alpha});
             }}
             QLabel#warningHeadline {{
                 color: rgba({self._accent_rgb}, {self._palette.get("headline_alpha", "0.92")});
@@ -500,7 +557,7 @@ class CredentialsWarningDialog(QDialog):
                 font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
             }}
             QLabel#warningMessage {{
-                color: rgba(244, 248, 255, {self._palette.get("message_alpha", "0.80")});
+                color: rgba({message_rgb}, {message_alpha});
                 font-size: 12px;
                 font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
             }}
@@ -558,7 +615,10 @@ class CredentialsWarningDialog(QDialog):
 
         self._close_btn = QToolButton(title_bar_frame)
         self._close_btn.setObjectName("warningClose")
-        self._close_btn.setIcon(QIcon(_draw_close_icon(self.CLOSE_ICON_SIZE, QColor(244, 248, 255, 185))))
+        close_icon_color = QColor(self._accent) if self._visual_mode == "pin" else QColor(244, 248, 255, 185)
+        if self._visual_mode == "pin":
+            close_icon_color.setAlphaF(float(self._palette.get("headline_alpha", "0.92")))
+        self._close_btn.setIcon(QIcon(_draw_close_icon(self.CLOSE_ICON_SIZE, close_icon_color)))
         self._close_btn.setIconSize(QSize(self.CLOSE_ICON_SIZE, self.CLOSE_ICON_SIZE))
         self._close_btn.setFixedSize(self.CLOSE_BUTTON_SIZE, self.CLOSE_BUTTON_SIZE)
         self._close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -568,6 +628,8 @@ class CredentialsWarningDialog(QDialog):
         self._close_btn.clicked.connect(self.reject)
         self._close_btn.enterEvent = self._close_enter  # type: ignore[method-assign]
         self._close_btn.leaveEvent = self._close_leave  # type: ignore[method-assign]
+        self._close_btn.mousePressEvent = self._close_mouse_press  # type: ignore[method-assign]
+        self._close_btn.mouseReleaseEvent = self._close_mouse_release  # type: ignore[method-assign]
         title_bar.addWidget(self._close_btn)
 
         title_bar_frame.mousePressEvent = self._start_drag  # type: ignore[method-assign]
@@ -591,7 +653,7 @@ class CredentialsWarningDialog(QDialog):
 
         self._icon_label = QLabel(panel)
         self._icon_label.setObjectName("warningIcon")
-        self._icon_label.setPixmap(_draw_credentials_alert_icon(self.CREDENTIAL_ICON_SIZE, self._accent))
+        self._icon_label.setPixmap(self._draw_warning_icon())
         self._icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         content_row.addWidget(self._icon_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
@@ -628,19 +690,72 @@ class CredentialsWarningDialog(QDialog):
     def _set_close_hover(self, hovered: bool) -> None:
         if self._close_btn is None:
             return
-        close_icon_color = QColor(self._accent) if hovered else QColor(244, 248, 255, 185)
-        if hovered:
-            close_icon_color.setAlpha(225)
+        if self._visual_mode == "pin":
+            if hovered and not self._charging:
+                close_icon_color = QColor(80, 180, 255, 255)
+            elif hovered:
+                close_icon_color = QColor(255, 255, 255, 245)
+            else:
+                close_icon_color = QColor(self._accent)
+            if not hovered:
+                close_icon_color.setAlphaF(float(self._palette.get("headline_alpha", "0.92")))
+            if hovered:
+                close_icon_color.setAlpha(255)
+                glow_rgb = [int(channel.strip()) for channel in str(self._palette.get("close_hover_rgb", self._accent_rgb)).split(",")]
+                shadow = QGraphicsDropShadowEffect(self._close_btn)
+                shadow.setBlurRadius(12)
+                shadow.setOffset(0, 0)
+                shadow.setColor(QColor(
+                    glow_rgb[0],
+                    glow_rgb[1],
+                    glow_rgb[2],
+                    int(self._palette.get("close_glow_alpha", 90)),
+                ))
+                self._close_btn.setGraphicsEffect(shadow)
+            else:
+                self._close_btn.setGraphicsEffect(None)  # type: ignore[arg-type]
+        else:
+            close_icon_color = QColor(self._accent) if hovered else QColor(244, 248, 255, 185)
+            if hovered:
+                close_icon_color.setAlpha(225)
+            self._close_btn.setGraphicsEffect(None)  # type: ignore[arg-type]
         self._close_btn.setIcon(QIcon(_draw_close_icon(self.CLOSE_ICON_SIZE, close_icon_color)))
         self._close_btn.style().polish(self._close_btn)
 
+    def _animate_close_icon_size(self, target_size: int) -> None:
+        if self._close_btn is None:
+            return
+        if self._close_icon_anim is not None:
+            self._close_icon_anim.stop()
+        anim = QPropertyAnimation(self._close_btn, b"iconSize", self)
+        anim.setDuration(120)
+        anim.setStartValue(self._close_btn.iconSize())
+        anim.setEndValue(QSize(target_size, target_size))
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.finished.connect(lambda: setattr(self, "_close_icon_anim", None))
+        self._close_icon_anim = anim
+        anim.start()
+
     def _close_enter(self, event) -> None:
         self._set_close_hover(True)
+        self._animate_close_icon_size(self.CLOSE_ICON_HOVER_SIZE)
         event.accept()
 
     def _close_leave(self, event) -> None:
         self._set_close_hover(False)
+        self._animate_close_icon_size(self.CLOSE_ICON_SIZE)
         event.accept()
+
+    def _close_mouse_press(self, event) -> None:
+        if self._close_btn is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._animate_close_icon_size(self.CLOSE_ICON_PRESSED_SIZE)
+        QToolButton.mousePressEvent(self._close_btn, event)
+
+    def _close_mouse_release(self, event) -> None:
+        if self._close_btn is not None and event.button() == Qt.MouseButton.LeftButton:
+            target_size = self.CLOSE_ICON_HOVER_SIZE if self._close_btn.underMouse() else self.CLOSE_ICON_SIZE
+            self._animate_close_icon_size(target_size)
+        QToolButton.mouseReleaseEvent(self._close_btn, event)
 
     def _start_drag(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
