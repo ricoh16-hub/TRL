@@ -557,6 +557,15 @@ class ChevronExitButton(QWidget):
 
     scale = Property(float, get_scale, set_scale)
 
+    def get_lift(self) -> float:
+        return getattr(self, '_lift', 0.0)
+
+    def set_lift(self, value: float) -> None:
+        self._lift = value
+        self.update()
+
+    lift = Property(float, get_lift, set_lift)
+
     def get_collapse_progress(self) -> float:
         return getattr(self, '_collapse_progress', 0.0)
 
@@ -570,14 +579,17 @@ class ChevronExitButton(QWidget):
         super().__init__(parent)
         self.setFixedSize(48, 32)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("Exit")
+        self.setToolTip("Exit to Windows")
         self._hover = False
         self._scale = 1.0
+        self._lift = 0.0
         self._scale_anim = None
+        self._lift_anim = None
         self._collapsed = False  # Status collapse chevron
         self._collapse_progress = 0.0
         self._collapse_anim = None
         self._charging = False
+        self._pressing = False
         # Cari BatteryLogoWidget di parent (AuthenticLockScreen)
         self._battery_widget = None
         p = self.parent()
@@ -614,50 +626,105 @@ class ChevronExitButton(QWidget):
 
     def enterEvent(self, event: QEnterEvent) -> None:
         self._hover = True
-        # Efek glow biru terang saat hover
+        # Efek glow halus saat hover, mengikuti state charging.
         from PySide6.QtWidgets import QGraphicsDropShadowEffect
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
+        shadow.setBlurRadius(12 if self._charging else 10)
         shadow.setOffset(0, 0)
-        shadow.setColor(QColor(80, 180, 255, 180))
+        shadow.setColor(QColor(80, 180, 255, 120) if self._charging else QColor(255, 255, 255, 75))
         self.setGraphicsEffect(shadow)
-        # Animasi skala seperti logo gembok
+        # Animasi skala premium yang lebih tenang.
         from PySide6.QtCore import QPropertyAnimation, QEasingCurve
         self._scale_anim = QPropertyAnimation(self, b"scale")
         self._scale_anim.setStartValue(getattr(self, '_scale', 1.0))
-        self._scale_anim.setEndValue(1.28)
+        self._scale_anim.setEndValue(1.14)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._scale_anim.valueChanged.connect(self.update)
         self._scale_anim.start()
+        self._lift_anim = QPropertyAnimation(self, b"lift")
+        self._lift_anim.setStartValue(getattr(self, '_lift', 0.0))
+        self._lift_anim.setEndValue(-1.15)
+        self._lift_anim.setDuration(220)
+        self._lift_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._lift_anim.valueChanged.connect(self.update)
+        self._lift_anim.start()
         self.update()
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent) -> None:
         self._hover = False
+        self._pressing = False
         # Kembalikan efek bayangan normal (abu-abu transparan)
         from PySide6.QtWidgets import QGraphicsDropShadowEffect
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(8)
-        shadow.setOffset(2, 2)
-        shadow.setColor(QColor(80, 80, 80, 120))
+        shadow.setOffset(0, 1)
+        shadow.setColor(QColor(0, 0, 0, 45))
         self.setGraphicsEffect(shadow)
         # Animasi skala kembali ke normal
         from PySide6.QtCore import QPropertyAnimation, QEasingCurve
         self._scale_anim = QPropertyAnimation(self, b"scale")
-        self._scale_anim.setStartValue(getattr(self, '_scale', 1.28))
+        self._scale_anim.setStartValue(getattr(self, '_scale', 1.14))
         self._scale_anim.setEndValue(1.0)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._scale_anim.valueChanged.connect(self.update)
         self._scale_anim.start()
+        self._lift_anim = QPropertyAnimation(self, b"lift")
+        self._lift_anim.setStartValue(getattr(self, '_lift', -1.15))
+        self._lift_anim.setEndValue(0.0)
+        self._lift_anim.setDuration(220)
+        self._lift_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._lift_anim.valueChanged.connect(self.update)
+        self._lift_anim.start()
         self.update()
         super().leaveEvent(event)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            self._collapsed = not self._collapsed
+            self._pressing = True
             from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+            self._scale_anim = QPropertyAnimation(self, b"scale")
+            self._scale_anim.setStartValue(getattr(self, '_scale', 1.14 if self._hover else 1.0))
+            self._scale_anim.setEndValue(0.94)
+            self._scale_anim.setDuration(120)
+            self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._scale_anim.valueChanged.connect(self.update)
+            self._scale_anim.start()
+            self._lift_anim = QPropertyAnimation(self, b"lift")
+            self._lift_anim.setStartValue(getattr(self, '_lift', -1.15 if self._hover else 0.0))
+            self._lift_anim.setEndValue(0.35)
+            self._lift_anim.setDuration(120)
+            self._lift_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._lift_anim.valueChanged.connect(self.update)
+            self._lift_anim.start()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._pressing = False
+            from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+            self._scale_anim = QPropertyAnimation(self, b"scale")
+            self._scale_anim.setStartValue(getattr(self, '_scale', 0.94))
+            self._scale_anim.setEndValue(1.14 if self._hover else 1.0)
+            self._scale_anim.setDuration(140)
+            self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._scale_anim.valueChanged.connect(self.update)
+            self._scale_anim.start()
+            self._lift_anim = QPropertyAnimation(self, b"lift")
+            self._lift_anim.setStartValue(getattr(self, '_lift', 0.35))
+            self._lift_anim.setEndValue(-1.15 if self._hover else 0.0)
+            self._lift_anim.setDuration(140)
+            self._lift_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._lift_anim.valueChanged.connect(self.update)
+            self._lift_anim.start()
+            if not self.underMouse():
+                event.accept()
+                return
+            self._collapsed = not self._collapsed
             self._collapse_anim = QPropertyAnimation(self, b"collapse_progress")
             self._collapse_anim.setStartValue(self._collapse_progress)
             self._collapse_anim.setEndValue(1.0 if self._collapsed else 0.0)
@@ -672,12 +739,15 @@ class ChevronExitButton(QWidget):
                         win.close()
                 self._collapse_anim.finished.connect(on_finished)
             self._collapse_anim.start()
-        super().mousePressEvent(event)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
+        painter.translate(0, getattr(self, '_lift', 0.0))
         painter.translate(w/2, h/2)
         painter.scale(getattr(self, '_scale', 1.0), getattr(self, '_scale', 1.0))
         painter.translate(-w/2, -h/2)
@@ -699,19 +769,38 @@ class ChevronExitButton(QWidget):
         y1a = (1-p)*y1 + p*yh
         y2a = (1-p)*y2 + p*yh
         y3a = (1-p)*y3 + p*yh
-        # Warna gradasi mengikuti status charging
         if self._charging:
-            grad = QLinearGradient(x1, y1a, x3, y3a)
-            grad.setColorAt(0.0, QColor(78, 217, 255))
-            grad.setColorAt(1.0, QColor(90, 167, 255))
+            top_color = QColor(103, 224, 255, 245)
+            bottom_color = QColor(55, 138, 238, 232)
+            shadow_color = QColor(22, 84, 145, 54)
+            highlight_color = QColor(232, 250, 255, 46)
         else:
-            grad = QLinearGradient(x1, y1a, x3, y3a)
-            grad.setColorAt(0.0, QColor(255, 255, 255))
-            grad.setColorAt(1.0, QColor(230, 230, 230))
-        pen = QPen(QBrush(grad), 4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+            top_color = QColor(255, 255, 255, 244)
+            bottom_color = QColor(205, 216, 228, 230)
+            shadow_color = QColor(0, 0, 0, 48)
+            highlight_color = QColor(255, 255, 255, 38)
+        shadow_pen = QPen(shadow_color, 4.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(shadow_pen)
+        shadow_offset = 0.85
+        painter.drawLine(QPointF(x1, y1a + shadow_offset), QPointF(x2, y2a + shadow_offset))
+        painter.drawLine(QPointF(x2, y2a + shadow_offset), QPointF(x3, y3a + shadow_offset))
+        # Warna gradasi mengikuti status charging dan clock palette
+        grad = QLinearGradient(x1, y1a, x3, y3a)
+        if self._charging:
+            grad.setColorAt(0.0, top_color)
+            grad.setColorAt(1.0, bottom_color)
+        else:
+            grad.setColorAt(0.0, top_color)
+            grad.setColorAt(1.0, bottom_color)
+        pen = QPen(QBrush(grad), 4.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
-        painter.drawLine(int(x1), int(y1a), int(x2), int(y2a))
-        painter.drawLine(int(x2), int(y2a), int(x3), int(y3a))
+        painter.drawLine(QPointF(x1, y1a), QPointF(x2, y2a))
+        painter.drawLine(QPointF(x2, y2a), QPointF(x3, y3a))
+        highlight_pen = QPen(highlight_color, 1.05, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(highlight_pen)
+        highlight_offset = -0.45
+        painter.drawLine(QPointF(x1, y1a + highlight_offset), QPointF(x2, y2a + highlight_offset))
+        painter.drawLine(QPointF(x2, y2a + highlight_offset), QPointF(x3, y3a + highlight_offset))
 
 class TimeVerticalStretchLabel(QWidget):
     """Label dengan teks yang di-stretch vertikal untuk jam besar dengan horizontal compression seperti iPhone"""
@@ -764,10 +853,6 @@ class TimeVerticalStretchLabel(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        if self._charging:
-            text_color = QColor(80, 180, 255)
-        else:
-            text_color = QColor(255, 255, 255)
         from PySide6.QtGui import QFont, QFontMetrics, QPainterPath
         font = QFont()
         font.setFamily('IBM Plex Mono')
@@ -785,8 +870,6 @@ class TimeVerticalStretchLabel(QWidget):
         painter.translate(center_x, center_y)
         painter.scale(self._horizontal_scale, self._vertical_scale)
         from PySide6.QtCore import QPointF
-        thin_color = QColor(text_color)
-        thin_color.setAlpha(240)
         total_width: float = 0.0
         char_widths: list[int] = []
         for char in self._text:
@@ -797,14 +880,175 @@ class TimeVerticalStretchLabel(QWidget):
             total_width += self._letter_spacing * (len(self._text) - 1)
         x_pos: float = -total_width / 2
         y_pos: float = float(text_height / 2 - metrics.descent())
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(thin_color))
+        text_path = QPainterPath()
+        path_x: float = x_pos
         for i, char in enumerate(self._text):
-            path = QPainterPath()
-            path.addText(QPointF(x_pos, y_pos), font, char)
-            painter.drawPath(path)
-            x_pos += char_widths[i] + self._letter_spacing
+            text_path.addText(QPointF(path_x, y_pos), font, char)
+            path_x += char_widths[i] + self._letter_spacing
+        path_bounds = text_path.boundingRect()
+        if self._charging:
+            top_color = QColor(103, 224, 255, 248)
+            mid_color = QColor(80, 180, 255, 244)
+            bottom_color = QColor(55, 138, 238, 236)
+            shadow_color = QColor(22, 84, 145, 54)
+            highlight_color = QColor(232, 250, 255, 58)
+        else:
+            top_color = QColor(255, 255, 255, 246)
+            mid_color = QColor(238, 244, 250, 240)
+            bottom_color = QColor(205, 216, 228, 232)
+            shadow_color = QColor(0, 0, 0, 48)
+            highlight_color = QColor(255, 255, 255, 46)
+        shadow_path = QPainterPath(text_path)
+        shadow_path.translate(0.0, 0.85)
+        painter.setBrush(QBrush(shadow_color))
+        painter.drawPath(shadow_path)
+        grad = QLinearGradient(
+            path_bounds.left(),
+            path_bounds.top(),
+            path_bounds.left(),
+            path_bounds.bottom(),
+        )
+        grad.setColorAt(0.0, top_color)
+        grad.setColorAt(0.48, mid_color)
+        grad.setColorAt(1.0, bottom_color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(grad))
+        painter.drawPath(text_path)
+        highlight_path = QPainterPath(text_path)
+        highlight_path.translate(0.0, -0.55)
+        painter.setBrush(QBrush(highlight_color))
+        painter.drawPath(highlight_path)
         painter.restore()
+
+class TimeSeparatorWidget(QWidget):
+    """Premium square separator between hour and minute digits."""
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._charging = False
+        self.setFixedSize(28, 28)
+
+    def set_charging(self, charging: bool) -> None:
+        self._charging = charging
+        self.update()
+
+    def setText(self, text: str) -> None:
+        self.setVisible(bool(text))
+
+    def text(self) -> str:
+        return "■" if self.isVisible() else ""
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        side = 16.0
+        rect = QRect(
+            int((self.width() - side) / 2),
+            int((self.height() - side) / 2 + 0.4),
+            int(side),
+            int(side),
+        )
+        if self._charging:
+            top_color = QColor(103, 224, 255, 245)
+            bottom_color = QColor(55, 138, 238, 232)
+            shadow_color = QColor(22, 84, 145, 64)
+            highlight_color = QColor(232, 250, 255, 58)
+        else:
+            top_color = QColor(255, 255, 255, 244)
+            bottom_color = QColor(205, 216, 228, 230)
+            shadow_color = QColor(0, 0, 0, 56)
+            highlight_color = QColor(255, 255, 255, 44)
+        shadow_rect = rect.translated(0, 1)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(shadow_color))
+        painter.drawRoundedRect(shadow_rect, 0.9, 0.9)
+        grad = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        grad.setColorAt(0.0, top_color)
+        grad.setColorAt(1.0, bottom_color)
+        painter.setBrush(QBrush(grad))
+        painter.drawRoundedRect(rect, 0.9, 0.9)
+        highlight_rect = QRect(rect.left(), rect.top(), rect.width(), max(1, int(rect.height() * 0.38)))
+        painter.setBrush(QBrush(highlight_color))
+        painter.drawRoundedRect(highlight_rect, 0.8, 0.8)
+        painter.end()
+
+class PremiumDateLabel(QWidget):
+    """Date label painted with the same premium palette family as the clock."""
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._text = ""
+        self._charging = False
+        self.setMinimumHeight(22)
+
+    def setText(self, text: str) -> None:
+        self._text = text
+        self.updateGeometry()
+        self.update()
+
+    def text(self) -> str:
+        return self._text
+
+    def set_charging(self, charging: bool) -> None:
+        self._charging = charging
+        self.update()
+
+    def adjustSize(self) -> None:
+        self.resize(self.sizeHint())
+
+    def sizeHint(self):
+        from PySide6.QtCore import QSize
+        from PySide6.QtGui import QFont, QFontMetrics
+        font = self._font()
+        metrics = QFontMetrics(font)
+        return QSize(metrics.horizontalAdvance(self._text if self._text else "Wed, 17 May 2026") + 18, metrics.height() + 9)
+
+    def _font(self) -> QFont:
+        font = QFont("SF Pro Display")
+        font.setPointSizeF(11.7)
+        font.setWeight(QFont.Weight.Medium)
+        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.50)
+        return font
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QFontMetrics, QPainterPath
+        font = self._font()
+        metrics = QFontMetrics(font)
+        x = (self.width() - metrics.horizontalAdvance(self._text)) / 2
+        y = (self.height() + metrics.ascent() - metrics.descent()) / 2
+        text_path = QPainterPath()
+        text_path.addText(QPointF(x, y), font, self._text)
+        bounds = text_path.boundingRect()
+        if self._charging:
+            top_color = QColor(147, 233, 255, 238)
+            mid_color = QColor(80, 180, 255, 226)
+            bottom_color = QColor(62, 144, 235, 224)
+            shadow_color = QColor(18, 70, 130, 76)
+            highlight_color = QColor(232, 250, 255, 42)
+        else:
+            top_color = QColor(255, 255, 255, 238)
+            mid_color = QColor(238, 244, 250, 226)
+            bottom_color = QColor(205, 216, 228, 222)
+            shadow_color = QColor(0, 0, 0, 66)
+            highlight_color = QColor(255, 255, 255, 36)
+        shadow_path = QPainterPath(text_path)
+        shadow_path.translate(0.0, 0.85)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(shadow_color))
+        painter.drawPath(shadow_path)
+        grad = QLinearGradient(bounds.left(), bounds.top(), bounds.left(), bounds.bottom())
+        grad.setColorAt(0.0, top_color)
+        grad.setColorAt(0.52, mid_color)
+        grad.setColorAt(1.0, bottom_color)
+        painter.setBrush(QBrush(grad))
+        painter.drawPath(text_path)
+        highlight_path = QPainterPath(text_path)
+        highlight_path.translate(0.0, -0.35)
+        painter.setBrush(QBrush(highlight_color))
+        painter.drawPath(highlight_path)
+        painter.end()
 
 class AuthenticLockScreen(QDialog):
     def update_time_label_styles(self):
@@ -815,14 +1059,9 @@ class AuthenticLockScreen(QDialog):
         # Update custom widget labels dengan method set_charging
         self.hour_label.set_charging(charging)
         self.minute_label.set_charging(charging)
+        self.dot_label.set_charging(charging)
+        self.date_label.set_charging(charging)
         
-        # Update QLabel reguler dengan property
-        value = "true" if charging else "false"
-        for label in [self.dot_label, self.date_label]:
-            label.setProperty("charging", value)
-            label.style().unpolish(label)
-            label.style().polish(label)
-
 
     def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
@@ -978,17 +1217,7 @@ class AuthenticLockScreen(QDialog):
         # Connect padlock click to show login
         self.lock_icon.clicked.connect(self.show_login_form)
         # Create date label
-        self.date_label = QLabel(self)
-        self.date_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.date_label.setStyleSheet("""
-QLabel {
-    color: rgb(255,255,255);
-    font-family: 'SF Pro Display';
-    font-size: 12px;
-    font-weight: 350;
-    letter-spacing: 0.5px;
-}
-""")
+        self.date_label = PremiumDateLabel(self)
         self.time_container = QWidget(self)
         self.time_layout = QHBoxLayout(self.time_container)
         self.time_layout.setContentsMargins(0, 0, 0, 0)
@@ -998,19 +1227,19 @@ QLabel {
         from PySide6.QtGui import QFont
         self.hour_label = TimeVerticalStretchLabel(
             parent=self,
-            font_size=110.47,
+            font_size=108.0,
             font_weight=QFont.Weight.ExtraLight,
-            letter_spacing=15.0,
-            vertical_scale=3.13,
-            horizontal_scale=0.62
+            letter_spacing=12.0,
+            vertical_scale=2.95,
+            horizontal_scale=0.66
         )
         self.minute_label = TimeVerticalStretchLabel(
             parent=self,
-            font_size=110.47,
+            font_size=108.0,
             font_weight=QFont.Weight.ExtraLight,
-            letter_spacing=15.0,
-            vertical_scale=3.13,
-            horizontal_scale=0.62
+            letter_spacing=12.0,
+            vertical_scale=2.95,
+            horizontal_scale=0.66
         )
         
         # SOLUSI Z-ORDER: Buat label jam transparan untuk mouse events
@@ -1018,31 +1247,22 @@ QLabel {
         self.hour_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.minute_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         
-        self.dot_label = QLabel()
+        self.dot_label = TimeSeparatorWidget(self)
         # Style jam dan menit dengan warna off-white dan shadow
         # Style jam digital besar (jam, titik, menit) di bawah tanggal
         # hour_label dan minute_label sudah diatur oleh TimeVerticalStretchLabel
-        self.dot_label.setStyleSheet(QSS_LABEL_STYLE + "font-family: 'SF Pro Display', 'Segoe UI', 'Arial', sans-serif; font-size: 20px; font-weight: 100; background: rgba(0,0,0,0); padding: 0px;")
-        self.dot_label.setFixedSize(20, 20)
-        self.dot_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # SOLUSI Z-ORDER: Dot label juga transparan untuk mouse events
         self.dot_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self.date_label.setStyleSheet(QSS_LABEL_STYLE + "font-family: 'SF Pro Display', 'SF Pro Text'; font-size: 12px; font-weight: 655; letter-spacing: 0.5px;")
+        self.date_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
     # (rollback: hapus pewarnaan dinamis label jam)
 
         # Efek shadow pada label dot dan date (hour dan minute sudah diatur oleh widget custom)
         from PySide6.QtWidgets import QGraphicsDropShadowEffect
         from PySide6.QtGui import QColor
-        for label in [self.dot_label]:
-            shadow = QGraphicsDropShadowEffect()
-            shadow.setBlurRadius(16)
-            shadow.setColor(QColor(0, 0, 0, 80))
-            shadow.setOffset(0, 3)
-            label.setGraphicsEffect(shadow)
+        # Separator clock is custom-painted with its own subtle shadow.
         
         # Set alignment untuk semua label
-        self.dot_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.hour_label.setContentsMargins(0, 0, 0, 0)
         self.dot_label.setContentsMargins(-5, 0, -5, 0)
         self.minute_label.setContentsMargins(0, 0, 0, 0)
@@ -1085,7 +1305,7 @@ QLabel {
         # Hitung posisi y_garis_bawah dari paintEvent
         y_garis_bawah = self.height() - 56.75
         chevron_x = (self.width() - self.chevron_exit.width()) // 2
-        chevron_y = int(y_garis_bawah + 0)  # 0px di bawah garis horizontal bawah (menempel)
+        chevron_y = int(y_garis_bawah - 4)  # naikkan sedikit agar ruang bawah lebih seimbang
         self.chevron_exit.move(chevron_x, chevron_y)
         self.chevron_exit.show()
         
@@ -1185,10 +1405,10 @@ QLabel {
         self.date_label.adjustSize()
 
     def reposition_labels(self) -> None:
-        gap_below_gembok = 18  # Turunkan label tanggal 10px lebih jauh dari gembok
-        gap_below_date = -136  # Kurangi sedikit lagi jarak agar lebih rapat
-        vertical_offset_down = 34  # Turunkan blok tanggal + jam ke bawah
-        time_offset_down = 28  # Turunkan jam besar ke bawah
+        gap_below_gembok = 20  # Turunkan label tanggal sedikit lebih jauh dari gembok
+        gap_below_date = -118  # Compact but less forced, preserving date/clock rhythm
+        vertical_offset_down = 30  # Turunkan blok tanggal + jam ke bawah
+        time_offset_down = 24  # Turunkan jam besar ke bawah
         # Posisi label tanggal tepat di bawah gembok
         date_y = self.lock_icon.y() + self.lock_icon.height() + gap_below_gembok + vertical_offset_down
         # Pusatkan label tanggal secara horizontal
