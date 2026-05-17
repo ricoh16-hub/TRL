@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, Protocol, runtime_checkable
 
 from PySide6.QtCore import QEvent, QPointF, QPropertyAnimation, QRect, QRectF, Qt, QTimer, Signal, QEasingCurve, Property
-from PySide6.QtGui import QBrush, QCloseEvent, QColor, QEnterEvent, QFont, QKeyEvent, QLinearGradient, QMouseEvent, QPaintEvent, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QBrush, QCloseEvent, QColor, QEnterEvent, QFont, QKeyEvent, QLinearGradient, QMouseEvent, QPaintEvent, QPainter, QPainterPath, QPen, QRadialGradient
 from PySide6.QtWidgets import QDialog, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QWidget
 
 
@@ -1080,8 +1080,10 @@ class AuthenticLockScreen(QDialog):
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        rect = QRectF(0.5, 0.5, self.width() - 1.0, self.height() - 1.0)
-        radius = 22.0
+        border_inset = 1.0
+        corner_radius = float(getattr(self, '_background_corner_radius', 22.0))
+        rect = QRectF(border_inset, border_inset, self.width() - (border_inset * 2.0), self.height() - (border_inset * 2.0))
+        radius = max(0.0, corner_radius - border_inset)
         charging = bool(getattr(self, '_background_charging', False))
 
         if charging:
@@ -1093,6 +1095,12 @@ class AuthenticLockScreen(QDialog):
             border_color = QColor(103, 224, 255, 64)
             inner_highlight = QColor(232, 250, 255, 34)
             lower_shadow = QColor(4, 16, 30, 44)
+            focus_color = QColor(103, 224, 255, 30)
+            inner_border_color = QColor(232, 250, 255, 28)
+            lower_accent_color = QColor(55, 138, 238, 16)
+            edge_shadow_color = QColor(2, 12, 24, 26)
+            border_top_color = QColor(232, 250, 255, 54)
+            border_bottom_color = QColor(55, 138, 238, 26)
         else:
             top_color = QColor(26, 32, 41)
             mid_color = QColor(41, 49, 60)
@@ -1102,8 +1110,16 @@ class AuthenticLockScreen(QDialog):
             border_color = QColor(255, 255, 255, 45)
             inner_highlight = QColor(255, 255, 255, 27)
             lower_shadow = QColor(0, 0, 0, 42)
+            focus_color = QColor(255, 255, 255, 20)
+            inner_border_color = QColor(255, 255, 255, 24)
+            lower_accent_color = QColor(205, 216, 228, 9)
+            edge_shadow_color = QColor(0, 0, 0, 22)
+            border_top_color = QColor(255, 255, 255, 44)
+            border_bottom_color = QColor(205, 216, 228, 20)
 
-        painter.fillRect(event.rect(), bottom_color)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.fillRect(event.rect(), Qt.GlobalColor.transparent)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
 
         background = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
         background.setColorAt(0.0, top_color)
@@ -1124,13 +1140,35 @@ class AuthenticLockScreen(QDialog):
         painter.setBrush(QBrush(accent))
         painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
 
+        focus_glow = QRadialGradient(QPointF(rect.center().x(), rect.top() + 42.0), 178.0)
+        focus_glow.setColorAt(0.0, focus_color)
+        focus_glow.setColorAt(0.42, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), max(3, focus_color.alpha() // 3)))
+        focus_glow.setColorAt(1.0, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), 0))
+        painter.setBrush(QBrush(focus_glow))
+        painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
         top_highlight = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.top() + 18.0)
         top_highlight.setColorAt(0.0, inner_highlight)
         top_highlight.setColorAt(1.0, QColor(inner_highlight.red(), inner_highlight.green(), inner_highlight.blue(), 0))
         painter.setBrush(QBrush(top_highlight))
         painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
 
-        bottom_depth = QLinearGradient(rect.left(), rect.bottom() - 24.0, rect.left(), rect.bottom())
+        lower_accent = QRadialGradient(QPointF(rect.center().x(), rect.bottom() - 4.0), 118.0)
+        lower_accent.setColorAt(0.0, lower_accent_color)
+        lower_accent.setColorAt(0.52, QColor(lower_accent_color.red(), lower_accent_color.green(), lower_accent_color.blue(), max(2, lower_accent_color.alpha() // 3)))
+        lower_accent.setColorAt(1.0, QColor(lower_accent_color.red(), lower_accent_color.green(), lower_accent_color.blue(), 0))
+        painter.setBrush(QBrush(lower_accent))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        edge_shading = QLinearGradient(rect.left(), rect.center().y(), rect.right(), rect.center().y())
+        edge_shading.setColorAt(0.0, edge_shadow_color)
+        edge_shading.setColorAt(0.18, QColor(edge_shadow_color.red(), edge_shadow_color.green(), edge_shadow_color.blue(), 0))
+        edge_shading.setColorAt(0.82, QColor(edge_shadow_color.red(), edge_shadow_color.green(), edge_shadow_color.blue(), 0))
+        edge_shading.setColorAt(1.0, edge_shadow_color)
+        painter.setBrush(QBrush(edge_shading))
+        painter.drawRoundedRect(rect.adjusted(1.1, 1.1, -1.1, -1.1), radius - 1.1, radius - 1.1)
+
+        bottom_depth = QLinearGradient(rect.left(), rect.bottom() - 30.0, rect.left(), rect.bottom())
         bottom_depth.setColorAt(0.0, QColor(lower_shadow.red(), lower_shadow.green(), lower_shadow.blue(), 0))
         bottom_depth.setColorAt(1.0, lower_shadow)
         painter.setBrush(QBrush(bottom_depth))
@@ -1138,7 +1176,18 @@ class AuthenticLockScreen(QDialog):
 
         painter.setClipping(False)
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(border_color, 1.0))
+        inner_rect = rect.adjusted(1.05, 1.05, -1.05, -1.05)
+        inner_pen = QPen(inner_border_color, 0.65)
+        inner_pen.setCosmetic(True)
+        painter.setPen(inner_pen)
+        painter.drawRoundedRect(inner_rect, radius - 1.05, radius - 1.05)
+        border_gradient = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        border_gradient.setColorAt(0.0, border_top_color)
+        border_gradient.setColorAt(0.46, border_color)
+        border_gradient.setColorAt(1.0, border_bottom_color)
+        border_pen = QPen(QBrush(border_gradient), 1.0)
+        border_pen.setCosmetic(True)
+        painter.setPen(border_pen)
         painter.drawRoundedRect(rect, radius, radius)
         painter.end()
 
@@ -1179,7 +1228,10 @@ class AuthenticLockScreen(QDialog):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         # Increase width only, keep height unchanged
         self.setFixedSize(405, int(18.5 * 0.3937 * 96))
-        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+        self._background_corner_radius = 22.0
         self._background_charging = False
         self.setStyleSheet(GLASS_STYLE)
         # Tempatkan window di tengah layar seperti boot.py
