@@ -2,8 +2,8 @@ from importlib import import_module
 from typing import Callable, Optional, Union, cast
 from database.models import User
 from PySide6.QtWidgets import QWidget, QDialog, QVBoxLayout, QGridLayout, QLabel, QGraphicsDropShadowEffect, QToolTip, QApplication, QMessageBox
-from PySide6.QtCore import Qt, Signal, QRectF, QEasingCurve, QPropertyAnimation, Property, QEvent, QPointF
-from PySide6.QtGui import QPainter, QBrush, QPen, QColor, QRadialGradient, QMouseEvent, QPaintEvent, QEnterEvent, QKeyEvent, QCloseEvent
+from PySide6.QtCore import Qt, Signal, QRectF, QEasingCurve, QPropertyAnimation, Property, QEvent, QPointF, QSize
+from PySide6.QtGui import QPainter, QBrush, QPen, QColor, QRadialGradient, QMouseEvent, QPaintEvent, QEnterEvent, QKeyEvent, QCloseEvent, QPainterPath
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QLinearGradient
 # Import widgets from lock.py
@@ -53,6 +53,7 @@ class BackspaceButton(QWidget):
         # Animasi press effect
         self._scale = 1.0
         self._scale_anim = None
+        self._hovering = False
     
     def set_charging(self, charging: bool) -> None:
         """Update charging status and trigger repaint"""
@@ -99,7 +100,7 @@ class BackspaceButton(QWidget):
     
     def trigger_press_animation(self) -> None:
         """Public method to trigger press animation from outside"""
-        self._animate_scale(self._scale, 0.85, 100)
+        self._animate_scale(self._scale, 0.92, 100)
     
     def trigger_release_animation(self) -> None:
         """Public method to trigger release animation from outside"""
@@ -107,8 +108,18 @@ class BackspaceButton(QWidget):
     
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            self._animate_scale(self._scale, 0.85, 100)
+            self._animate_scale(self._scale, 0.92, 100)
         super().mousePressEvent(event)
+
+    def enterEvent(self, event: QEnterEvent) -> None:
+        self._hovering = True
+        self._animate_scale(self._scale, 1.025, 140)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: QEvent) -> None:
+        self._hovering = False
+        self._animate_scale(self._scale, 1.0, 150)
+        super().leaveEvent(event)
     
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -117,7 +128,7 @@ class BackspaceButton(QWidget):
     
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space, Qt.Key.Key_Backspace):
-            self._animate_scale(self._scale, 0.85, 100)
+            self._animate_scale(self._scale, 0.92, 100)
         super().keyPressEvent(event)
     
     def keyReleaseEvent(self, event: QKeyEvent) -> None:
@@ -144,10 +155,14 @@ class BackspaceButton(QWidget):
         
         # Triple layer dengan lingkaran penuh untuk setiap layer
         layers: list[dict[str, float]] = [
-            {'radius': 28.0, 'scale': 1.0, 'opacity_base': 35.0, 'opacity_max': 160.0},
-            {'radius': 27.3, 'scale': 0.9, 'opacity_base': 55.0, 'opacity_max': 200.0},
-            {'radius': 26.5, 'scale': 0.75, 'opacity_base': 30.0, 'opacity_max': 140.0}
+            {'radius': 27.7, 'scale': 1.0, 'opacity_base': 19.0 if not self.charging else 15.0, 'opacity_max': 84.0 if not self.charging else 78.0},
+            {'radius': 26.9, 'scale': 0.9, 'opacity_base': 27.0 if not self.charging else 23.0, 'opacity_max': 98.0 if not self.charging else 92.0},
+            {'radius': 26.0, 'scale': 0.75, 'opacity_base': 16.0 if not self.charging else 12.0, 'opacity_max': 68.0 if not self.charging else 62.0}
         ]
+        if getattr(self, '_hovering', False):
+            for layer in layers:
+                layer['opacity_base'] += 7.0
+                layer['opacity_max'] += 18.0
         
         # Gambar base circles untuk semua layer terlebih dahulu
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -155,7 +170,7 @@ class BackspaceButton(QWidget):
             radius: float = layer['radius']
             opacity_base: float = layer['opacity_base']
             rect = QRectF(center_x - radius, center_y - radius, radius * 2, radius * 2)
-            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.3, Qt.PenStyle.SolidLine))  # thinner
+            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.18, Qt.PenStyle.SolidLine))
             painter.drawEllipse(rect)
         
         # Dual-ridge neumorphic effect di seluruh lingkaran
@@ -208,26 +223,26 @@ class BackspaceButton(QWidget):
                     if thickness > 0.01 and opacity > 15:
                         border_color = QColor(255, 255, 255, opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, thickness * 0.5, Qt.PenStyle.SolidLine))  # thinner ridge
+                        painter.setPen(QPen(border_color, thickness * 0.30, Qt.PenStyle.SolidLine))
                         painter.drawArc(rect, int(angle_qt * 16), 16)
                 else:
                     subtle_opacity = int(opacity_base * 0.4)
                     if subtle_opacity > 10:
                         border_color = QColor(255, 255, 255, subtle_opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, 0.15, Qt.PenStyle.SolidLine))  # thinner outline
+                        painter.setPen(QPen(border_color, 0.10, Qt.PenStyle.SolidLine))
                         painter.drawArc(rect, int(angle_qt * 16), 16)
         
         # Tentukan warna berdasarkan status charging
         if self.charging:
-            icon_color = QColor(80, 180, 255)
+            icon_color = QColor(80, 180, 255, 232)
         else:
-            icon_color = QColor(255, 255, 255)
+            icon_color = QColor(244, 248, 255, 232)
         
         # Gambar custom backspace icon: trapezoid + X mark
         # Ukuran dan posisi trapezoid - centered di lingkaran (28, 28)
-        trap_width = 20.0  # lebar bagian kanan trapezoid
-        trap_height = 14.0
+        trap_width = 18.8
+        trap_height = 12.8
         # Geser sedikit ke kanan untuk visual balance karena ada panah di kiri
         trap_center_x = 28.0 + 1.0  # Center lingkaran + offset visual balance
         trap_center_y = 28.0  # Center lingkaran
@@ -246,12 +261,14 @@ class BackspaceButton(QWidget):
         bl_x = tl_x
         bl_y = br_y
         # Titik ujung kiri (panah) - lebih jauh untuk ujung lebih runcing
-        arrow_x = trap_center_x - trap_width / 2 - 5.5
+        arrow_x = trap_center_x - trap_width / 2 - 5.0
         arrow_y = trap_center_y
         
         # Gambar trapezoid outline
-        line_thickness = 0.6
-        painter.setPen(QPen(icon_color, line_thickness * 0.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))  # thinner
+        line_thickness = 0.78
+        icon_pen = QPen(icon_color, line_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        icon_pen.setCosmetic(True)
+        painter.setPen(icon_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         
         # Gunakan QPainterPath untuk rounded corners di sisi kanan
@@ -282,12 +299,14 @@ class BackspaceButton(QWidget):
         painter.drawPath(path)
         
         # Gambar X mark di dalam trapezoid - centered di lingkaran
-        x_size = 5.5
+        x_size = 5.2
         x_center_x = 28.0 + 1.0  # Center lingkaran + offset visual balance (sama dengan trapezoid)
         x_center_y = 28.0  # Center lingkaran
-        x_thickness = 1.0
+        x_thickness = 0.82
         
-        painter.setPen(QPen(icon_color, x_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        x_pen = QPen(icon_color, x_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        x_pen.setCosmetic(True)
+        painter.setPen(x_pen)
         # Garis diagonal \ (kiri atas ke kanan bawah)
         painter.drawLine(
             QPointF(x_center_x - x_size / 2, x_center_y - x_size / 2),
@@ -314,6 +333,7 @@ class BackButton(QWidget):
         # Animasi press effect
         self._scale = 1.0
         self._scale_anim = None
+        self._hovering = False
     
     def set_charging(self, charging: bool) -> None:
         """Update charging status and trigger repaint"""
@@ -360,7 +380,7 @@ class BackButton(QWidget):
     
     def trigger_press_animation(self) -> None:
         """Public method to trigger press animation from outside"""
-        self._animate_scale(self._scale, 0.85, 100)
+        self._animate_scale(self._scale, 0.92, 100)
     
     def trigger_release_animation(self) -> None:
         """Public method to trigger release animation from outside"""
@@ -368,8 +388,18 @@ class BackButton(QWidget):
     
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            self._animate_scale(self._scale, 0.85, 100)
+            self._animate_scale(self._scale, 0.92, 100)
         super().mousePressEvent(event)
+
+    def enterEvent(self, event: QEnterEvent) -> None:
+        self._hovering = True
+        self._animate_scale(self._scale, 1.025, 140)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: QEvent) -> None:
+        self._hovering = False
+        self._animate_scale(self._scale, 1.0, 150)
+        super().leaveEvent(event)
     
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -378,7 +408,7 @@ class BackButton(QWidget):
     
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space, Qt.Key.Key_Escape):
-            self._animate_scale(self._scale, 0.85, 100)
+            self._animate_scale(self._scale, 0.92, 100)
         super().keyPressEvent(event)
     
     def keyReleaseEvent(self, event: QKeyEvent) -> None:
@@ -405,10 +435,14 @@ class BackButton(QWidget):
         
         # Triple layer dengan lingkaran penuh untuk setiap layer
         layers: list[dict[str, float]] = [
-            {'radius': 28.0, 'scale': 1.0, 'opacity_base': 35.0, 'opacity_max': 160.0},
-            {'radius': 27.3, 'scale': 0.9, 'opacity_base': 55.0, 'opacity_max': 200.0},
-            {'radius': 26.5, 'scale': 0.75, 'opacity_base': 30.0, 'opacity_max': 140.0}
+            {'radius': 27.7, 'scale': 1.0, 'opacity_base': 19.0 if not self.charging else 15.0, 'opacity_max': 84.0 if not self.charging else 78.0},
+            {'radius': 26.9, 'scale': 0.9, 'opacity_base': 27.0 if not self.charging else 23.0, 'opacity_max': 98.0 if not self.charging else 92.0},
+            {'radius': 26.0, 'scale': 0.75, 'opacity_base': 16.0 if not self.charging else 12.0, 'opacity_max': 68.0 if not self.charging else 62.0}
         ]
+        if getattr(self, '_hovering', False):
+            for layer in layers:
+                layer['opacity_base'] += 7.0
+                layer['opacity_max'] += 18.0
         
         # Gambar base circles untuk semua layer terlebih dahulu
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -416,7 +450,7 @@ class BackButton(QWidget):
             radius: float = layer['radius']
             opacity_base: float = layer['opacity_base']
             rect = QRectF(center_x - radius, center_y - radius, radius * 2, radius * 2)
-            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.3, Qt.PenStyle.SolidLine))  # thinner
+            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.18, Qt.PenStyle.SolidLine))
             painter.drawEllipse(rect)
         
         # Dual-ridge neumorphic effect di seluruh lingkaran
@@ -469,23 +503,23 @@ class BackButton(QWidget):
                     if thickness > 0.01 and opacity > 15:
                         border_color = QColor(255, 255, 255, opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, thickness * 0.5, Qt.PenStyle.SolidLine))  # thinner ridge
+                        painter.setPen(QPen(border_color, thickness * 0.30, Qt.PenStyle.SolidLine))
                         painter.drawArc(rect, int(angle_qt * 16), 16)
                 else:
                     subtle_opacity = int(opacity_base * 0.4)
                     if subtle_opacity > 10:
                         border_color = QColor(255, 255, 255, subtle_opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, 0.15, Qt.PenStyle.SolidLine))  # thinner outline
+                        painter.setPen(QPen(border_color, 0.10, Qt.PenStyle.SolidLine))
                         painter.drawArc(rect, int(angle_qt * 16), 16)
         
         # Tentukan warna berdasarkan status charging: biru saat charging, putih saat normal
         if self.charging:
-            outline = QColor(80, 180, 255)
-            fill = QColor(80, 180, 255)
+            outline = QColor(80, 180, 255, 235)
+            fill = QColor(80, 180, 255, 224)
         else:
-            outline = QColor(255, 255, 255)
-            fill = QColor(255, 255, 255)
+            outline = QColor(244, 248, 255, 235)
+            fill = QColor(244, 248, 255, 224)
         
         # Dimensi rumah - scaled untuk circular
         body_height = 9.5
@@ -524,7 +558,7 @@ class BackButton(QWidget):
         p2_right = QPointF(p_right.x() + upper_roof_overhang, p_right.y() - roof_outline_lift)
         p2_top = QPointF(p_top.x(), p_top.y() - roof_outline_lift - roof_outline_apex_extra)
         
-        pen_width = 1.0
+        pen_width = 0.86
         painter.setPen(QPen(outline, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
         
         # Hitung pintu
@@ -562,7 +596,7 @@ class BackButton(QWidget):
 
         # Outline segitiga atas kedua
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(outline, 0.55, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.setPen(QPen(outline, 0.44, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
         painter.drawLine(p2_left, p2_top)
         painter.drawLine(p2_top, p2_right)
 
@@ -585,7 +619,7 @@ class BackButton(QWidget):
         alas_y = body_bottom + alas_gap
         left_bottom = QPointF(body_left_x - alas_offset, alas_y)
         right_bottom = QPointF(body_right_x + alas_offset, alas_y)
-        painter.setPen(QPen(fill, 0.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
+        painter.setPen(QPen(fill, 0.42, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
         painter.drawLine(left_bottom, right_bottom)
         
         # Dinding kiri/kanan tetap terisi; garis atas body sengaja tidak digambar.
@@ -609,6 +643,7 @@ class VerticalStretchLabel(QWidget):
         self._scale = 1.0  # Scale proporsional (X dan Y)
         self._vertical_scale = 1.0  # Tetap untuk kompatibilitas
         self._scale_anim = None
+        self._hovering = False
         self.setMinimumHeight(18)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -651,19 +686,13 @@ class VerticalStretchLabel(QWidget):
             self._scale_anim = None
 
     def enterEvent(self, event: QEnterEvent) -> None:
-        self._animate_scale(self._scale, 1.15, 180)
-        # Efek glow biru terang saat hover
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
-        shadow.setOffset(0, 0)
-        shadow.setColor(QColor(80, 180, 255, 180))
-        self.setGraphicsEffect(shadow)
+        self._hovering = True
+        self._animate_scale(self._scale, 1.06, 180)
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent) -> None:
+        self._hovering = False
         self._animate_scale(self._scale, 1.0, 180)
-        self.setGraphicsEffect(None)  # type: ignore[arg-type]
         super().leaveEvent(event)
         
     def setText(self, text: str):
@@ -682,11 +711,15 @@ class VerticalStretchLabel(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        # Warna teks berdasarkan charging status
-        if self._charging:
-            text_color = QColor(80, 180, 255)  # Blue
-        else:
-            text_color = QColor(255, 255, 255)  # White
+        if getattr(self, '_hovering', False):
+            glow_color = QColor(80, 180, 255, 30) if self._charging else QColor(255, 255, 255, 16)
+            glow = QRadialGradient(QPointF(self.width() / 2, self.height() / 2), min(self.width(), self.height()) * 0.62)
+            glow.setColorAt(0.0, glow_color)
+            glow.setColorAt(0.70, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(4, glow_color.alpha() // 3)))
+            glow.setColorAt(1.0, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(glow))
+            painter.drawRoundedRect(QRectF(0.5, 2.0, self.width() - 1.0, self.height() - 4.0), 5.0, 5.0)
         # Setup font
         from PySide6.QtGui import QFont, QFontMetrics
         font = QFont()
@@ -698,12 +731,6 @@ class VerticalStretchLabel(QWidget):
         font.setStretch(QFont.Stretch.Condensed)
         font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.35)
         painter.setFont(font)
-        painter.setPen(text_color)
-        # Hitung dimensi teks normal
-        from PySide6.QtGui import QFontMetrics
-        metrics = QFontMetrics(font)
-        # Hitung dimensi teks normal
-        from PySide6.QtGui import QFontMetrics
         metrics = QFontMetrics(font)
         text_width = metrics.horizontalAdvance(self._text)
         text_height = metrics.height()
@@ -715,9 +742,38 @@ class VerticalStretchLabel(QWidget):
         painter.translate(center_x, center_y)
         # Scale proporsional (X dan Y)
         painter.scale(self._scale, self._scale)
-        # Gambar teks di posisi center
-        rect = QRectF(-text_width/2, -text_height/2, text_width, text_height)
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, self._text)
+        x = -text_width / 2
+        y = text_height / 2 - metrics.descent()
+        text_path = QPainterPath()
+        text_path.addText(QPointF(x, y), font, self._text)
+        bounds = text_path.boundingRect()
+        if self._charging:
+            top_color = QColor(103, 224, 255, 238)
+            mid_color = QColor(80, 180, 255, 228)
+            bottom_color = QColor(55, 138, 238, 218)
+            shadow_color = QColor(18, 70, 130, 58)
+            highlight_color = QColor(232, 250, 255, 34)
+        else:
+            top_color = QColor(255, 255, 255, 234)
+            mid_color = QColor(238, 244, 250, 222)
+            bottom_color = QColor(205, 216, 228, 214)
+            shadow_color = QColor(0, 0, 0, 54)
+            highlight_color = QColor(255, 255, 255, 30)
+        shadow_path = QPainterPath(text_path)
+        shadow_path.translate(0.0, 0.65)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(shadow_color))
+        painter.drawPath(shadow_path)
+        grad = QLinearGradient(bounds.left(), bounds.top(), bounds.left(), bounds.bottom())
+        grad.setColorAt(0.0, top_color)
+        grad.setColorAt(0.52, mid_color)
+        grad.setColorAt(1.0, bottom_color)
+        painter.setBrush(QBrush(grad))
+        painter.drawPath(text_path)
+        highlight_path = QPainterPath(text_path)
+        highlight_path.translate(0.0, -0.30)
+        painter.setBrush(QBrush(highlight_color))
+        painter.drawPath(highlight_path)
         painter.restore()
 
 class RoundLabel(QLabel):
@@ -806,7 +862,7 @@ class RoundLabel(QLabel):
     
     def trigger_press_animation(self) -> None:
         """Public method to trigger press animation from outside"""
-        self._animate_scale(self._scale, 0.85, 100)
+        self._animate_scale(self._scale, 0.92, 100)
     
     def trigger_release_animation(self) -> None:
         """Public method to trigger release animation from outside"""
@@ -814,9 +870,18 @@ class RoundLabel(QLabel):
     
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            # Tenggelam ke 0.85
-            self._animate_scale(self._scale, 0.85, 100)
+            self._animate_scale(self._scale, 0.92, 100)
         super().mousePressEvent(event)
+
+    def enterEvent(self, event: QEnterEvent) -> None:
+        self._hovering = True
+        self._animate_scale(self._scale, 1.025, 140)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: QEvent) -> None:
+        self._hovering = False
+        self._animate_scale(self._scale, 1.0, 150)
+        super().leaveEvent(event)
     
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -826,8 +891,7 @@ class RoundLabel(QLabel):
     
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
-            # Tenggelam ke 0.85
-            self._animate_scale(self._scale, 0.85, 100)
+            self._animate_scale(self._scale, 0.92, 100)
         super().keyPressEvent(event)
     
     def keyReleaseEvent(self, event: QKeyEvent) -> None:
@@ -855,10 +919,14 @@ class RoundLabel(QLabel):
         
         # Triple layer dengan lingkaran penuh untuk setiap layer
         layers: list[dict[str, float]] = [
-            {'radius': 28.0, 'scale': 1.0, 'opacity_base': 35.0, 'opacity_max': 160.0},
-            {'radius': 27.3, 'scale': 0.9, 'opacity_base': 55.0, 'opacity_max': 200.0},
-            {'radius': 26.5, 'scale': 0.75, 'opacity_base': 30.0, 'opacity_max': 140.0}
+            {'radius': 27.7, 'scale': 1.0, 'opacity_base': 19.0 if not self.charging else 15.0, 'opacity_max': 84.0 if not self.charging else 78.0},
+            {'radius': 26.9, 'scale': 0.9, 'opacity_base': 27.0 if not self.charging else 23.0, 'opacity_max': 98.0 if not self.charging else 92.0},
+            {'radius': 26.0, 'scale': 0.75, 'opacity_base': 16.0 if not self.charging else 12.0, 'opacity_max': 68.0 if not self.charging else 62.0}
         ]
+        if getattr(self, '_hovering', False):
+            for layer in layers:
+                layer['opacity_base'] += 7.0
+                layer['opacity_max'] += 18.0
         
         # Gambar base circles untuk semua layer terlebih dahulu
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -866,7 +934,7 @@ class RoundLabel(QLabel):
             radius: float = layer['radius']
             opacity_base: float = layer['opacity_base']
             rect = QRectF(center_x - radius, center_y - radius, radius * 2, radius * 2)
-            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.3, Qt.PenStyle.SolidLine))  # thinner
+            painter.setPen(QPen(QColor(255, 255, 255, int(opacity_base)), 0.18, Qt.PenStyle.SolidLine))
             painter.drawEllipse(rect)
         
         # Dual-ridge neumorphic effect di seluruh lingkaran
@@ -919,7 +987,7 @@ class RoundLabel(QLabel):
                     if thickness > 0.01 and opacity > 15:
                         border_color = QColor(255, 255, 255, opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, thickness * 0.5, Qt.PenStyle.SolidLine))  # thinner ridge
+                        painter.setPen(QPen(border_color, thickness * 0.30, Qt.PenStyle.SolidLine))
                         painter.drawArc(rect, int(angle_qt * 16), 16)
                 else:
                     # Area di luar ridge tetap ada subtle outline
@@ -927,7 +995,7 @@ class RoundLabel(QLabel):
                     if subtle_opacity > 10:
                         border_color = QColor(255, 255, 255, subtle_opacity)
                         angle_qt = current_angle - 90.0
-                        painter.setPen(QPen(border_color, 0.15, Qt.PenStyle.SolidLine))  # thinner outline
+                        painter.setPen(QPen(border_color, 0.10, Qt.PenStyle.SolidLine))
                         painter.drawArc(rect, int(angle_qt * 16), 16)
         
         # Hitung posisi vertikal yang seimbang
@@ -942,15 +1010,15 @@ class RoundLabel(QLabel):
         
         # Tentukan warna berdasarkan status charging
         if self.charging:
-            text_color = QColor(80, 180, 255)
+            text_color = QColor(80, 180, 255, 246)
         else:
-            text_color = QColor(255, 255, 255)
+            text_color = QColor(244, 248, 255, 242)
         
         # Gambar angka
         number_font = QFont()
         number_font.setFamilies(['SF Pro Display', 'SF Pro Text'])
-        number_font.setPointSize(18)
-        # Medium weight: tidak bold, tidak normal
+        number_font.setPointSize(17)
+        number_font.setWeight(QFont.Weight.DemiBold)
         painter.setFont(number_font)
         painter.setPen(text_color)
         
@@ -962,8 +1030,8 @@ class RoundLabel(QLabel):
             alphabet_text = self.alphabet_map[self.number_text]
             alphabet_font = QFont()
             alphabet_font.setFamilies(['SF Pro Display', 'SF Pro Text'])
-            alphabet_font.setPointSize(5)
-            alphabet_font.setBold(True)
+            alphabet_font.setPointSize(4)
+            alphabet_font.setWeight(QFont.Weight.DemiBold)
             painter.setFont(alphabet_font)
             
             alphabet_rect = self.rect().adjusted(0, alphabet_offset, 0, alphabet_offset)
@@ -982,6 +1050,15 @@ class CustomUnlockIcon(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         W, H = self.width(), self.height()
+        if getattr(self, '_hovering', False):
+            glow_color = QColor(80, 180, 255, 36) if self.charging else QColor(255, 255, 255, 20)
+            glow = QRadialGradient(QPointF(W / 2, 42.0), 25.0)
+            glow.setColorAt(0.0, glow_color)
+            glow.setColorAt(0.70, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(5, glow_color.alpha() // 3)))
+            glow.setColorAt(1.0, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(glow))
+            painter.drawEllipse(QRectF(10.0, 18.0, W - 20.0, H - 20.0))
         painter.translate(W/2, H/2)
         painter.scale(getattr(self, '_scale', 1.0), getattr(self, '_scale', 1.0))
         painter.translate(-W/2, -H/2)
@@ -1090,18 +1167,11 @@ class CustomUnlockIcon(QWidget):
         
         self._scale_anim = QPropertyAnimation(self, b"scale")
         self._scale_anim.setStartValue(getattr(self, '_scale', 1.0))
-        self._scale_anim.setEndValue(1.18)
+        self._scale_anim.setEndValue(1.08)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._scale_anim.valueChanged.connect(self.update)
         self._scale_anim.start()
-        # Efek glow biru terang saat hover
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
-        shadow.setOffset(0, 0)
-        shadow.setColor(QColor(80, 180, 255, 180))
-        self.setGraphicsEffect(shadow)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         super().enterEvent(event)
 
@@ -1110,7 +1180,6 @@ class CustomUnlockIcon(QWidget):
         self.update()
         self.animate_to_normal()
         self.unsetCursor()
-        self.setGraphicsEffect(None)  # type: ignore
         super().leaveEvent(event)
 
     def mousePressEvent(self, event: QMouseEvent):
@@ -1168,7 +1237,7 @@ class CustomUnlockIcon(QWidget):
                 pass
         
         self._scale_anim = QPropertyAnimation(self, b"scale")
-        self._scale_anim.setStartValue(getattr(self, '_scale', 1.18))
+        self._scale_anim.setStartValue(getattr(self, '_scale', 1.08))
         self._scale_anim.setEndValue(1.0)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -1177,10 +1246,8 @@ class CustomUnlockIcon(QWidget):
 
 GLASS_STYLE = """
 QDialog {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-        stop:0 #222a36, stop:1 #3a4a5c);
-    border-radius: 24px;
-    border: 1px solid rgba(255,255,255,0.18);
+    background: transparent;
+    border: none;
 }
 """
 
@@ -1356,12 +1423,125 @@ class LoginDialog(QDialog):
         self.authenticated_user: Optional[User] = None
         self.request_back_to_lock: bool = False
         self.security_pin_logged: bool = False
+        self._background_charging = False
+        self._background_corner_radius = 22.0
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
-        # Hilangkan efek transparan dan animasi opacity agar background solid
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
         self.keypad_map: dict[str, Optional[Union[RoundLabel, BackspaceButton, BackButton]]] = {}  # Map angka/backspace/back ke widget
 
+    def set_background_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._background_charging == charging:
+            return
+        self._background_charging = charging
+        self.update()
+
     def paintEvent(self, event: QPaintEvent):
-        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.fillRect(event.rect(), Qt.GlobalColor.transparent)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+
+        border_inset = 1.0
+        corner_radius = float(getattr(self, '_background_corner_radius', 22.0))
+        rect = QRectF(border_inset, border_inset, self.width() - (border_inset * 2.0), self.height() - (border_inset * 2.0))
+        radius = max(0.0, corner_radius - border_inset)
+        charging = bool(getattr(self, '_background_charging', False))
+
+        if charging:
+            top_color = QColor(18, 30, 43)
+            mid_color = QColor(31, 47, 64)
+            bottom_color = QColor(20, 36, 55)
+            accent_top = QColor(103, 224, 255, 34)
+            accent_bottom = QColor(55, 138, 238, 18)
+            focus_color = QColor(103, 224, 255, 28)
+            border_top_color = QColor(232, 250, 255, 50)
+            border_mid_color = QColor(103, 224, 255, 62)
+            border_bottom_color = QColor(55, 138, 238, 24)
+            inner_border_color = QColor(232, 250, 255, 25)
+            edge_shadow_color = QColor(2, 12, 24, 24)
+            lower_shadow = QColor(4, 16, 30, 42)
+            bottom_focus_color = QColor(55, 138, 238, 16)
+        else:
+            top_color = QColor(26, 32, 41)
+            mid_color = QColor(41, 49, 60)
+            bottom_color = QColor(31, 39, 50)
+            accent_top = QColor(255, 255, 255, 17)
+            accent_bottom = QColor(205, 216, 228, 9)
+            focus_color = QColor(255, 255, 255, 18)
+            border_top_color = QColor(255, 255, 255, 42)
+            border_mid_color = QColor(255, 255, 255, 38)
+            border_bottom_color = QColor(205, 216, 228, 18)
+            inner_border_color = QColor(255, 255, 255, 22)
+            edge_shadow_color = QColor(0, 0, 0, 21)
+            lower_shadow = QColor(0, 0, 0, 40)
+            bottom_focus_color = QColor(205, 216, 228, 8)
+
+        background = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        background.setColorAt(0.0, top_color)
+        background.setColorAt(0.48, mid_color)
+        background.setColorAt(1.0, bottom_color)
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(background))
+        painter.drawPath(path)
+
+        painter.setClipPath(path)
+        accent = QLinearGradient(rect.left(), rect.top(), rect.right(), rect.bottom())
+        accent.setColorAt(0.0, accent_top)
+        accent.setColorAt(0.60, QColor(accent_top.red(), accent_top.green(), accent_top.blue(), max(4, accent_top.alpha() // 3)))
+        accent.setColorAt(1.0, accent_bottom)
+        painter.setBrush(QBrush(accent))
+        painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
+        focus_glow = QRadialGradient(QPointF(rect.center().x(), rect.top() + 178.0), 210.0)
+        focus_glow.setColorAt(0.0, focus_color)
+        focus_glow.setColorAt(0.46, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), max(3, focus_color.alpha() // 3)))
+        focus_glow.setColorAt(1.0, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), 0))
+        painter.setBrush(QBrush(focus_glow))
+        painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
+        edge_shading = QLinearGradient(rect.left(), rect.center().y(), rect.right(), rect.center().y())
+        edge_shading.setColorAt(0.0, edge_shadow_color)
+        edge_shading.setColorAt(0.18, QColor(edge_shadow_color.red(), edge_shadow_color.green(), edge_shadow_color.blue(), 0))
+        edge_shading.setColorAt(0.82, QColor(edge_shadow_color.red(), edge_shadow_color.green(), edge_shadow_color.blue(), 0))
+        edge_shading.setColorAt(1.0, edge_shadow_color)
+        painter.setBrush(QBrush(edge_shading))
+        painter.drawRoundedRect(rect.adjusted(1.1, 1.1, -1.1, -1.1), radius - 1.1, radius - 1.1)
+
+        bottom_focus = QRadialGradient(QPointF(rect.center().x(), rect.bottom() - 104.0), 172.0)
+        bottom_focus.setColorAt(0.0, bottom_focus_color)
+        bottom_focus.setColorAt(0.45, QColor(bottom_focus_color.red(), bottom_focus_color.green(), bottom_focus_color.blue(), max(2, bottom_focus_color.alpha() // 3)))
+        bottom_focus.setColorAt(1.0, QColor(bottom_focus_color.red(), bottom_focus_color.green(), bottom_focus_color.blue(), 0))
+        painter.setBrush(QBrush(bottom_focus))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        bottom_depth = QLinearGradient(rect.left(), rect.bottom() - 32.0, rect.left(), rect.bottom())
+        bottom_depth.setColorAt(0.0, QColor(lower_shadow.red(), lower_shadow.green(), lower_shadow.blue(), 0))
+        bottom_depth.setColorAt(1.0, lower_shadow)
+        painter.setBrush(QBrush(bottom_depth))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        painter.setClipping(False)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        inner_rect = rect.adjusted(1.05, 1.05, -1.05, -1.05)
+        inner_pen = QPen(inner_border_color, 0.65)
+        inner_pen.setCosmetic(True)
+        painter.setPen(inner_pen)
+        painter.drawRoundedRect(inner_rect, radius - 1.05, radius - 1.05)
+        border_gradient = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        border_gradient.setColorAt(0.0, border_top_color)
+        border_gradient.setColorAt(0.46, border_mid_color)
+        border_gradient.setColorAt(1.0, border_bottom_color)
+        border_pen = QPen(QBrush(border_gradient), 1.0)
+        border_pen.setCosmetic(True)
+        painter.setPen(border_pen)
+        painter.drawRoundedRect(rect, radius, radius)
+        painter.end()
 
     def get_scale(self):
         return getattr(self, '_scale', 1.0)
@@ -1377,15 +1557,66 @@ class PINDotWidget(QWidget):
     """Custom widget to display 6 PIN dots visually"""
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self.setFixedSize(200, 55)
+        self.setFixedSize(200, 34)
         self.pin_count = 0
         self.is_complete = False
         self.charging = False
+        self._previous_pin_count = 0
+        self._pop_index = -1
+        self._pop_scale = 1.0
+        self._pop_anim = None
         
     def set_pin_count(self, count: int) -> None:
         """Update number of filled dots (0-6)"""
-        self.pin_count = min(count, 6)
+        next_count = min(max(count, 0), 6)
+        if next_count > self.pin_count:
+            self._start_pop(next_count - 1)
+        self._previous_pin_count = self.pin_count
+        self.pin_count = next_count
         self.is_complete = (self.pin_count == 6)
+        self.update()
+
+    def get_pop_scale(self) -> float:
+        return self._pop_scale
+
+    def set_pop_scale(self, value: float) -> None:
+        self._pop_scale = value
+        self.update()
+
+    pop_scale = Property(float, get_pop_scale, set_pop_scale)
+
+    def _start_pop(self, index: int) -> None:
+        if self._pop_anim is not None:
+            self._pop_anim.stop()
+            try:
+                self._pop_anim.valueChanged.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._pop_anim.deleteLater()
+            self._pop_anim = None
+        self._pop_index = index
+        self._pop_scale = 1.0
+        anim = QPropertyAnimation(self, b"pop_scale")
+        anim.setStartValue(1.0)
+        anim.setKeyValueAt(0.45, 1.18)
+        anim.setEndValue(1.0)
+        anim.setDuration(125)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.valueChanged.connect(self.update)
+        anim.finished.connect(self._finish_pop)
+        self._pop_anim = anim
+        anim.start()
+
+    def _finish_pop(self) -> None:
+        self._pop_index = -1
+        self._pop_scale = 1.0
+        if self._pop_anim is not None:
+            try:
+                self._pop_anim.valueChanged.disconnect()
+                self._pop_anim.finished.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._pop_anim = None
         self.update()
         
     def set_charging(self, charging: bool) -> None:
@@ -1397,40 +1628,142 @@ class PINDotWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        # Draw 6 circular dots (50% smaller)
-        dot_size = 14  # was 28
-        spacing = 14   # was 6
+        dot_size = 13.2
+        spacing = 15.0
         total_width = (dot_size * 6) + (spacing * 5)
-        start_x = (self.width() - total_width) // 2
-        center_y = self.height() // 2
+        start_x = (self.width() - total_width) / 2.0
+        center_y = self.height() / 2.0
         
-        # Colors - filled_color bergantung pada charging status
         if self.charging:
-            filled_color = QColor(90, 167, 255)   # Biru lembut #5AA7FF saat charging
+            top_color = QColor(103, 224, 255, 245)
+            bottom_color = QColor(55, 138, 238, 232)
+            border_color = QColor(103, 224, 255, 160)
+            empty_border = QColor(103, 224, 255, 104)
+            shadow_color = QColor(22, 84, 145, 72)
+            highlight_color = QColor(232, 250, 255, 62)
         else:
-            filled_color = QColor(255, 255, 255)  # Putih #FFFFFF saat tidak charging
+            top_color = QColor(255, 255, 255, 244)
+            bottom_color = QColor(205, 216, 228, 230)
+            border_color = QColor(255, 255, 255, 145)
+            empty_border = QColor(255, 255, 255, 98)
+            shadow_color = QColor(0, 0, 0, 56)
+            highlight_color = QColor(255, 255, 255, 48)
         
-        empty_color = QColor(0, 0, 0, 0)          # Transparan
-        
-        # Draw each circular dot
         for i in range(6):
             x = start_x + (i * (dot_size + spacing))
-            y = center_y - (dot_size // 2)
-            
-            # Determine if this dot should be filled
+            y = center_y - (dot_size / 2.0)
+            dot_rect = QRectF(float(x), float(y), float(dot_size), float(dot_size))
+            if i == self._pop_index and i < self.pin_count:
+                grow = dot_size * (self._pop_scale - 1.0) / 2.0
+                dot_rect = dot_rect.adjusted(-grow, -grow, grow, grow)
             is_filled = i < self.pin_count
-            dot_color = filled_color if is_filled else empty_color
-            
-            # Draw circular dot (ellipse) WITH WHITE BORDER
-            # Border color berdasarkan charging status
-            if self.charging:
-                border_color = QColor(90, 167, 255)  # Biru lembut #5AA7FF
+
+            shadow_rect = dot_rect.translated(0.0, 1.0)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(shadow_color if is_filled else QColor(shadow_color.red(), shadow_color.green(), shadow_color.blue(), 24)))
+            painter.drawEllipse(shadow_rect)
+
+            if is_filled:
+                grad = QLinearGradient(dot_rect.left(), dot_rect.top(), dot_rect.left(), dot_rect.bottom())
+                grad.setColorAt(0.0, top_color)
+                grad.setColorAt(1.0, bottom_color)
+                painter.setBrush(QBrush(grad))
+                painter.setPen(QPen(border_color, 0.85))
+                painter.drawEllipse(dot_rect)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(highlight_color))
+                painter.drawEllipse(dot_rect.adjusted(2.8, 2.0, -2.8, -7.2))
             else:
-                border_color = QColor(255, 255, 255)  # Putih #FFFFFF
-            border_width = 0.95
-            painter.setPen(QPen(border_color, border_width, Qt.PenStyle.SolidLine))
-            painter.setBrush(dot_color)
-            painter.drawEllipse(int(x), int(y), dot_size, dot_size)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                outer_ring = QPen(empty_border, 0.9)
+                outer_ring.setCosmetic(True)
+                painter.setPen(outer_ring)
+                painter.drawEllipse(dot_rect)
+                inner_color = QColor(empty_border.red(), empty_border.green(), empty_border.blue(), max(18, empty_border.alpha() // 3))
+                inner_ring = QPen(inner_color, 0.55)
+                inner_ring.setCosmetic(True)
+                painter.setPen(inner_ring)
+                painter.drawEllipse(dot_rect.adjusted(2.0, 2.0, -2.0, -2.0))
+
+
+class PremiumSecurityPinLabel(QWidget):
+    """State-aware title label matching the premium lock-screen typography."""
+
+    def __init__(self, text: str, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._text = text
+        self._charging = False
+        self.setMinimumHeight(22)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+    def text(self) -> str:
+        return self._text
+
+    def setText(self, text: str) -> None:
+        self._text = text
+        self.updateGeometry()
+        self.update()
+
+    def set_charging(self, charging: bool) -> None:
+        self._charging = bool(charging)
+        self.update()
+
+    def adjustSize(self) -> None:
+        self.resize(self.sizeHint())
+
+    def _font(self):
+        from PySide6.QtGui import QFont
+        font = QFont("SF Pro Display")
+        font.setPointSizeF(11.7)
+        font.setWeight(QFont.Weight.Medium)
+        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.50)
+        return font
+
+    def sizeHint(self) -> QSize:
+        from PySide6.QtGui import QFontMetrics
+        metrics = QFontMetrics(self._font())
+        return QSize(metrics.horizontalAdvance(self._text) + 18, metrics.height() + 9)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        from PySide6.QtGui import QFontMetrics
+        font = self._font()
+        metrics = QFontMetrics(font)
+        x = (self.width() - metrics.horizontalAdvance(self._text)) / 2
+        y = (self.height() + metrics.ascent() - metrics.descent()) / 2
+        text_path = QPainterPath()
+        text_path.addText(QPointF(x, y), font, self._text)
+        bounds = text_path.boundingRect()
+        if self._charging:
+            top_color = QColor(147, 233, 255, 238)
+            mid_color = QColor(80, 180, 255, 226)
+            bottom_color = QColor(62, 144, 235, 224)
+            shadow_color = QColor(18, 70, 130, 76)
+            highlight_color = QColor(232, 250, 255, 42)
+        else:
+            top_color = QColor(255, 255, 255, 238)
+            mid_color = QColor(238, 244, 250, 226)
+            bottom_color = QColor(205, 216, 228, 222)
+            shadow_color = QColor(0, 0, 0, 66)
+            highlight_color = QColor(255, 255, 255, 36)
+        shadow_path = QPainterPath(text_path)
+        shadow_path.translate(0.0, 0.85)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(shadow_color))
+        painter.drawPath(shadow_path)
+        grad = QLinearGradient(bounds.left(), bounds.top(), bounds.left(), bounds.bottom())
+        grad.setColorAt(0.0, top_color)
+        grad.setColorAt(0.52, mid_color)
+        grad.setColorAt(1.0, bottom_color)
+        painter.setBrush(QBrush(grad))
+        painter.drawPath(text_path)
+        highlight_path = QPainterPath(text_path)
+        highlight_path.translate(0.0, -0.35)
+        painter.setBrush(QBrush(highlight_color))
+        painter.drawPath(highlight_path)
+        painter.end()
 
 _active_login_dialog = None
 def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[User]:
@@ -1464,6 +1797,8 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     # Calculate positions based on lock.py logic
     # Reference: lock.py AuthenticLockScreen __init__
     lock_x = (dialog.width() - 64) // 2  # 64 = lock_icon width
+    top_bar_y_offset = 0
+    top_bar_visual_bottom = 55 + top_bar_y_offset
     # Battery logo position (kanan atas, menjorok ke atas)
     wifi_logo_width = 20
     wifi_logo_margin_kanan = 4
@@ -1471,15 +1806,15 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     increased_gap = 20
     wifi_x = lock_x + 64 + 3
     battery_x = wifi_x + wifi_logo_width - wifi_logo_margin_kanan + increased_gap - battery_logo_margin_kiri
-    battery_y = 27
     battery_logo = BatteryLogoWidget(dialog)
     battery_logo.setParent(dialog)
+    battery_y = top_bar_visual_bottom - battery_logo.height()
     battery_logo.move(battery_x + 5, battery_y)
     battery_logo.show()
     # KeyCapWidget position (sinkron dengan battery_logo)
     keycap = KeyCapWidget(dialog, text="A", battery_widget=battery_logo)
     keycap_x = lock_x - keycap.width() + 3
-    keycap_y = 25 - 10 + 5 + 3 + 0.5
+    keycap_y = top_bar_visual_bottom - keycap.height()
     keycap.move(keycap_x, int(round(keycap_y)))
     keycap.show()
     # Gear widget di kiri keycap, jarak harmonis 20px
@@ -1493,6 +1828,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     # Label jam di sebelah kiri gear widget (custom widget dengan vertical stretch)
     label_clock = VerticalStretchLabel(dialog)
     label_clock.set_charging(False)  # Inisialisasi status charging
+    label_clock.setFixedHeight(30)
     
     # Update waktu pada label jam
     from datetime import datetime
@@ -1517,8 +1853,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
         
         # Jarak label jam ke keycap digeser sedikit ke kiri
         clock_x = keycap_x - label_clock.width() - 3.5
-        # Turunkan sedikit agar lebih dekat dengan garis horizontal atas
-        clock_y = int(round(keycap_y + (keycap.height() - label_clock.height()) / 2)) + 1.8
+        clock_y = int(round(top_bar_visual_bottom - label_clock.height()))
         label_clock.move(int(clock_x), int(clock_y))
     
     position_clock_label()
@@ -1526,11 +1861,8 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     
     # WiFi logo widget di sebelah kanan gembok
     wifi_logo = WiFiLogoWidget(dialog, battery_widget=battery_logo)
-    y_garis = 36.75 + 18 + 2
-    wifi_logo_height = 20
-    wifi_y = y_garis - wifi_logo_height - 3 - 2 + 0.25
-    wifi_y += 1
-    wifi_logo.move(int(wifi_x - 4.35), int(round(wifi_y - 1.45 - 8 + 3 + 3 + 0.25 + 0.25 + 0.35 + 0.5 - 3)))
+    wifi_y = top_bar_visual_bottom - wifi_logo.height()
+    wifi_logo.move(int(wifi_x - 4.35), int(round(wifi_y)))
     wifi_logo.show()
 
     # Jangan tambahkan unlock_icon ke layout, posisikan manual setelah layout di-set
@@ -1539,17 +1871,20 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     unlock_icon = CustomUnlockIcon(QColor(255, 255, 255))
     unlock_icon.setParent(dialog)
     lock_x = (dialog.width() - unlock_icon.width()) // 2  # posisi tengah
-    lock_y = int(-10 + 4 + 0.6)  # Samakan dengan lock.py
+    lock_y = int(-4 + 4 + 0.6 + top_bar_y_offset)  # tetap di dalam batas translucent window
     unlock_icon.move(lock_x, lock_y)
     unlock_icon.show()
     dialog.unlock_icon = unlock_icon
 
     # PIN Entry Grid (iPhone 14 Pro Max style)
     # Label di atas keypad (posisi manual agar jarak visual konsisten)
-    label_security_pin = QLabel("Security Pin", dialog)
-    label_security_pin.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    label_security_pin.setStyleSheet(QSS_LABEL_STYLE + "font-family: 'SF Pro Display', 'SF Pro Text'; font-size: 12px; font-weight: 855; letter-spacing: 0.5px;")
+    label_security_pin = PremiumSecurityPinLabel("Security PIN", dialog)
     label_security_pin.setProperty("charging", "false")
+
+    def apply_security_pin_label_style(charging: bool) -> None:
+        label_security_pin.set_charging(charging)
+
+    apply_security_pin_label_style(False)
     
     # Entry PIN (label_pin_entry) langsung di bawah Security Pin
     label_pin_entry = PINDotWidget(dialog)
@@ -1750,16 +2085,17 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     # Define position_security_label function BEFORE calling it
     def position_security_label() -> None:
         label_security_pin.adjustSize()
-        security_vertical_offset = 36
+        security_vertical_offset = 32
         security_pin_top = unlock_icon.y() + unlock_icon.height() + 18 + security_vertical_offset
         security_pin_left = (dialog.width() - label_security_pin.width()) // 2
         label_security_pin.move(security_pin_left, security_pin_top)
-        # Tambah jarak label Security Pin ke dot PIN
-        pin_entry_top = security_pin_top + label_security_pin.height() + 8
+        # Target visual: bottom teks ke top lingkaran dot sekitar 22px.
+        # PINDotWidget punya padding vertikal internal sekitar 10.4px sebelum dot terlihat.
+        pin_entry_top = security_pin_top + label_security_pin.height() + 12
         pin_entry_left = (dialog.width() - label_pin_entry.width()) // 2
         label_pin_entry.move(pin_entry_left, pin_entry_top)
         # Kurangi jarak indikator PIN ke keypad agar lebih rapat
-        keypad_top = pin_entry_top + label_pin_entry.height() + 28
+        keypad_top = pin_entry_top + label_pin_entry.height() + 38
         keypad_left = (dialog.width() - pin_grid_container.width()) // 2
         pin_grid_container.move(keypad_left, keypad_top)
     
@@ -1789,6 +2125,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
         # Only update if state actually changed (prevents lag from redundant updates)
         if _charging_state['prev'] != charging:
             _charging_state['prev'] = charging
+            dialog.set_background_charging(charging)
             unlock_icon.set_charging(charging)
             label_pin_entry.set_charging(charging)
             
@@ -1803,7 +2140,9 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
             
             # Direct stylesheet property update (no unpolish/polish for faster response)
             label_security_pin.setProperty("charging", "true" if charging else "false")
-            label_security_pin.style().polish(label_security_pin)  # Only polish, not unpolish
+            apply_security_pin_label_style(charging)
+            label_security_pin.style().unpolish(label_security_pin)
+            label_security_pin.style().polish(label_security_pin)
             
             # Update label jam dengan metode set_charging untuk custom widget
             label_clock.set_charging(charging)
@@ -1813,7 +2152,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     
     charging_timer = QTimer(dialog)
     charging_timer.timeout.connect(update_unlock_icon_charging)
-    charging_timer.start(1000)  # update setiap 1000 ms (1 detik) - lebih efisien
+    charging_timer.start(200)
     update_unlock_icon_charging()  # update awal
 
 

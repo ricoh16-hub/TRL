@@ -50,6 +50,7 @@ class WiFiLogoWidget(QWidget):
         self._base_size = 28  # Perbesar ukuran widget Wi-Fi sekitar 30%
         self.setFixedSize(int(self._base_size), int(self._base_size))
         self._scale = 1.0
+        self._hovering = False
         self._scale_anim = None  # Ensure _scale_anim can be None
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -116,29 +117,31 @@ class WiFiLogoWidget(QWidget):
         self._scale_anim = anim
 
     def enterEvent(self, event: QEnterEvent):
-        self._animate_scale(getattr(self, '_scale', 1.0), 1.18)  # 1.18 sama seperti CustomLockIcon
-        # Efek glow biru terang saat hover
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect, QToolTip
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
-        shadow.setOffset(0, 0)
-        shadow.setColor(QColor(80, 180, 255, 180))
-        self.setGraphicsEffect(shadow)
+        self._hovering = True
+        self._animate_scale(getattr(self, '_scale', 1.0), 1.08)
+        from PySide6.QtWidgets import QToolTip
         # Ambil nama WiFi dari fungsi get_Wifi_info
         self.setToolTip(f"Wi-Fi : {self._wifi_name}")
         QToolTip.showText(self.mapToGlobal(self.rect().bottomLeft()), self.toolTip(), self)
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent):
-        self._animate_scale(getattr(self, '_scale', 1.18), 1.0)
-        # Kembalikan efek bayangan normal (atau hilangkan efek)
-        self.setGraphicsEffect(None)  # type: ignore
+        self._hovering = False
+        self._animate_scale(getattr(self, '_scale', 1.08), 1.0)
         super().leaveEvent(event)
 
     def paintEvent(self, event: QPaintEvent):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         W, H = self.width(), self.height()
+        if getattr(self, '_hovering', False):
+            glow = QRadialGradient(QPointF(W / 2, H / 2), min(W, H) * 0.50)
+            glow.setColorAt(0.0, QColor(80, 180, 255, 42))
+            glow.setColorAt(0.62, QColor(80, 180, 255, 16))
+            glow.setColorAt(1.0, QColor(80, 180, 255, 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(glow))
+            painter.drawEllipse(QRectF(2.0, 2.0, W - 4.0, H - 4.0))
         scale = getattr(self, '_scale', 1.0)
         painter.translate(W / 2 + 0.875, H / 2)
         painter.scale(scale, scale)
@@ -195,6 +198,7 @@ class BatteryLogoWidget(QWidget):
         self.battery_percent: int = 100
         self.charging: bool = False
         self._scale = 1.0
+        self._hovering = False
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         # Timer untuk update status baterai
@@ -240,6 +244,15 @@ class BatteryLogoWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        if getattr(self, '_hovering', False):
+            glow_color = QColor(80, 180, 255, 38) if self.charging else QColor(255, 255, 255, 22)
+            glow = QRadialGradient(QPointF(self.width() / 2, self.height() / 2), min(self.width(), self.height()) * 0.55)
+            glow.setColorAt(0.0, glow_color)
+            glow.setColorAt(0.72, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(6, glow_color.alpha() // 3)))
+            glow.setColorAt(1.0, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(glow))
+            painter.drawRoundedRect(QRectF(1.5, 1.5, self.width() - 3.0, self.height() - 3.0), 5.0, 5.0)
         # Geser semua gambar ke bawah 0.45 px
         painter.translate(self.width() / 2, self.height() / 2 + 0.45)
         painter.scale(self._scale, self._scale)
@@ -329,20 +342,15 @@ class BatteryLogoWidget(QWidget):
             painter.drawPolygon(points)
         # No restore needed; no save was called
     def enterEvent(self, event: QEnterEvent) -> None:
+        self._hovering = True
         self._scale_anim = QPropertyAnimation(self, b"scale")
         self._scale_anim.setStartValue(getattr(self, '_scale', 1.0))
-        self._scale_anim.setEndValue(1.18)
+        self._scale_anim.setEndValue(1.08)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._scale_anim.valueChanged.connect(self.update)
         self._scale_anim.start()
-        # Efek glow biru terang saat hover
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect, QToolTip
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
-        shadow.setOffset(0, 0)
-        shadow.setColor(QColor(80, 180, 255, 180))
-        self.setGraphicsEffect(shadow)
+        from PySide6.QtWidgets import QToolTip
         # Tooltip dinamis
         self.setToolTip(f"Status : {self.battery_percent}%")
         QToolTip.showText(self.mapToGlobal(self.rect().bottomLeft()), self.toolTip(), self)
@@ -350,15 +358,14 @@ class BatteryLogoWidget(QWidget):
 
     def leaveEvent(self, event: QEvent) -> None:
         try:
+            self._hovering = False
             self._scale_anim = QPropertyAnimation(self, b"scale")
-            self._scale_anim.setStartValue(getattr(self, '_scale', 1.18))
+            self._scale_anim.setStartValue(getattr(self, '_scale', 1.08))
             self._scale_anim.setEndValue(1.0)
             self._scale_anim.setDuration(220)
             self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
             self._scale_anim.valueChanged.connect(self.update)
             self._scale_anim.start()
-            # Kembalikan efek bayangan normal (atau hilangkan efek)
-            self.setGraphicsEffect(None)  # type: ignore
             super().leaveEvent(event)
         except KeyboardInterrupt:
             pass
@@ -373,18 +380,11 @@ class CustomLockIcon(QWidget):
         self._hovering = True
         self._scale_anim = QPropertyAnimation(self, b"scale")
         self._scale_anim.setStartValue(getattr(self, '_scale', 1.0))
-        self._scale_anim.setEndValue(1.18)
+        self._scale_anim.setEndValue(1.08)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._scale_anim.valueChanged.connect(self.update)
         self._scale_anim.start()
-        # Efek glow biru terang saat hover
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
-        shadow.setOffset(0, 0)
-        shadow.setColor(QColor(80, 180, 255, 180))
-        self.setGraphicsEffect(shadow)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         super().enterEvent(event)
     """Custom lock icon widget with iPhone-quality animations"""
@@ -439,8 +439,6 @@ class CustomLockIcon(QWidget):
         self.update()
         self.animate_to_normal()
         self.unsetCursor()
-        # Kembalikan efek bayangan normal (atau hilangkan efek)
-        self.setGraphicsEffect(None)  # type: ignore
         super().leaveEvent(event)
     # Duplikasi paintEvent dihapus, hanya satu paintEvent yang digunakan
 
@@ -459,7 +457,7 @@ class CustomLockIcon(QWidget):
 
     def animate_to_normal(self):
         self._scale_anim = QPropertyAnimation(self, b"scale")
-        self._scale_anim.setStartValue(getattr(self, '_scale', 1.311))
+        self._scale_anim.setStartValue(getattr(self, '_scale', 1.08))
         self._scale_anim.setEndValue(1.0)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -480,6 +478,15 @@ class CustomLockIcon(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         W, H = self.width(), self.height()
+        if getattr(self, '_hovering', False):
+            glow_color = QColor(80, 180, 255, 36) if self.charging else QColor(255, 255, 255, 20)
+            glow = QRadialGradient(QPointF(W / 2, 42.0), 25.0)
+            glow.setColorAt(0.0, glow_color)
+            glow.setColorAt(0.70, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(5, glow_color.alpha() // 3)))
+            glow.setColorAt(1.0, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(glow))
+            painter.drawEllipse(QRectF(10.0, 18.0, W - 20.0, H - 20.0))
         painter.translate(W/2, H/2)
         painter.scale(getattr(self, '_scale', 1.0), getattr(self, '_scale', 1.0))
         painter.translate(-W/2, -H/2)
@@ -1246,7 +1253,7 @@ class AuthenticLockScreen(QDialog):
         self.lock_icon = CustomLockIcon(QColor(255, 255, 255), parent=self)
         self.unlock_icon = CustomUnlockIcon(QColor(255, 255, 255), parent=self)
         self.lock_x = (self.width() - self.lock_icon.width()) // 2
-        lock_y = -10
+        lock_y = -4
         self.lock_icon.setParent(self)
         self.lock_icon.move(self.lock_x, int(lock_y + 4 + 0.6))
         self.lock_icon.show()
@@ -1297,6 +1304,7 @@ class AuthenticLockScreen(QDialog):
         self.battery_logo = BatteryLogoWidget(self)
         # --- Explicitly set battery widget reference in lock icon for charging sync ---
         self.lock_icon.battery_widget = self.battery_logo
+        top_bar_visual_bottom = 55
         # Geser battery agar tepi kiri battery tepat 3 px dari tepi kanan WiFi
         wifi_x = self.lock_x + self.lock_icon.width() + 3
         wifi_logo_width = 20  # default WiFiLogoWidget width
@@ -1308,14 +1316,15 @@ class AuthenticLockScreen(QDialog):
         # KeyCapWidget sinkron dengan battery_logo
         self.keycap = KeyCapWidget(self, text="A", battery_widget=self.battery_logo)
         keycap_x = self.lock_x - self.keycap.width() + 3
-        keycap_y = 25 - 10 + 5 + 3 + 0.5
+        keycap_y = top_bar_visual_bottom - self.keycap.height()
         self.keycap.move(keycap_x, int(round(keycap_y)))
         self.keycap.show()
         # Gear widget di kiri keycap, jarak harmonis 20px
         self.gear_widget = GearIconWidget(self)
         self.gear_widget.set_battery_widget(self.battery_logo)
         gear_x = keycap_x - self.gear_widget.width() - 8
-        gear_y = int(round(keycap_y + (self.keycap.height() - self.gear_widget.height()) / 2))
+        gear_visual_size = self.gear_widget.getGearSize()
+        gear_y = int(round(top_bar_visual_bottom - ((self.gear_widget.height() + gear_visual_size) / 2)))
         self.gear_widget.move(gear_x, gear_y)
         self.gear_widget.show()
 
@@ -1325,22 +1334,16 @@ class AuthenticLockScreen(QDialog):
         # Restore battery logo to visible top position
         # Calculate battery logo position just above red line
         # Use garis1_y from paintEvent and battery_logo.height() for placement
-        battery_y = 27  # Naikkan 2px agar sedikit lebih tinggi
+        battery_y = top_bar_visual_bottom - self.battery_logo.height()
         self.battery_logo.setParent(self)
         self.battery_logo.move(battery_x + 5, battery_y)  # geser kanan 2px lagi
         self.battery_logo.show()
 
         # WiFi logo widget baru di sebelah kanan gembok, jarak 30px
         wifi_x = self.lock_x + self.lock_icon.width() + 3
-        # Position WiFi logo so its bottom is 3 px above the red line
-        y_garis = 36.75 + 18 + 2
-        wifi_logo_height = 20  # px - ukuran lebih besar
-        # Turunkan logo WiFi sekitar 0.25 px (gunakan float, lalu dibulatkan saat move)
-        wifi_y = y_garis - wifi_logo_height - 3 - 2 + 0.25  # Sudah ada offset 0.25, tambahkan lagi 0.25
-        wifi_y += 1  # Turunkan 1 pixel penuh agar pasti terlihat
         self.wifi_logo = WiFiLogoWidget(self, battery_widget=self.battery_logo)
-        # Geser posisi widget logo WiFi 0.5 px ke kiri dan turunkan lagi 0.5px
-        self.wifi_logo.move(int(wifi_x - 4.35), int(round(wifi_y - 1.45 - 8 + 3 + 3 + 0.25 + 0.25 + 0.35 + 0.5 - 3)))  # geser kiri 1px lagi
+        wifi_y = top_bar_visual_bottom - self.wifi_logo.height()
+        self.wifi_logo.move(int(wifi_x - 4.35), int(round(wifi_y)))
         self.wifi_logo.show()
 
         # Hitung dan print jarak dari bawah widget logo WiFi ke garis merah
@@ -1623,14 +1626,9 @@ class KeyCapWidget(QWidget):
         self._scale_anim = anim
 
     def enterEvent(self, event: QEnterEvent) -> None:
-        self._animate_scale(getattr(self, '_scale', 1.0), 1.15)
-        # Efek glow biru terang saat hover
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect, QToolTip
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
-        shadow.setOffset(0, 0)
-        shadow.setColor(QColor(80, 180, 255, 180))
-        self.setGraphicsEffect(shadow)
+        self._hovering = True
+        self._animate_scale(getattr(self, '_scale', 1.0), 1.08)
+        from PySide6.QtWidgets import QToolTip
         # Tooltip dinamis: tampilkan status CapsLock dan Shift
         caps_status = "On" if self._capslock_on else "Off"
         shift_status = "On" if self._shift_on else "Off"
@@ -1640,9 +1638,8 @@ class KeyCapWidget(QWidget):
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent) -> None:
-        self._animate_scale(getattr(self, '_scale', 1.15), 1.0)
-        # Kembalikan efek bayangan normal (atau hilangkan efek)
-        self.setGraphicsEffect(None)  # type: ignore
+        self._hovering = False
+        self._animate_scale(getattr(self, '_scale', 1.08), 1.0)
         super().leaveEvent(event)
 
     def get_scale(self) -> float:
@@ -1668,6 +1665,7 @@ class KeyCapWidget(QWidget):
         self._timer.start(200)
         self._poll_keyboard_state()
         self.charging = False
+        self._hovering = False
         self._battery_widget: Optional[BatteryWidgetProtocol] = battery_widget
         self._charging_timer = QTimer(self)
         self._charging_timer.timeout.connect(self._sync_charging_status)
@@ -1714,6 +1712,15 @@ class KeyCapWidget(QWidget):
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if getattr(self, '_hovering', False):
+            glow_color = QColor(80, 180, 255, 34) if getattr(self, 'charging', False) else QColor(255, 255, 255, 18)
+            glow = QRadialGradient(QPointF(self.width() / 2, self.height() / 2), min(self.width(), self.height()) * 0.54)
+            glow.setColorAt(0.0, glow_color)
+            glow.setColorAt(0.70, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(5, glow_color.alpha() // 3)))
+            glow.setColorAt(1.0, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(glow))
+            painter.drawRoundedRect(QRectF(3.0, 3.0, self.width() - 6.0, self.height() - 6.0), 5.0, 5.0)
         scale = getattr(self, '_scale', 1.0)
         painter.translate(self.width() / 2, self.height() / 2)
         painter.scale(scale, scale)
@@ -1890,12 +1897,7 @@ class GearIconWidget(QWidget):
         self._hovering = False
         self.rotation_duration = rotation_duration
         self.rotation_direction = rotation_direction
-        # Tambahkan efek bayangan
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(8)
-        shadow.setOffset(2, 2)
-        shadow.setColor(QColor(80, 80, 80, 120))
-        self.setGraphicsEffectOnce(shadow)
+        # Hover/idle effect is painted inside the widget to avoid translucent-window dirty regions.
 
     def get_rotation(self) -> float:
         return getattr(self, '_rotation', 0.0)
@@ -1921,7 +1923,7 @@ class GearIconWidget(QWidget):
         if not self._hovering:
             self._hovering = True
             self.gearHovered.emit()
-        self._animate_scale(getattr(self, '_scale', 1.0), 1.18)
+        self._animate_scale(getattr(self, '_scale', 1.0), 1.10)
         # Tooltip dinamis seperti BatteryLogoWidget
         self.setToolTip("Setting")
         from PySide6.QtWidgets import QToolTip
@@ -1929,39 +1931,23 @@ class GearIconWidget(QWidget):
         # Animasi rotasi saat hover
         self._rotation_anim = QPropertyAnimation(self, b"rotation")
         self._rotation_anim.setStartValue(getattr(self, '_rotation', 0.0))
-        self._rotation_anim.setEndValue(getattr(self, '_rotation', 0.0) + 360.0 * self.rotation_direction)
-        self._rotation_anim.setDuration(self.rotation_duration)
+        self._rotation_anim.setEndValue(getattr(self, '_rotation', 0.0) + 90.0 * self.rotation_direction)
+        self._rotation_anim.setDuration(260)
         self._rotation_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._rotation_anim.valueChanged.connect(self.update)
         self._rotation_anim.start()
-        self._rotation_anim.setLoopCount(-1)
-        self._rotation_anim.setEasingCurve(QEasingCurve.Type.Linear)
-        self._rotation_anim.valueChanged.connect(self.update)
-        self._rotation_anim.start()
-        # Efek glow saat hover
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
-        shadow.setOffset(0, 0)
-        shadow.setColor(QColor(80, 180, 255, 180))
-        self.setGraphicsEffectOnce(shadow)
         super(GearIconWidget, self).enterEvent(event)
 
     def leaveEvent(self, event: QEvent) -> None:
         if self._hovering:
             self._hovering = False
             self.gearUnhovered.emit()
-        self._animate_scale(getattr(self, '_scale', 1.18), 1.0)
+        self._animate_scale(getattr(self, '_scale', 1.10), 1.0)
         # Hilangkan tooltip saat leave
         self.setToolTip("")
         # Stop animasi rotasi saat leave
         if hasattr(self, '_rotation_anim'):
             self._rotation_anim.stop()
-        # Kembalikan efek bayangan normal
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(8)
-        shadow.setOffset(2, 2)
-        shadow.setColor(QColor(80, 80, 80, 120))
-        self.setGraphicsEffectOnce(shadow)
         super(GearIconWidget, self).leaveEvent(event)
 
     def getGearSize(self):
@@ -1980,7 +1966,15 @@ class GearIconWidget(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         center_x = self.width() / 2
         center_y = self.height() / 2
-        # ...existing code...
+        if getattr(self, '_hovering', False):
+            glow_color = QColor(80, 180, 255, 36) if getattr(self, 'charging', False) else QColor(255, 255, 255, 20)
+            glow = QRadialGradient(QPointF(center_x, center_y), min(self.width(), self.height()) * 0.45)
+            glow.setColorAt(0.0, glow_color)
+            glow.setColorAt(0.72, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(5, glow_color.alpha() // 3)))
+            glow.setColorAt(1.0, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(glow))
+            painter.drawEllipse(QRectF(5.0, 5.0, self.width() - 10.0, self.height() - 10.0))
         # Gear logo
         painter.save()
         painter.translate(center_x, center_y)
@@ -1992,7 +1986,6 @@ class GearIconWidget(QWidget):
         painter.setBrush(brush)
         painter.drawPath(path)
         # Draw mid-circle as a filled semi-transparent gray ring (tidak berubah saat charging)
-        from PySide6.QtCore import QRectF
         from PySide6.QtGui import QPainterPath
         gear_d = float(self._size)
         r_outer = gear_d / 2
