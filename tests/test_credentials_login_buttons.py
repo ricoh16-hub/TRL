@@ -49,6 +49,10 @@ def test_action_buttons_use_non_charging_palette() -> None:
     assert submit_btn._custom_border.alpha() == 108  # type: ignore[attr-defined]
     assert cancel_btn._custom_text_color.name().lower() == "#ffffff"  # type: ignore[attr-defined]
     assert submit_btn._custom_text_color.name().lower() == "#ffffff"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_premium_surface is True  # type: ignore[attr-defined]
+    assert submit_btn._custom_premium_surface is True  # type: ignore[attr-defined]
+    assert cancel_btn._custom_text_shadow_color is not None  # type: ignore[attr-defined]
+    assert submit_btn._custom_text_shadow_color is not None  # type: ignore[attr-defined]
     assert cancel_btn.graphicsEffect() is not None
     assert submit_btn.graphicsEffect() is not None
 
@@ -78,6 +82,10 @@ def test_action_buttons_use_charging_palette() -> None:
     assert submit_btn._custom_border.alpha() == 132  # type: ignore[attr-defined]
     assert cancel_btn._custom_text_color.name().lower() == "#f7fcff"  # type: ignore[attr-defined]
     assert submit_btn._custom_text_color.name().lower() == "#f7fcff"  # type: ignore[attr-defined]
+    assert cancel_btn._custom_premium_surface is True  # type: ignore[attr-defined]
+    assert submit_btn._custom_premium_surface is True  # type: ignore[attr-defined]
+    assert cancel_btn._custom_text_shadow_color is not None  # type: ignore[attr-defined]
+    assert submit_btn._custom_text_shadow_color is not None  # type: ignore[attr-defined]
 
 
 def test_credentials_warning_dialog_matches_card_width() -> None:

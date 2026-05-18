@@ -412,59 +412,130 @@ class CredentialsInputFocusFilter(QObject):
         return super().eventFilter(watched, event)
 
 
-# Modern almond-shaped eye icon with iris, pupil, and highlight
+# Modern stroke-only eye icon matching the field icon language.
 def _draw_eye_icon(
     size: int = 24,
-    iris_color: QColor = QColor(80, 180, 255),
-    pupil_color: QColor = QColor(30, 30, 30),
-    highlight_color: QColor = QColor(255, 255, 255),
+    color: QColor = QColor(244, 248, 255),
     crossed: bool = False,
-    outline_color: QColor = QColor(60, 60, 60)
 ) -> QPixmap:
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.transparent)  # type: ignore
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    # Almond (eye) outline
+    outline_color = QColor(color)
+    outline_color.setAlpha(232)
+    detail_color = QColor(color)
+    detail_color.setAlpha(244)
+
+    center = QPointF(size / 2, size / 2)
+
+    if crossed:
+        lid_color = QColor(color)
+        lid_color.setAlpha(228)
+        lid_gradient = QLinearGradient(size * 0.18, size * 0.49, size * 0.82, size * 0.49)
+        lid_edge = QColor(lid_color)
+        lid_edge.setAlpha(176)
+        lid_core = QColor(color)
+        lid_core.setAlpha(242)
+        lid_gradient.setColorAt(0.0, lid_edge)
+        lid_gradient.setColorAt(0.50, lid_core)
+        lid_gradient.setColorAt(1.0, lid_edge)
+        lid_pen = QPen(QBrush(lid_gradient), 1.42)
+        lid_pen.setCosmetic(True)
+        lid_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        lid_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(lid_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+        lid = QPainterPath()
+        lid.moveTo(size * 0.18, size * 0.49)
+        lid.cubicTo(size * 0.34, size * 0.66, size * 0.66, size * 0.66, size * 0.82, size * 0.49)
+        painter.drawPath(lid)
+
+        lash_gradient = QLinearGradient(size * 0.25, size * 0.59, size * 0.75, size * 0.80)
+        lash_edge = QColor(color)
+        lash_edge.setAlpha(108)
+        lash_core = QColor(color)
+        lash_core.setAlpha(168)
+        lash_gradient.setColorAt(0.0, lash_edge)
+        lash_gradient.setColorAt(0.50, lash_core)
+        lash_gradient.setColorAt(1.0, lash_edge)
+        lash_pen = QPen(QBrush(lash_gradient), 0.54)
+        lash_pen.setCosmetic(True)
+        lash_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        lash_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(lash_pen)
+        left_lash = QPainterPath()
+        left_lash.moveTo(size * 0.34, size * 0.59)
+        left_lash.cubicTo(size * 0.30, size * 0.65, size * 0.28, size * 0.70, size * 0.25, size * 0.76)
+        painter.drawPath(left_lash)
+        center_lash = QPainterPath()
+        center_lash.moveTo(size * 0.50, size * 0.64)
+        center_lash.cubicTo(size * 0.50, size * 0.69, size * 0.50, size * 0.74, size * 0.50, size * 0.80)
+        painter.drawPath(center_lash)
+        right_lash = QPainterPath()
+        right_lash.moveTo(size * 0.66, size * 0.59)
+        right_lash.cubicTo(size * 0.70, size * 0.65, size * 0.72, size * 0.70, size * 0.75, size * 0.76)
+        painter.drawPath(right_lash)
+        painter.end()
+        return pixmap
+
     outline_pen = QPen(outline_color, 1.5)
+    outline_pen.setCosmetic(True)
+    outline_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    outline_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     painter.setPen(outline_pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
     path = QPainterPath()
-    margin = size * 0.13
-    path.moveTo(margin, size // 2)
-    path.quadTo(size // 2, margin, size - margin, size // 2)
-    path.quadTo(size // 2, size - margin, margin, size // 2)
+    margin = size * 0.08
+    top_curve_y = size * 0.16
+    bottom_curve_y = size * 0.84
+    path.moveTo(margin, center.y())
+    path.cubicTo(size * 0.26, top_curve_y, size * 0.74, top_curve_y, size - margin, center.y())
+    path.cubicTo(size * 0.74, bottom_curve_y, size * 0.26, bottom_curve_y, margin, center.y())
     painter.drawPath(path)
 
-    # Pupil dan highlight selalu digambar, baik mata terbuka maupun tertutup
-    center = (size / 2, size / 2)
-    pupil_radius = size * 0.10
+    iris_color = QColor(color)
+    iris_color.setAlpha(214)
+    iris_pen = QPen(iris_color, 1.28)
+    iris_pen.setCosmetic(True)
+    iris_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    iris_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    iris_radius = size * 0.18
+    painter.setPen(iris_pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.drawEllipse(
+        QRectF(
+            center.x() - iris_radius,
+            center.y() - iris_radius,
+            iris_radius * 2,
+            iris_radius * 2,
+        )
+    )
+    pupil_radius = size * 0.075
     painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(QBrush(pupil_color))
+    painter.setBrush(QBrush(detail_color))
     painter.drawEllipse(
-        int(center[0] - pupil_radius),
-        int(center[1] - pupil_radius),
-        int(pupil_radius * 2),
-        int(pupil_radius * 2)
+        QRectF(
+            center.x() - pupil_radius,
+            center.y() - pupil_radius,
+            pupil_radius * 2,
+            pupil_radius * 2,
+        )
     )
-
-    highlight_w = size * 0.08
-    highlight_h = size * 0.04
-    painter.setBrush(QBrush(highlight_color))
+    sparkle_color = QColor(255, 255, 255, 216)
+    sparkle_radius = max(0.75, size * 0.035)
+    sparkle_center = QPointF(center.x() - size * 0.055, center.y() - size * 0.060)
+    painter.setBrush(QBrush(sparkle_color))
     painter.drawEllipse(
-        int(center[0] - pupil_radius * 0.5),
-        int(center[1] - pupil_radius * 0.5),
-        int(highlight_w),
-        int(highlight_h)
+        QRectF(
+            sparkle_center.x() - sparkle_radius,
+            sparkle_center.y() - sparkle_radius,
+            sparkle_radius * 2,
+            sparkle_radius * 2,
+        )
     )
-
-    if crossed:
-        # Mata tertutup: tambahkan garis miring (backslash) dari kiri atas ke kanan bawah
-        slash_pen = QPen(outline_color, 1.5)
-        painter.setPen(slash_pen)
-        margin = size * 0.13
-        painter.drawLine(int(margin), int(margin), int(size - margin), int(size - margin))
     painter.end()
     return pixmap
 
@@ -553,30 +624,27 @@ def _draw_check_icon(size: int, color: QColor, charging: bool = False) -> QPixma
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    glow_color = QColor(80, 180, 255, 34) if charging else QColor(255, 255, 255, 20)
-    glow = QRadialGradient(QPointF(size / 2, size / 2), size * 0.52)
-    glow.setColorAt(0.0, glow_color)
-    glow.setColorAt(0.72, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(5, glow_color.alpha() // 3)))
-    glow.setColorAt(1.0, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), 0))
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(QBrush(glow))
-    painter.drawEllipse(QRectF(1.0, 1.0, size - 2.0, size - 2.0))
+    ring_rect = QRectF(size * 0.18, size * 0.18, size * 0.64, size * 0.64)
+    if charging:
+        ring_color = QColor("#DDF7FF")
+        ring_color.setAlpha(214)
+        check_color = QColor("#FFFFFF")
+        check_color.setAlpha(246)
+    else:
+        ring_color = QColor("#F4F8FF")
+        ring_color.setAlpha(210)
+        check_color = QColor("#FFFFFF")
+        check_color.setAlpha(242)
 
-    ring_rect = QRectF(size * 0.15, size * 0.15, size * 0.70, size * 0.70)
-    ring_alpha = 132 if charging else 106
-    ring_color = QColor(color)
-    ring_color.setAlpha(ring_alpha)
-    painter.setBrush(QColor(color.red(), color.green(), color.blue(), 26 if charging else 18))
-    pen = QPen(ring_color, 1.05)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    pen = QPen(ring_color, 1.15)
     pen.setCosmetic(True)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     painter.setPen(pen)
     painter.drawEllipse(ring_rect)
 
-    check_color = QColor(color)
-    check_color.setAlpha(238 if charging else 224)
-    check_pen = QPen(check_color, 1.55)
+    check_pen = QPen(check_color, 1.42)
     check_pen.setCosmetic(True)
     check_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     check_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -623,6 +691,8 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         cancel_btn._custom_hover_gradient = cancel_hover_gradient  # type: ignore[attr-defined]
         cancel_btn._custom_border = cancel_border  # type: ignore[attr-defined]
         cancel_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
+        cancel_btn._custom_premium_surface = True  # type: ignore[attr-defined]
+        cancel_btn._custom_text_shadow_color = QColor(0, 0, 0, 70)  # type: ignore[attr-defined]
 
         submit_btn._custom_bg = None  # type: ignore[attr-defined]
         submit_btn._custom_hover_bg = None  # type: ignore[attr-defined]
@@ -630,6 +700,8 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         submit_btn._custom_hover_gradient = submit_hover_gradient  # type: ignore[attr-defined]
         submit_btn._custom_border = submit_border  # type: ignore[attr-defined]
         submit_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
+        submit_btn._custom_premium_surface = True  # type: ignore[attr-defined]
+        submit_btn._custom_text_shadow_color = QColor(0, 24, 42, 88)  # type: ignore[attr-defined]
 
         _set_button_shadow(cancel_btn, QColor(0, 0, 0, 44), 10, 2)
         _set_button_shadow(submit_btn, QColor(80, 180, 255, 58), 13, 2)
@@ -648,6 +720,8 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         cancel_btn._custom_hover_gradient = cancel_hover_gradient  # type: ignore[attr-defined]
         cancel_btn._custom_border = cancel_border  # type: ignore[attr-defined]
         cancel_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
+        cancel_btn._custom_premium_surface = True  # type: ignore[attr-defined]
+        cancel_btn._custom_text_shadow_color = QColor(0, 0, 0, 78)  # type: ignore[attr-defined]
 
         submit_btn._custom_bg = None  # type: ignore[attr-defined]
         submit_btn._custom_hover_bg = None  # type: ignore[attr-defined]
@@ -655,6 +729,8 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         submit_btn._custom_hover_gradient = submit_hover_gradient  # type: ignore[attr-defined]
         submit_btn._custom_border = submit_border  # type: ignore[attr-defined]
         submit_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
+        submit_btn._custom_premium_surface = True  # type: ignore[attr-defined]
+        submit_btn._custom_text_shadow_color = QColor(0, 0, 0, 84)  # type: ignore[attr-defined]
 
         _set_button_shadow(cancel_btn, QColor(0, 0, 0, 42), 10, 2)
         _set_button_shadow(submit_btn, QColor(255, 255, 255, 42), 13, 2)
@@ -1561,9 +1637,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     username_label.setObjectName("fieldLabel")
     # Efek glow awal
     username_glow = QGraphicsDropShadowEffect(username_label)
-    username_glow.setBlurRadius(8)
+    username_glow.setBlurRadius(5)
     username_glow.setOffset(0, 0)
-    username_glow.setColor(QColor(255, 255, 255, 58))
+    username_glow.setColor(QColor(255, 255, 255, 32))
     username_label.setGraphicsEffect(username_glow)
     card_layout.addWidget(username_label)
     card_layout.addSpacing(8)  # Tambahkan jarak 8px antara label dan textbox user
@@ -1600,9 +1676,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     password_label.setObjectName("fieldLabel")
     # Efek glow awal
     password_glow = QGraphicsDropShadowEffect(password_label)
-    password_glow.setBlurRadius(8)
+    password_glow.setBlurRadius(5)
     password_glow.setOffset(0, 0)
-    password_glow.setColor(QColor(255, 255, 255, 58))
+    password_glow.setColor(QColor(255, 255, 255, 32))
     password_label.setGraphicsEffect(password_glow)
     card_layout.addWidget(password_label)
     card_layout.addSpacing(8)  # Tambahkan jarak 8px antara label dan textbox password
@@ -1632,12 +1708,12 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     toggle_password_btn = QToolButton()
     toggle_password_btn.setObjectName("togglePassword")
-    toggle_password_btn.setIconSize(QSize(16, 16))
+    toggle_password_btn.setIconSize(QSize(18, 18))
     # Set initial outline color (non-charging)
     # Outline color non-charging disamakan dengan aksen card panel
     # Set ikon awal: crossed=True karena mode Password (karakter disembunyikan)
-    # Set ikon awal dengan pupil_color konsisten dengan aksen card panel
-    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#F4F8FF"), pupil_color=QColor("#F4F8FF"), crossed=True, outline_color=QColor("#F4F8FF"))))
+    # Set ikon awal stroke-only agar konsisten dengan ikon field.
+    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(18, QColor("#F4F8FF"), crossed=True)))
     toggle_password_btn.setCursor(Qt.CursorShape.PointingHandCursor)
     toggle_password_btn.installEventFilter(CredentialsInputFocusFilter(password_row))
 
@@ -1661,21 +1737,21 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     status_row.setSpacing(8)
     status_icon = QLabel()
     status_icon.setObjectName("statusIcon")
-    _set_icon(status_icon, _draw_check_icon(19, QColor("#FFFFFF"), False))
+    _set_icon(status_icon, _draw_check_icon(18, QColor("#FFFFFF"), False))
     # Tambahkan efek glow putih pada status_icon agar konsisten dengan status_text
     status_icon_glow = QGraphicsDropShadowEffect(status_icon)
-    status_icon_glow.setBlurRadius(12)
+    status_icon_glow.setBlurRadius(5)
     status_icon_glow.setOffset(0, 0)
-    status_icon_glow.setColor(QColor(255, 255, 255, 76))
+    status_icon_glow.setColor(QColor(255, 255, 255, 28))
     status_icon.setGraphicsEffect(status_icon_glow)
     status_text = QLabel(f"PIN verified <span style='font-size:12px; font-weight:650;'>{getattr(pin_user, 'username', '-')}</span>")
     status_text.setObjectName("statusText")
     status_text.setTextFormat(Qt.TextFormat.RichText)
     # Efek glow awal
     status_glow = QGraphicsDropShadowEffect(status_text)
-    status_glow.setBlurRadius(8)
+    status_glow.setBlurRadius(5)
     status_glow.setOffset(0, 0)
-    status_glow.setColor(QColor(255, 255, 255, 54))
+    status_glow.setColor(QColor(255, 255, 255, 30))
     status_text.setGraphicsEffect(status_glow)
     status_row.addWidget(status_icon)
     status_row.addWidget(status_text)
@@ -1715,11 +1791,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         password_input.setEchoMode(QLineEdit.EchoMode.Normal if is_hidden else QLineEdit.EchoMode.Password)
         # Ikuti warna outline dari status charging
         charging = bool(_charging_cache.get("prev"))
-        outline_color = QColor("#50B4FF") if charging else QColor("#F4F8FF")
-        pupil_color = QColor("#50B4FF") if charging else QColor("#F4F8FF")
         crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
-        eye_color = QColor("#50B4FF") if charging else QColor("#F4F8FF")
-        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
+        eye_color = QColor("#DDF7FF") if charging else QColor("#F4F8FF")
+        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(18, eye_color, crossed=crossed)))
 
     def on_submit() -> None:
         username = username_input.text().strip()
@@ -1758,7 +1832,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     submit_btn.clicked.connect(on_submit)
     cancel_btn.clicked.connect(dialog.reject)
 
-    # --- Charging state (mengikuti login.py: #50B4FF saat charging) ---
+    # --- Charging state: dark glass base with restrained cyan accents. ---
     try:
         from ui.battery_status import get_battery_info
     except ImportError:
@@ -1796,18 +1870,16 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             title_effect.setBlurRadius(12 if charging else 11)
             title_effect.setColor(QColor(103, 224, 255, 54) if charging else QColor(255, 255, 255, 42))
         icon_color = QColor("#DDF7FF") if charging else QColor("#F4F8FF")
-        check_color = QColor("#67E0FF") if charging else QColor("#FFFFFF")
+        check_color = QColor("#DDF7FF") if charging else QColor("#FFFFFF")
         eye_color = QColor("#DDF7FF") if charging else QColor("#F4F8FF")
 
         # Update icon colors
         _set_icon(username_icon, _draw_user_icon(18, icon_color))
         _set_icon(password_icon, _draw_lock_icon(18, icon_color))
-        _set_icon(status_icon, _draw_check_icon(19, check_color, charging))
-        outline_color = QColor("#DDF7FF") if charging else QColor("#F4F8FF")
-        pupil_color = QColor("#67E0FF") if charging else QColor("#F4F8FF")
+        _set_icon(status_icon, _draw_check_icon(18, check_color, charging))
         # Ikuti status visibilitas password
         crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
-        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
+        toggle_password_btn.setIcon(QIcon(_draw_eye_icon(18, eye_color, crossed=crossed)))
 
         # Inline styles must also switch color; otherwise they override the dialog QSS.
         username_row.setProperty("charging", charging)
@@ -1828,15 +1900,15 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
         # Update glow/outline effect
         glow_color = QColor("#67E0FF" if charging else "#FFFFFF")
-        glow_alpha = 74 if charging else 58
+        glow_alpha = 50 if charging else 32
         for eff in [username_label.graphicsEffect(), password_label.graphicsEffect(), status_text.graphicsEffect()]:
             if isinstance(eff, QGraphicsDropShadowEffect):
                 eff.setColor(QColor(glow_color.red(), glow_color.green(), glow_color.blue(), glow_alpha))
-                eff.setBlurRadius(12 if charging else 8)
+                eff.setBlurRadius(7 if charging else 5)
 
         if isinstance(status_icon_glow, QGraphicsDropShadowEffect):
-            status_icon_glow.setBlurRadius(12 if charging else 9)
-            status_icon_glow.setColor(QColor(103, 224, 255, 70) if charging else QColor(255, 255, 255, 58))
+            status_icon_glow.setBlurRadius(5 if charging else 5)
+            status_icon_glow.setColor(QColor(221, 247, 255, 30) if charging else QColor(255, 255, 255, 28))
 
         for eff in (username_row_shadow, password_row_shadow):
             focused = eff.parent() is not None and bool(getattr(eff.parent(), "property", lambda _: False)("focused"))
