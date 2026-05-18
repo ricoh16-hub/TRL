@@ -1,13 +1,27 @@
+import logging
 import os
 from typing import Optional
 
-from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, QSize, Qt, QRectF, QTimer
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QBrush
+from PySide6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPointF, QPropertyAnimation, QSize, Qt, QRectF, QTimer
+from PySide6.QtGui import (
+    QColor,
+    QIcon,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPaintEvent,
+    QPen,
+    QPixmap,
+    QBrush,
+    QRadialGradient,
+)
 from PySide6.QtWidgets import (
     QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QToolButton, QVBoxLayout, QWidget
 )
 from PySide6.QtWidgets import QGraphicsDropShadowEffect
-from PySide6.QtGui import QColor
+
+logger = logging.getLogger(__name__)
+CREDENTIALS_FONT_STACK = "'Segoe UI', 'Arial', sans-serif"
 
 try:
     from ui.custom_button import CustomButton
@@ -23,6 +37,175 @@ try:
     from database.models import User
 except ImportError:
     from src.database.models import User
+
+
+class PremiumCredentialsDialog(QDialog):
+    """Credentials dialog background painted with the same layered glass language as lock.py."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._background_corner_radius = 22.0
+        self._background_charging = False
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+
+    def set_charging_background(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._background_charging == charging:
+            return
+        self._background_charging = charging
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.fillRect(event.rect(), Qt.GlobalColor.transparent)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+
+        border_inset = 1.0
+        rect = QRectF(
+            border_inset,
+            border_inset,
+            self.width() - (border_inset * 2.0),
+            self.height() - (border_inset * 2.0),
+        )
+        radius = max(0.0, self._background_corner_radius - border_inset)
+        charging = bool(getattr(self, "_background_charging", False))
+
+        if charging:
+            top_color = QColor(18, 30, 43)
+            mid_color = QColor(31, 47, 64)
+            bottom_color = QColor(20, 36, 55)
+            accent_top = QColor(103, 224, 255, 34)
+            accent_bottom = QColor(55, 138, 238, 18)
+            focus_color = QColor(103, 224, 255, 30)
+            inner_highlight = QColor(232, 250, 255, 34)
+            lower_shadow = QColor(4, 16, 30, 44)
+            lower_accent_color = QColor(55, 138, 238, 16)
+            edge_shadow_color = QColor(2, 12, 24, 26)
+            inner_border_color = QColor(232, 250, 255, 28)
+            border_top_color = QColor(232, 250, 255, 54)
+            border_mid_color = QColor(103, 224, 255, 64)
+            border_bottom_color = QColor(55, 138, 238, 26)
+        else:
+            top_color = QColor(26, 32, 41)
+            mid_color = QColor(41, 49, 60)
+            bottom_color = QColor(31, 39, 50)
+            accent_top = QColor(255, 255, 255, 18)
+            accent_bottom = QColor(205, 216, 228, 10)
+            focus_color = QColor(255, 255, 255, 20)
+            inner_highlight = QColor(255, 255, 255, 27)
+            lower_shadow = QColor(0, 0, 0, 42)
+            lower_accent_color = QColor(205, 216, 228, 9)
+            edge_shadow_color = QColor(0, 0, 0, 22)
+            inner_border_color = QColor(255, 255, 255, 24)
+            border_top_color = QColor(255, 255, 255, 44)
+            border_mid_color = QColor(255, 255, 255, 45)
+            border_bottom_color = QColor(205, 216, 228, 20)
+
+        background = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        background.setColorAt(0.0, top_color)
+        background.setColorAt(0.48, mid_color)
+        background.setColorAt(1.0, bottom_color)
+
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(background))
+        painter.drawPath(path)
+
+        painter.setClipPath(path)
+        accent = QLinearGradient(rect.left(), rect.top(), rect.right(), rect.bottom())
+        accent.setColorAt(0.0, accent_top)
+        accent.setColorAt(
+            0.58,
+            QColor(accent_top.red(), accent_top.green(), accent_top.blue(), max(4, accent_top.alpha() // 3)),
+        )
+        accent.setColorAt(1.0, accent_bottom)
+        painter.setBrush(QBrush(accent))
+        painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
+        focus_glow = QRadialGradient(QPointF(rect.center().x(), rect.top() + 172.0), 190.0)
+        focus_glow.setColorAt(0.0, focus_color)
+        focus_glow.setColorAt(
+            0.46,
+            QColor(focus_color.red(), focus_color.green(), focus_color.blue(), max(3, focus_color.alpha() // 3)),
+        )
+        focus_glow.setColorAt(1.0, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), 0))
+        painter.setBrush(QBrush(focus_glow))
+        painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
+        top_highlight = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.top() + 18.0)
+        top_highlight.setColorAt(0.0, inner_highlight)
+        top_highlight.setColorAt(1.0, QColor(inner_highlight.red(), inner_highlight.green(), inner_highlight.blue(), 0))
+        painter.setBrush(QBrush(top_highlight))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        lower_accent = QRadialGradient(QPointF(rect.center().x(), rect.bottom() - 4.0), 118.0)
+        lower_accent.setColorAt(0.0, lower_accent_color)
+        lower_accent.setColorAt(
+            0.52,
+            QColor(
+                lower_accent_color.red(),
+                lower_accent_color.green(),
+                lower_accent_color.blue(),
+                max(2, lower_accent_color.alpha() // 3),
+            ),
+        )
+        lower_accent.setColorAt(
+            1.0,
+            QColor(lower_accent_color.red(), lower_accent_color.green(), lower_accent_color.blue(), 0),
+        )
+        painter.setBrush(QBrush(lower_accent))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        edge_shading = QLinearGradient(rect.left(), rect.center().y(), rect.right(), rect.center().y())
+        edge_shading.setColorAt(0.0, edge_shadow_color)
+        edge_shading.setColorAt(0.18, QColor(edge_shadow_color.red(), edge_shadow_color.green(), edge_shadow_color.blue(), 0))
+        edge_shading.setColorAt(0.82, QColor(edge_shadow_color.red(), edge_shadow_color.green(), edge_shadow_color.blue(), 0))
+        edge_shading.setColorAt(1.0, edge_shadow_color)
+        painter.setBrush(QBrush(edge_shading))
+        painter.drawRoundedRect(rect.adjusted(1.1, 1.1, -1.1, -1.1), radius - 1.1, radius - 1.1)
+
+        bottom_depth = QLinearGradient(rect.left(), rect.bottom() - 30.0, rect.left(), rect.bottom())
+        bottom_depth.setColorAt(0.0, QColor(lower_shadow.red(), lower_shadow.green(), lower_shadow.blue(), 0))
+        bottom_depth.setColorAt(1.0, lower_shadow)
+        painter.setBrush(QBrush(bottom_depth))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        painter.setClipping(False)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        inner_rect = rect.adjusted(1.05, 1.05, -1.05, -1.05)
+        inner_pen = QPen(inner_border_color, 0.65)
+        inner_pen.setCosmetic(True)
+        painter.setPen(inner_pen)
+        painter.drawRoundedRect(inner_rect, radius - 1.05, radius - 1.05)
+
+        border_gradient = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        border_gradient.setColorAt(0.0, border_top_color)
+        border_gradient.setColorAt(0.46, border_mid_color)
+        border_gradient.setColorAt(1.0, border_bottom_color)
+        border_pen = QPen(QBrush(border_gradient), 1.0)
+        border_pen.setCosmetic(True)
+        painter.setPen(border_pen)
+        painter.drawRoundedRect(rect, radius, radius)
+        painter.end()
+
+
+class CredentialsInputFocusFilter(QObject):
+    def __init__(self, row: QFrame) -> None:
+        super().__init__(row)
+        self._row = row
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() in (QEvent.Type.FocusIn, QEvent.Type.FocusOut):
+            self._row.setProperty("focused", event.type() == QEvent.Type.FocusIn)
+            self._row.style().unpolish(self._row)
+            self._row.style().polish(self._row)
+            self._row.update()
+        return super().eventFilter(watched, event)
 
 
 # Modern almond-shaped eye icon with iris, pupil, and highlight
@@ -205,10 +388,10 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
     if charging:
         # Buat kedua tombol seragam dengan gradien dan warna yang sama
         common_gradient = (QColor("#1F6FAF"), QColor("#43A8E8"))
-        common_hover_gradient = (QColor("#2B83C9"), QColor("#5BBEFF"))
-        common_border = QColor(105, 195, 255, 165)
+        common_hover_gradient = (QColor("#2B83C9"), QColor("#68C9FF"))
+        common_border = QColor(103, 224, 255, 172)
         common_text_color = QColor("#FFFFFF")
-        common_shadow = QColor(80, 180, 255, 88)
+        common_shadow = QColor(80, 180, 255, 92)
 
         cancel_btn._custom_bg = None  # type: ignore[attr-defined]
         cancel_btn._custom_hover_bg = None  # type: ignore[attr-defined]
@@ -227,11 +410,11 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         _set_button_shadow(cancel_btn, common_shadow, 13, 2)
         _set_button_shadow(submit_btn, common_shadow, 13, 2)
     else:
-        common_gradient = (QColor("#164F63"), QColor("#248FA0"))
-        common_hover_gradient = (QColor("#1E657A"), QColor("#35D6E7"))
-        common_border = QColor(53, 214, 231, 145)
-        common_text_color = QColor("#FFFFFF")
-        common_shadow = QColor(53, 214, 231, 70)
+        common_gradient = (QColor("#F6F8FB"), QColor("#FFFFFF"))
+        common_hover_gradient = (QColor("#FFFFFF"), QColor("#F0F5FA"))
+        common_border = QColor(255, 255, 255, 150)
+        common_text_color = QColor("#09111D")
+        common_shadow = QColor(255, 255, 255, 58)
 
         cancel_btn._custom_bg = None  # type: ignore[attr-defined]
         cancel_btn._custom_hover_bg = None  # type: ignore[attr-defined]
@@ -535,7 +718,7 @@ class CredentialsWarningDialog(QDialog):
                 font-size: 11px;
                 font-weight: 700;
                 letter-spacing: 0.2px;
-                font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+                font-family: 'Segoe UI', Arial, sans-serif;
             }}
             QToolButton#warningClose {{
                 border: 1px solid rgba(255, 255, 255, 0.00);
@@ -554,12 +737,12 @@ class CredentialsWarningDialog(QDialog):
                 font-size: 14px;
                 font-weight: 800;
                 letter-spacing: 0.2px;
-                font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+                font-family: 'Segoe UI', Arial, sans-serif;
             }}
             QLabel#warningMessage {{
                 color: rgba({message_rgb}, {message_alpha});
                 font-size: 12px;
-                font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+                font-family: 'Segoe UI', Arial, sans-serif;
             }}
         """)
 
@@ -798,7 +981,7 @@ def _show_credentials_warning(
 
 def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[QWidget] = None) -> Optional[User]:
     """Step 2: username/password validation after successful PIN step."""
-    dialog = QDialog(parent)
+    dialog = PremiumCredentialsDialog(parent)
     dialog.setObjectName("credentialsDialog")
     dialog.setWindowTitle("Verifikasi Username & Password")
     dialog.setModal(True)
@@ -815,25 +998,21 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     _BASE_SHEET = """
         QDialog#credentialsDialog {{
-            background: qlineargradient(
-                x1:0, y1:0, x2:1, y2:1,
-                stop:0 {bg0},
-                stop:1 {bg1}
-            );
-            border-radius: 24px;
-            border: 1px solid rgba(255,255,255,0.18);
+            background: transparent;
+            border: none;
         }}
         QLabel {{
             color: #f4f8ff;
-            font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+            font-family: {font_stack};
             font-size: 13px;
         }}
         QFrame#cardPanel {{
             border: 1px solid {card_border};
-            border-radius: 20px;
+            border-radius: 19px;
             background: qlineargradient(
-                x1:0, y1:0, x2:1, y2:1,
+                x1:0, y1:0, x2:0, y2:1,
                 stop:0 {card_bg0},
+                stop:0.52 {card_bg_mid},
                 stop:1 {card_bg1}
             );
         }}
@@ -851,12 +1030,16 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             font-weight: 700;
             letter-spacing: 0.8px;
             color: {label_color};
-            font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+            font-family: {font_stack};
         }}
         QFrame#inputRow {{
             border: 1px solid {input_border};
             border-radius: 12px;
             background: {input_row_bg};
+        }}
+        QFrame#inputRow[focused="true"] {{
+            border: 1px solid {input_focus_border};
+            background: {input_focus_bg};
         }}
         QLabel#fieldIcon {{
             min-width: 24px;
@@ -868,10 +1051,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             background: transparent;
             padding: 0px 4px;
             font-size: 14px;
-            font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+            font-family: {font_stack};
         }}
         QLineEdit#fieldInput::placeholder {{
-            color: rgba(214, 228, 255, 0.42);
+            color: {placeholder_color};
         }}
         QToolButton#togglePassword {{
             border: none;
@@ -885,25 +1068,36 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         QLabel#statusText {{
             color: {status_color};
             font-size: 12px;
-            font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;
+            font-family: {font_stack};
         }}
     """
 
     # Samakan background utama dengan login.py (charging & tidak charging)
     _STYLE_NORMAL = _BASE_SHEET.format(
-        bg0="#222a36", bg1="#3a4a5c",
-        card_border="rgba(53, 214, 231, 0.42)",
-        card_bg0="#10263D", card_bg1="#24445F",
-        glow="rgba(53, 214, 231, 0.72)",
+        font_stack=CREDENTIALS_FONT_STACK,
+        card_border="rgba(255, 255, 255, 0.28)",
+        card_bg0="rgba(43, 53, 66, 0.82)",
+        card_bg_mid="rgba(35, 45, 58, 0.88)",
+        card_bg1="rgba(29, 38, 50, 0.90)",
+        glow="rgba(255, 255, 255, 0.54)",
         label_color="#FFFFFF",
-        input_border="rgba(53, 214, 231, 0.32)",
+        input_border="rgba(255, 255, 255, 0.24)",
+        input_focus_border="rgba(255, 255, 255, 0.40)",
         input_row_bg=(
             "qlineargradient("
-            "x1:0, y1:0, x2:1, y2:1, "
-            "stop:0 rgba(16, 38, 61, 0.70), "
-            "stop:1 rgba(36, 68, 95, 0.52)"
+            "x1:0, y1:0, x2:0, y2:1, "
+            "stop:0 rgba(30, 39, 53, 0.82), "
+            "stop:1 rgba(23, 31, 43, 0.70)"
             ")"
         ),
+        input_focus_bg=(
+            "qlineargradient("
+            "x1:0, y1:0, x2:0, y2:1, "
+            "stop:0 rgba(38, 49, 64, 0.92), "
+            "stop:1 rgba(27, 36, 49, 0.82)"
+            ")"
+        ),
+        placeholder_color="rgba(230, 237, 246, 0.42)",
         status_color="#FFFFFF",
         cancel_border="#D3D3D3",
         cancel_color="#333333",
@@ -913,13 +1107,30 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     )
 
     _STYLE_CHARGING = _BASE_SHEET.format(
-        bg0="#222a36", bg1="#3a4a5c",  # sama persis login.py
-        card_border="rgba(80, 180, 255, 0.55)",
-        card_bg0="rgba(8, 20, 65, 0.90)", card_bg1="rgba(16, 36, 98, 0.90)",
+        font_stack=CREDENTIALS_FONT_STACK,
+        card_border="rgba(103, 224, 255, 0.48)",
+        card_bg0="rgba(18, 42, 76, 0.86)",
+        card_bg_mid="rgba(20, 48, 88, 0.91)",
+        card_bg1="rgba(13, 31, 61, 0.92)",
         glow="rgba(80, 180, 255, 0.95)",
-        label_color="rgba(80, 180, 255, 0.90)",
-        input_border="rgba(80, 180, 255, 0.42)",
-        input_row_bg="rgba(18, 33, 83, 0.68)",
+        label_color="rgba(103, 224, 255, 0.94)",
+        input_border="rgba(103, 224, 255, 0.34)",
+        input_focus_border="rgba(103, 224, 255, 0.58)",
+        input_row_bg=(
+            "qlineargradient("
+            "x1:0, y1:0, x2:0, y2:1, "
+            "stop:0 rgba(19, 45, 83, 0.82), "
+            "stop:1 rgba(14, 31, 63, 0.74)"
+            ")"
+        ),
+        input_focus_bg=(
+            "qlineargradient("
+            "x1:0, y1:0, x2:0, y2:1, "
+            "stop:0 rgba(24, 58, 105, 0.90), "
+            "stop:1 rgba(16, 38, 77, 0.82)"
+            ")"
+        ),
+        placeholder_color="rgba(205, 232, 255, 0.48)",
         status_color="rgba(80, 200, 255, 0.90)",
         cancel_border="rgba(80, 180, 255, 0.40)",
         cancel_color="#50B4FF",
@@ -929,13 +1140,13 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     )
 
     _TITLE_NORMAL = (
-        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#35D6E7;'>"
-        "Secure <span style='color:#FFFFFF;'>Access</span> Point</p>"
-        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(53,214,231,0.82); font-weight:400;'>"
+        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0px; color:#FFFFFF;'>"
+        "Secure <span style='color:#6FA2FF;'>Access</span> Point</p>"
+        "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(230,237,246,0.76); font-weight:400;'>"
         "Enter your credentials to continue securely</p>"
     )
     _TITLE_CHARGING = (
-        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0.5px; color:#50B4FF;'>"
+        "<p style='margin:0; padding:0; font-size:22px; font-weight:700; letter-spacing:0px; color:#50B4FF;'>"
         "Secure <span style='color:#FFFFFF;'>Access</span> Point</p>"
         "<p style='margin:4px 0 0 0; padding:0; font-size:12px; color:rgba(80,180,255,0.88); font-weight:400;'>"
         "Enter your credentials to continue securely</p>"
@@ -954,9 +1165,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     title.setTextFormat(Qt.TextFormat.RichText)
     title.setAlignment(Qt.AlignmentFlag.AlignCenter)
     title_glow = QGraphicsDropShadowEffect(title)
-    title_glow.setBlurRadius(13)
+    title_glow.setBlurRadius(11)
     title_glow.setOffset(0, 0)
-    title_glow.setColor(QColor(255, 209, 102, 64))
+    title_glow.setColor(QColor(255, 255, 255, 42))
     title.setGraphicsEffect(title_glow)
     root_layout.addWidget(title)
     root_layout.addSpacing(20)
@@ -965,9 +1176,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     card.setObjectName("cardPanel")
     # Shadow utama menggunakan warna border card panel yang lebih kuat
     card_shadow = QGraphicsDropShadowEffect(card)
-    card_shadow.setBlurRadius(16)
-    card_shadow.setOffset(3, 4)
-    card_shadow.setColor(QColor(53, 214, 231, 105))
+    card_shadow.setBlurRadius(18)
+    card_shadow.setOffset(0, 8)
+    card_shadow.setColor(QColor(0, 0, 0, 85))
     card.setGraphicsEffect(card_shadow)
     card_layout = QVBoxLayout(card)
     card_layout.setContentsMargins(24, 18, 24, 22)
@@ -1069,27 +1280,34 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     username_label.setObjectName("fieldLabel")
     # Efek glow awal
     username_glow = QGraphicsDropShadowEffect(username_label)
-    username_glow.setBlurRadius(7)
+    username_glow.setBlurRadius(8)
     username_glow.setOffset(0, 0)
-    username_glow.setColor(QColor(53, 214, 231, 70))
+    username_glow.setColor(QColor(255, 255, 255, 58))
     username_label.setGraphicsEffect(username_glow)
     card_layout.addWidget(username_label)
     card_layout.addSpacing(8)  # Tambahkan jarak 8px antara label dan textbox user
 
     username_row = QFrame()
     username_row.setObjectName("inputRow")
+    username_row.setProperty("focused", False)
     username_row.setFixedHeight(41)
+    username_row_shadow = QGraphicsDropShadowEffect(username_row)
+    username_row_shadow.setBlurRadius(9)
+    username_row_shadow.setOffset(0, 2)
+    username_row_shadow.setColor(QColor(0, 0, 0, 34))
+    username_row.setGraphicsEffect(username_row_shadow)
     username_layout = QHBoxLayout(username_row)
     username_layout.setContentsMargins(14, 0, 14, 0)
     username_layout.setSpacing(10)
 
     username_icon = QLabel()
     username_icon.setObjectName("fieldIcon")
-    _set_icon(username_icon, _draw_user_icon(18, QColor("#35D6E7")))
+    _set_icon(username_icon, _draw_user_icon(18, QColor("#F4F8FF")))
 
     username_input = QLineEdit()
     username_input.setObjectName("fieldInput")
     username_input.setPlaceholderText("Enter your username")
+    username_input.installEventFilter(CredentialsInputFocusFilter(username_row))
 
     username_layout.addWidget(username_icon)
     username_layout.addWidget(username_input)
@@ -1101,28 +1319,35 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     password_label.setObjectName("fieldLabel")
     # Efek glow awal
     password_glow = QGraphicsDropShadowEffect(password_label)
-    password_glow.setBlurRadius(7)
+    password_glow.setBlurRadius(8)
     password_glow.setOffset(0, 0)
-    password_glow.setColor(QColor(53, 214, 231, 70))
+    password_glow.setColor(QColor(255, 255, 255, 58))
     password_label.setGraphicsEffect(password_glow)
     card_layout.addWidget(password_label)
     card_layout.addSpacing(8)  # Tambahkan jarak 8px antara label dan textbox password
 
     password_row = QFrame()
     password_row.setObjectName("inputRow")
+    password_row.setProperty("focused", False)
     password_row.setFixedHeight(41)
+    password_row_shadow = QGraphicsDropShadowEffect(password_row)
+    password_row_shadow.setBlurRadius(9)
+    password_row_shadow.setOffset(0, 2)
+    password_row_shadow.setColor(QColor(0, 0, 0, 34))
+    password_row.setGraphicsEffect(password_row_shadow)
     password_layout = QHBoxLayout(password_row)
     password_layout.setContentsMargins(14, 0, 14, 0)
     password_layout.setSpacing(10)
 
     password_icon = QLabel()
     password_icon.setObjectName("fieldIcon")
-    _set_icon(password_icon, _draw_lock_icon(18, QColor("#35D6E7")))
+    _set_icon(password_icon, _draw_lock_icon(18, QColor("#F4F8FF")))
 
     password_input = QLineEdit()
     password_input.setObjectName("fieldInput")
     password_input.setEchoMode(QLineEdit.EchoMode.Password)
     password_input.setPlaceholderText("Enter your password")
+    password_input.installEventFilter(CredentialsInputFocusFilter(password_row))
 
     toggle_password_btn = QToolButton()
     toggle_password_btn.setObjectName("togglePassword")
@@ -1131,8 +1356,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     # Outline color non-charging disamakan dengan aksen card panel
     # Set ikon awal: crossed=True karena mode Password (karakter disembunyikan)
     # Set ikon awal dengan pupil_color konsisten dengan aksen card panel
-    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#35D6E7"), pupil_color=QColor("#35D6E7"), crossed=True, outline_color=QColor("#35D6E7"))))
+    toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, QColor("#F4F8FF"), pupil_color=QColor("#F4F8FF"), crossed=True, outline_color=QColor("#F4F8FF"))))
     toggle_password_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    toggle_password_btn.installEventFilter(CredentialsInputFocusFilter(password_row))
 
     password_layout.addWidget(password_icon)
     password_layout.addWidget(password_input)
@@ -1159,9 +1385,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     status_text.setTextFormat(Qt.TextFormat.RichText)
     # Efek glow awal
     status_glow = QGraphicsDropShadowEffect(status_text)
-    status_glow.setBlurRadius(7)
+    status_glow.setBlurRadius(8)
     status_glow.setOffset(0, 0)
-    status_glow.setColor(QColor(53, 214, 231, 70))
+    status_glow.setColor(QColor(255, 255, 255, 54))
     status_text.setGraphicsEffect(status_glow)
     status_row.addWidget(status_icon)
     status_row.addWidget(status_text)
@@ -1201,10 +1427,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         password_input.setEchoMode(QLineEdit.EchoMode.Normal if is_hidden else QLineEdit.EchoMode.Password)
         # Ikuti warna outline dari status charging
         charging = bool(_charging_cache.get("prev"))
-        outline_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
-        pupil_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
+        outline_color = QColor("#50B4FF") if charging else QColor("#F4F8FF")
+        pupil_color = QColor("#50B4FF") if charging else QColor("#F4F8FF")
         crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
-        eye_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
+        eye_color = QColor("#50B4FF") if charging else QColor("#F4F8FF")
         toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
 
     def on_submit() -> None:
@@ -1261,7 +1487,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     def _read_charging_state() -> bool:
         info = get_battery_info()
         if os.getenv("CREDENTIALS_CHARGING_DEBUG") == "1":
-            print(f"[DEBUG] credentials charging info: {info}")
+            logger.debug("credentials charging info: %s", info)
         if not info:
             return bool(_charging_cache["prev"])
         charging = info.get("charging")
@@ -1272,66 +1498,72 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         return bool(_charging_cache["prev"])
 
     def _apply_charging(charging: bool) -> None:
+        dialog.set_charging_background(charging)
         dialog.setStyleSheet(_STYLE_CHARGING if charging else _STYLE_NORMAL)
         _refresh_widget_style(dialog)
         title.setText(_TITLE_CHARGING if charging else _TITLE_NORMAL)
         if isinstance(title.graphicsEffect(), QGraphicsDropShadowEffect):
             title_effect = title.graphicsEffect()
-            title_effect.setBlurRadius(14 if charging else 13)
-            title_effect.setColor(QColor(80, 180, 255, 86) if charging else QColor(255, 209, 102, 64))
-        icon_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
+            title_effect.setBlurRadius(14 if charging else 11)
+            title_effect.setColor(QColor(80, 180, 255, 86) if charging else QColor(255, 255, 255, 42))
+        icon_color = QColor("#50B4FF") if charging else QColor("#F4F8FF")
         check_color = QColor("#FFFFFF")
-        eye_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
+        eye_color = QColor("#50B4FF") if charging else QColor("#F4F8FF")
 
         # Update icon colors
         _set_icon(username_icon, _draw_user_icon(18, icon_color))
         _set_icon(password_icon, _draw_lock_icon(18, icon_color))
         _set_icon(status_icon, _draw_check_icon(19, check_color))
-        outline_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
-        pupil_color = QColor("#50B4FF") if charging else QColor("#35D6E7")
+        outline_color = QColor("#50B4FF") if charging else QColor("#F4F8FF")
+        pupil_color = QColor("#50B4FF") if charging else QColor("#F4F8FF")
         # Ikuti status visibilitas password
         crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
         toggle_password_btn.setIcon(QIcon(_draw_eye_icon(16, eye_color, pupil_color=pupil_color, crossed=crossed, outline_color=outline_color)))
 
         # Inline styles must also switch color; otherwise they override the dialog QSS.
-        field_label_color = "#FFFFFF"
-        status_label_color = "#FFFFFF"
+        field_label_color = "#67E0FF" if charging else "#FFFFFF"
+        status_label_color = "#67E0FF" if charging else "#FFFFFF"
         field_label_style = (
             f"color: {field_label_color}; "
             "font-size: 13px; font-weight: 700; letter-spacing: 0.8px; "
-            "font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;"
+            f"font-family: {CREDENTIALS_FONT_STACK};"
         )
         username_label.setStyleSheet(field_label_style)  # type: ignore
         password_label.setStyleSheet(field_label_style)  # type: ignore
         status_text.setStyleSheet(
             f"color: {status_label_color}; "
-            "font-size: 12px; font-family: 'SF Pro Display', 'SF Pro Text', Arial, sans-serif;"
+            f"font-size: 12px; font-family: {CREDENTIALS_FONT_STACK};"
         )  # type: ignore
 
         # Update glow/outline effect
-        glow_color = QColor("#50B4FF" if charging else "#35D6E7")
-        glow_alpha = 120 if charging else 70
+        glow_color = QColor("#50B4FF" if charging else "#FFFFFF")
+        glow_alpha = 120 if charging else 58
         for eff in [username_label.graphicsEffect(), password_label.graphicsEffect(), status_text.graphicsEffect()]:
             if isinstance(eff, QGraphicsDropShadowEffect):
                 eff.setColor(QColor(glow_color.red(), glow_color.green(), glow_color.blue(), glow_alpha))
-                eff.setBlurRadius(12 if charging else 7)
+                eff.setBlurRadius(12 if charging else 8)
+
+        for eff in (username_row_shadow, password_row_shadow):
+            eff.setBlurRadius(12 if charging else 9)
+            eff.setOffset(0, 3 if charging else 2)
+            eff.setColor(QColor(80, 180, 255, 42) if charging else QColor(0, 0, 0, 34))
 
         _apply_action_button_theme(cancel_btn, submit_btn, charging)
 
         # Update card shadow
         parent_widget = card.parentWidget()
         if charging:
-            card_shadow.setBlurRadius(16)
-            card_shadow.setOffset(3, 4)
-            card_shadow.setColor(QColor(80, 180, 255, 130))
+            card_shadow.setBlurRadius(20)
+            card_shadow.setOffset(0, 8)
+            card_shadow.setColor(QColor(80, 180, 255, 112))
             if parent_widget is not None:
                 from PySide6.QtWidgets import QGraphicsEffect
                 from typing import cast
                 parent_widget.setGraphicsEffect(cast(QGraphicsEffect, None))
         else:
-            card_shadow.setBlurRadius(16)
-            card_shadow.setOffset(3, 4)
-            card_shadow.setColor(QColor(53, 214, 231, 105))
+            card_shadow.setBlurRadius(18)
+            card_shadow.setOffset(0, 8)
+            card_shadow.setColor(QColor(0, 0, 0, 85))
             if parent_widget is not None:
                 from PySide6.QtWidgets import QGraphicsEffect
                 from typing import cast
@@ -1368,7 +1600,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         if _charging_cache["prev"] == charging:
             return
         if os.getenv("CREDENTIALS_CHARGING_DEBUG") == "1":
-            print(f"[DEBUG] credentials charging changed: {_charging_cache['prev']} -> {charging}")
+            logger.debug("credentials charging changed: %s -> %s", _charging_cache["prev"], charging)
         _charging_cache["prev"] = charging
         _apply_charging(charging)
 

@@ -803,7 +803,7 @@ class RoundLabel(QLabel):
                 background: transparent;
                 border: none;
                 color: #1a2233;
-                font-family: 'SF Pro Display';
+                font-family: 'SF Pro Display', 'Segoe UI', Arial, sans-serif;
                 font-size: 18px;
                 font-weight: bold;
             }
@@ -1016,7 +1016,7 @@ class RoundLabel(QLabel):
         
         # Gambar angka
         number_font = QFont()
-        number_font.setFamilies(['SF Pro Display', 'SF Pro Text'])
+        number_font.setFamilies(['SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Arial'])
         number_font.setPointSize(17)
         number_font.setWeight(QFont.Weight.DemiBold)
         painter.setFont(number_font)
@@ -1029,7 +1029,7 @@ class RoundLabel(QLabel):
         if self.number_text in self.alphabet_map:
             alphabet_text = self.alphabet_map[self.number_text]
             alphabet_font = QFont()
-            alphabet_font.setFamilies(['SF Pro Display', 'SF Pro Text'])
+            alphabet_font.setFamilies(['SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Arial'])
             alphabet_font.setPointSize(4)
             alphabet_font.setWeight(QFont.Weight.DemiBold)
             painter.setFont(alphabet_font)
@@ -1457,28 +1457,30 @@ class LoginDialog(QDialog):
             bottom_color = QColor(20, 36, 55)
             accent_top = QColor(103, 224, 255, 34)
             accent_bottom = QColor(55, 138, 238, 18)
-            focus_color = QColor(103, 224, 255, 28)
-            border_top_color = QColor(232, 250, 255, 50)
-            border_mid_color = QColor(103, 224, 255, 62)
-            border_bottom_color = QColor(55, 138, 238, 24)
-            inner_border_color = QColor(232, 250, 255, 25)
-            edge_shadow_color = QColor(2, 12, 24, 24)
-            lower_shadow = QColor(4, 16, 30, 42)
-            bottom_focus_color = QColor(55, 138, 238, 16)
+            border_color = QColor(103, 224, 255, 64)
+            inner_highlight = QColor(232, 250, 255, 34)
+            lower_shadow = QColor(4, 16, 30, 44)
+            focus_color = QColor(103, 224, 255, 30)
+            inner_border_color = QColor(232, 250, 255, 28)
+            lower_accent_color = QColor(55, 138, 238, 16)
+            edge_shadow_color = QColor(2, 12, 24, 26)
+            border_top_color = QColor(232, 250, 255, 54)
+            border_bottom_color = QColor(55, 138, 238, 26)
         else:
             top_color = QColor(26, 32, 41)
             mid_color = QColor(41, 49, 60)
             bottom_color = QColor(31, 39, 50)
-            accent_top = QColor(255, 255, 255, 17)
-            accent_bottom = QColor(205, 216, 228, 9)
-            focus_color = QColor(255, 255, 255, 18)
-            border_top_color = QColor(255, 255, 255, 42)
-            border_mid_color = QColor(255, 255, 255, 38)
-            border_bottom_color = QColor(205, 216, 228, 18)
-            inner_border_color = QColor(255, 255, 255, 22)
-            edge_shadow_color = QColor(0, 0, 0, 21)
-            lower_shadow = QColor(0, 0, 0, 40)
-            bottom_focus_color = QColor(205, 216, 228, 8)
+            accent_top = QColor(255, 255, 255, 18)
+            accent_bottom = QColor(205, 216, 228, 10)
+            border_color = QColor(255, 255, 255, 45)
+            inner_highlight = QColor(255, 255, 255, 27)
+            lower_shadow = QColor(0, 0, 0, 42)
+            focus_color = QColor(255, 255, 255, 20)
+            inner_border_color = QColor(255, 255, 255, 24)
+            lower_accent_color = QColor(205, 216, 228, 9)
+            edge_shadow_color = QColor(0, 0, 0, 22)
+            border_top_color = QColor(255, 255, 255, 44)
+            border_bottom_color = QColor(205, 216, 228, 20)
 
         background = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
         background.setColorAt(0.0, top_color)
@@ -1493,17 +1495,30 @@ class LoginDialog(QDialog):
         painter.setClipPath(path)
         accent = QLinearGradient(rect.left(), rect.top(), rect.right(), rect.bottom())
         accent.setColorAt(0.0, accent_top)
-        accent.setColorAt(0.60, QColor(accent_top.red(), accent_top.green(), accent_top.blue(), max(4, accent_top.alpha() // 3)))
+        accent.setColorAt(0.58, QColor(accent_top.red(), accent_top.green(), accent_top.blue(), max(4, accent_top.alpha() // 3)))
         accent.setColorAt(1.0, accent_bottom)
         painter.setBrush(QBrush(accent))
         painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
 
-        focus_glow = QRadialGradient(QPointF(rect.center().x(), rect.top() + 178.0), 210.0)
+        focus_glow = QRadialGradient(QPointF(rect.center().x(), rect.top() + 42.0), 178.0)
         focus_glow.setColorAt(0.0, focus_color)
-        focus_glow.setColorAt(0.46, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), max(3, focus_color.alpha() // 3)))
+        focus_glow.setColorAt(0.42, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), max(3, focus_color.alpha() // 3)))
         focus_glow.setColorAt(1.0, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), 0))
         painter.setBrush(QBrush(focus_glow))
         painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
+        top_highlight = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.top() + 18.0)
+        top_highlight.setColorAt(0.0, inner_highlight)
+        top_highlight.setColorAt(1.0, QColor(inner_highlight.red(), inner_highlight.green(), inner_highlight.blue(), 0))
+        painter.setBrush(QBrush(top_highlight))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        lower_accent = QRadialGradient(QPointF(rect.center().x(), rect.bottom() - 4.0), 118.0)
+        lower_accent.setColorAt(0.0, lower_accent_color)
+        lower_accent.setColorAt(0.52, QColor(lower_accent_color.red(), lower_accent_color.green(), lower_accent_color.blue(), max(2, lower_accent_color.alpha() // 3)))
+        lower_accent.setColorAt(1.0, QColor(lower_accent_color.red(), lower_accent_color.green(), lower_accent_color.blue(), 0))
+        painter.setBrush(QBrush(lower_accent))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
 
         edge_shading = QLinearGradient(rect.left(), rect.center().y(), rect.right(), rect.center().y())
         edge_shading.setColorAt(0.0, edge_shadow_color)
@@ -1513,14 +1528,7 @@ class LoginDialog(QDialog):
         painter.setBrush(QBrush(edge_shading))
         painter.drawRoundedRect(rect.adjusted(1.1, 1.1, -1.1, -1.1), radius - 1.1, radius - 1.1)
 
-        bottom_focus = QRadialGradient(QPointF(rect.center().x(), rect.bottom() - 104.0), 172.0)
-        bottom_focus.setColorAt(0.0, bottom_focus_color)
-        bottom_focus.setColorAt(0.45, QColor(bottom_focus_color.red(), bottom_focus_color.green(), bottom_focus_color.blue(), max(2, bottom_focus_color.alpha() // 3)))
-        bottom_focus.setColorAt(1.0, QColor(bottom_focus_color.red(), bottom_focus_color.green(), bottom_focus_color.blue(), 0))
-        painter.setBrush(QBrush(bottom_focus))
-        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
-
-        bottom_depth = QLinearGradient(rect.left(), rect.bottom() - 32.0, rect.left(), rect.bottom())
+        bottom_depth = QLinearGradient(rect.left(), rect.bottom() - 30.0, rect.left(), rect.bottom())
         bottom_depth.setColorAt(0.0, QColor(lower_shadow.red(), lower_shadow.green(), lower_shadow.blue(), 0))
         bottom_depth.setColorAt(1.0, lower_shadow)
         painter.setBrush(QBrush(bottom_depth))
@@ -1535,7 +1543,7 @@ class LoginDialog(QDialog):
         painter.drawRoundedRect(inner_rect, radius - 1.05, radius - 1.05)
         border_gradient = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
         border_gradient.setColorAt(0.0, border_top_color)
-        border_gradient.setColorAt(0.46, border_mid_color)
+        border_gradient.setColorAt(0.46, border_color)
         border_gradient.setColorAt(1.0, border_bottom_color)
         border_pen = QPen(QBrush(border_gradient), 1.0)
         border_pen.setCosmetic(True)
@@ -1565,12 +1573,21 @@ class PINDotWidget(QWidget):
         self._pop_index = -1
         self._pop_scale = 1.0
         self._pop_anim = None
+        self._shrink_index = -1
+        self._shrink_count = 0
+        self._shrink_scale = 1.0
+        self._shrink_anim = None
+        self._error_pulse = 0.0
+        self._error_anim = None
         
     def set_pin_count(self, count: int) -> None:
         """Update number of filled dots (0-6)"""
         next_count = min(max(count, 0), 6)
         if next_count > self.pin_count:
             self._start_pop(next_count - 1)
+        elif next_count < self.pin_count:
+            self._start_shrink(self.pin_count - 1, next_count)
+            return
         self._previous_pin_count = self.pin_count
         self.pin_count = next_count
         self.is_complete = (self.pin_count == 6)
@@ -1584,6 +1601,24 @@ class PINDotWidget(QWidget):
         self.update()
 
     pop_scale = Property(float, get_pop_scale, set_pop_scale)
+
+    def get_shrink_scale(self) -> float:
+        return self._shrink_scale
+
+    def set_shrink_scale(self, value: float) -> None:
+        self._shrink_scale = value
+        self.update()
+
+    shrink_scale = Property(float, get_shrink_scale, set_shrink_scale)
+
+    def get_error_pulse(self) -> float:
+        return self._error_pulse
+
+    def set_error_pulse(self, value: float) -> None:
+        self._error_pulse = value
+        self.update()
+
+    error_pulse = Property(float, get_error_pulse, set_error_pulse)
 
     def _start_pop(self, index: int) -> None:
         if self._pop_anim is not None:
@@ -1618,6 +1653,78 @@ class PINDotWidget(QWidget):
                 pass
             self._pop_anim = None
         self.update()
+
+    def trigger_error_pulse(self) -> None:
+        if self._error_anim is not None:
+            self._error_anim.stop()
+            try:
+                self._error_anim.valueChanged.disconnect()
+                self._error_anim.finished.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._error_anim.deleteLater()
+            self._error_anim = None
+        self._error_pulse = 0.0
+        anim = QPropertyAnimation(self, b"error_pulse")
+        anim.setStartValue(0.0)
+        anim.setKeyValueAt(0.35, 1.0)
+        anim.setEndValue(0.0)
+        anim.setDuration(360)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.valueChanged.connect(self.update)
+        anim.finished.connect(self._finish_error_pulse)
+        self._error_anim = anim
+        anim.start()
+
+    def _finish_error_pulse(self) -> None:
+        self._error_pulse = 0.0
+        if self._error_anim is not None:
+            try:
+                self._error_anim.valueChanged.disconnect()
+                self._error_anim.finished.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._error_anim = None
+        self.update()
+
+    def _start_shrink(self, index: int, next_count: int) -> None:
+        if self._shrink_anim is not None:
+            self._shrink_anim.stop()
+            try:
+                self._shrink_anim.valueChanged.disconnect()
+                self._shrink_anim.finished.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._shrink_anim.deleteLater()
+            self._shrink_anim = None
+        self._shrink_index = index
+        self._shrink_count = next_count
+        self._shrink_scale = 1.0
+        anim = QPropertyAnimation(self, b"shrink_scale")
+        anim.setStartValue(1.0)
+        anim.setEndValue(0.58)
+        anim.setDuration(96)
+        anim.setEasingCurve(QEasingCurve.Type.InCubic)
+        anim.valueChanged.connect(self.update)
+        anim.finished.connect(self._finish_shrink)
+        self._shrink_anim = anim
+        anim.start()
+
+    def _finish_shrink(self) -> None:
+        self._previous_pin_count = self.pin_count
+        self.pin_count = self._shrink_count
+        self.is_complete = (self.pin_count == 6)
+        self._shrink_index = -1
+        self._shrink_count = self.pin_count
+        self._shrink_scale = 1.0
+        if self._shrink_anim is not None:
+            try:
+                self._shrink_anim.valueChanged.disconnect()
+                self._shrink_anim.finished.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._shrink_anim = None
+        self.update()
         
     def set_charging(self, charging: bool) -> None:
         """Update charging status and trigger repaint"""
@@ -1648,15 +1755,53 @@ class PINDotWidget(QWidget):
             empty_border = QColor(255, 255, 255, 98)
             shadow_color = QColor(0, 0, 0, 56)
             highlight_color = QColor(255, 255, 255, 48)
+        pulse = max(0.0, min(1.0, self._error_pulse))
+        if pulse > 0.0:
+            if self.charging:
+                error_border = QColor(255, 198, 104, int(118 * pulse))
+                error_fill_top = QColor(255, 215, 135, int(86 * pulse))
+                error_shadow = QColor(120, 64, 18, int(48 * pulse))
+            else:
+                error_border = QColor(255, 222, 166, int(112 * pulse))
+                error_fill_top = QColor(255, 236, 205, int(62 * pulse))
+                error_shadow = QColor(90, 48, 14, int(42 * pulse))
+            empty_border = QColor(
+                min(255, int(empty_border.red() * (1.0 - pulse) + error_border.red() * pulse)),
+                min(255, int(empty_border.green() * (1.0 - pulse) + error_border.green() * pulse)),
+                min(255, int(empty_border.blue() * (1.0 - pulse) + error_border.blue() * pulse)),
+                min(255, int(empty_border.alpha() + error_border.alpha())),
+            )
+            border_color = QColor(
+                min(255, int(border_color.red() * (1.0 - pulse) + error_border.red() * pulse)),
+                min(255, int(border_color.green() * (1.0 - pulse) + error_border.green() * pulse)),
+                min(255, int(border_color.blue() * (1.0 - pulse) + error_border.blue() * pulse)),
+                min(255, int(border_color.alpha() + error_border.alpha() * 0.55)),
+            )
+            top_color = QColor(
+                min(255, int(top_color.red() * (1.0 - pulse * 0.55) + error_fill_top.red() * pulse * 0.55)),
+                min(255, int(top_color.green() * (1.0 - pulse * 0.55) + error_fill_top.green() * pulse * 0.55)),
+                min(255, int(top_color.blue() * (1.0 - pulse * 0.55) + error_fill_top.blue() * pulse * 0.55)),
+                top_color.alpha(),
+            )
+            shadow_color = QColor(
+                min(255, int(shadow_color.red() + error_shadow.red() * pulse * 0.25)),
+                min(255, int(shadow_color.green() + error_shadow.green() * pulse * 0.25)),
+                min(255, int(shadow_color.blue() + error_shadow.blue() * pulse * 0.25)),
+                min(255, int(shadow_color.alpha() + error_shadow.alpha())),
+            )
         
         for i in range(6):
             x = start_x + (i * (dot_size + spacing))
             y = center_y - (dot_size / 2.0)
             dot_rect = QRectF(float(x), float(y), float(dot_size), float(dot_size))
+            render_filled = i < self.pin_count or i == self._shrink_index
             if i == self._pop_index and i < self.pin_count:
                 grow = dot_size * (self._pop_scale - 1.0) / 2.0
                 dot_rect = dot_rect.adjusted(-grow, -grow, grow, grow)
-            is_filled = i < self.pin_count
+            elif i == self._shrink_index:
+                shrink = dot_size * (1.0 - self._shrink_scale) / 2.0
+                dot_rect = dot_rect.adjusted(shrink, shrink, -shrink, -shrink)
+            is_filled = render_filled
 
             shadow_rect = dot_rect.translated(0.0, 1.0)
             painter.setPen(Qt.PenStyle.NoPen)
@@ -1714,6 +1859,7 @@ class PremiumSecurityPinLabel(QWidget):
     def _font(self):
         from PySide6.QtGui import QFont
         font = QFont("SF Pro Display")
+        font.setFamilies(["SF Pro Display", "SF Pro Text", "Segoe UI", "Arial"])
         font.setPointSizeF(11.7)
         font.setWeight(QFont.Weight.Medium)
         font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.50)
@@ -1845,6 +1991,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
         # Hitung lebar teks untuk positioning
         from PySide6.QtGui import QFont, QFontMetrics
         font = QFont('SF Pro Display', -1, QFont.Weight.Thin)
+        font.setFamilies(['SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Arial'])
         font.setPointSizeF(17.5)
         font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.35)
         metrics = QFontMetrics(font)
@@ -1922,6 +2069,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
 
     def shake_error() -> None:
         """Animasi getar kiri-kanan pada PIN dot widget sebagai feedback salah."""
+        label_pin_entry.trigger_error_pulse()
         orig_x = label_pin_entry.x()
         orig_y = label_pin_entry.y()
         offsets = [8, -8, 6, -6, 4, -4, 0]

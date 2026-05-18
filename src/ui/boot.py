@@ -1,9 +1,27 @@
+import logging
 import math
 import os
-from PySide6.QtWidgets import QApplication, QDialog, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QGraphicsDropShadowEffect
+from PySide6.QtWidgets import QApplication, QDialog, QLabel, QVBoxLayout, QHBoxLayout, QWidget
 from PySide6.QtSvgWidgets import QSvgWidget
-from PySide6.QtCore import Qt, QTimer, QRectF, QPointF
-from PySide6.QtGui import QPainter, QColor, QPen, QConicalGradient, QRegion, QPainterPath, QRadialGradient, QPaintEvent
+from PySide6.QtCore import Qt, QTimer, QRectF, QPointF, Property, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QPainter, QColor, QPen, QConicalGradient, QPainterPath, QRadialGradient, QPaintEvent, QLinearGradient, QBrush
+
+logger = logging.getLogger(__name__)
+
+BOOT_WIDTH = 405
+BOOT_HEIGHT = int(18.5 * 0.3937 * 96)
+BOOT_CORNER_RADIUS = 22.0
+BOOT_DURATION_MS = 2500
+BOOT_FADE_IN_MS = 260
+BOOT_FADE_OUT_MS = 220
+SPINNER_DIAMETER = 132
+GLOBE_DIAMETER = 100
+SPINNER_CHARGING_ROTATION_MS = 1680
+SPINNER_IDLE_ROTATION_MS = 2300
+SPINNER_CHARGING_ARC_MS = 1850
+SPINNER_IDLE_ARC_MS = 2600
+SPINNER_CHARGING_PULSE_MS = 2050
+SPINNER_IDLE_PULSE_MS = 2850
 
 class CircularProgress(QWidget):
     def __init__(self, diameter: int = 120, parent: QWidget | None = None):
@@ -11,26 +29,40 @@ class CircularProgress(QWidget):
         self.diameter = diameter
         self.angle = 0
         self.base_thickness = 2.0
-        self.amp_thickness = 0.4
-        self.pulse_period = 2200  # ms (luxury breathing)
-        self.rotation_period = 1400  # ms (smooth rotation)
+        self.amp_thickness = 0.22
+        self.thickness = self.base_thickness
+        self.charging = False
+        self.pulse_period = SPINNER_IDLE_PULSE_MS
+        self.rotation_period = SPINNER_IDLE_ROTATION_MS
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_anim)
         self.timer.start(16)  # ~60 FPS
         self.setFixedSize(diameter, diameter)
         self._t = 0
         # Stroke dash animation
-        self.arc_anim_period = 2000  # ms (luxury arc motion)
+        self.arc_anim_period = SPINNER_IDLE_ARC_MS
         self.arc_min_span = 36       # degrees
-        self.arc_max_span = 288      # degrees
+        self.arc_max_span = 236      # degrees
         self.arc_start_angle = 0
         self.arc_span_angle = self.arc_min_span
-        # Glow/Drop Shadow Effect
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 180))  # Lebih gelap, lebih terlihat
-        shadow.setOffset(6, 6)
-        self.setGraphicsEffect(shadow)
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self.charging == charging:
+            return
+        self.charging = charging
+        self._apply_motion_profile()
+        self.update()
+
+    def _apply_motion_profile(self) -> None:
+        if self.charging:
+            self.rotation_period = SPINNER_CHARGING_ROTATION_MS
+            self.arc_anim_period = SPINNER_CHARGING_ARC_MS
+            self.pulse_period = SPINNER_CHARGING_PULSE_MS
+        else:
+            self.rotation_period = SPINNER_IDLE_ROTATION_MS
+            self.arc_anim_period = SPINNER_IDLE_ARC_MS
+            self.pulse_period = SPINNER_IDLE_PULSE_MS
 
     def update_anim(self):
         self._t += 16
@@ -56,29 +88,43 @@ class CircularProgress(QWidget):
         try:
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            # Luxury gradient, hue stability
             rect = QRectF(self.thickness, self.thickness, self.diameter-2*self.thickness, self.diameter-2*self.thickness)
+            halo_color = QColor(103, 224, 255, 26) if self.charging else QColor(255, 255, 255, 20)
+            halo = QRadialGradient(rect.center(), self.diameter * 0.42)
+            halo.setColorAt(0.0, halo_color)
+            halo.setColorAt(0.56, QColor(halo_color.red(), halo_color.green(), halo_color.blue(), max(3, halo_color.alpha() // 3)))
+            halo.setColorAt(1.0, QColor(halo_color.red(), halo_color.green(), halo_color.blue(), 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(halo))
+            painter.drawEllipse(rect.adjusted(14.0, 14.0, -14.0, -14.0))
+
             grad = QConicalGradient(rect.center(), -self.angle)
-            # Kemewahan: gradasi biru aqua, platinum, royal blue, emas, putih
-            aqua = QColor(62, 166, 255)
-            aqua.setAlpha(0)
-            platinum = QColor(180,220,255)
-            royal = QColor(60,120,255)
-            gold = QColor(255,215,80)
-            white = QColor(255,255,255)
-            grad.setColorAt(0.0, aqua)
-            grad.setColorAt(0.25, platinum)
-            grad.setColorAt(0.45, royal)
-            grad.setColorAt(0.65, gold)
-            grad.setColorAt(0.85, white)
-            grad.setColorAt(1.0, aqua)
+            if self.charging:
+                transparent = QColor(62, 166, 255, 0)
+                bright = QColor(103, 224, 255, 235)
+                mid = QColor(80, 180, 255, 238)
+                deep = QColor(55, 138, 238, 226)
+                white = QColor(232, 250, 255, 220)
+                glow_color = QColor(80, 180, 255, 34)
+            else:
+                transparent = QColor(255, 255, 255, 0)
+                bright = QColor(255, 255, 255, 240)
+                mid = QColor(238, 244, 250, 230)
+                deep = QColor(205, 216, 228, 216)
+                white = QColor(255, 255, 255, 224)
+                glow_color = QColor(255, 255, 255, 30)
+            grad.setColorAt(0.0, transparent)
+            grad.setColorAt(0.24, bright)
+            grad.setColorAt(0.46, mid)
+            grad.setColorAt(0.68, deep)
+            grad.setColorAt(0.86, white)
+            grad.setColorAt(1.0, transparent)
             pen = QPen()
             pen.setBrush(grad)
             pen.setWidthF(self.thickness)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen)
-            # Draw glow under arc for extra luxury
-            glow_pen = QPen(QColor(62,166,255,30))
+            glow_pen = QPen(glow_color)
             glow_pen.setWidthF(self.thickness*1.5)
             glow_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(glow_pen)
@@ -87,337 +133,15 @@ class CircularProgress(QWidget):
             painter.setPen(pen)
             painter.drawArc(rect, int(self.arc_start_angle*16), int(self.arc_span_angle*16))
             # Draw shimmer highlight (arc shine)
-            shimmer_pen = QPen(QColor(255,255,255,180))
+            shimmer_pen = QPen(QColor(255, 255, 255, 150))
             shimmer_pen.setWidthF(self.thickness*0.55)
             shimmer_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(shimmer_pen)
             shimmer_start = self.arc_start_angle + self.arc_span_angle*0.18
             shimmer_span = self.arc_span_angle*0.13
             painter.drawArc(rect, int(shimmer_start*16), int(shimmer_span*16))
-            # Glow for logo globe
-            globe = getattr(self.parent(), 'globe_widget', None)
-            if globe is not None:
-                globe_effect = QGraphicsDropShadowEffect()
-                globe_effect.setBlurRadius(24)
-                globe_effect.setColor(QColor(180,220,255,120))
-                globe_effect.setOffset(0, 0)
-                globe.setGraphicsEffect(globe_effect)
-            # Glow for particles
-            # ...existing code...
-            # After drawing each particle ellipse:
-            # glow_pen = QPen(QColor(255,255,255,80))
-            # painter.setPen(glow_pen)
-            # painter.drawEllipse(QPointF(particle_x, particle_y), particle_size*1.7, particle_size*1.7)
-            # painter.restore() jika sebelumnya ada painter.save()
-        except Exception as e:
-            import traceback
-            print('[ERROR] paintEvent CircularProgress:', e)
-            traceback.print_exc()
-
-
-
-# --- Circular text widget for animated status ---
-class CircularText(QWidget):
-    def __init__(self, text_list: list[str], diameter: int, parent: QWidget | None = None, child_widget: QWidget | None = None):
-        super().__init__(parent)
-        self.text_list = text_list
-        self.current_index = 0
-        self.angle = 0
-        self.diameter = diameter
-        self.setFixedSize(diameter, diameter)
-        self.child_widget = child_widget  # Add child_widget attribute
-        
-        # Formation timing for 3s animation showcase + 2s branding
-        self.start_time = None
-        self.formation_complete = False
-        self.formation_duration = 3000  # 3 seconds for full animation showcase
-        
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_angle)
-        self.timer.start(16)
-    def set_text_index(self, idx: int):
-        self.current_index = idx % len(self.text_list)
-        self.update()
-    def update_angle(self):
-        # Initialize start time on first call
-        if self.start_time is None:
-            from PySide6.QtCore import QTime
-            self.start_time = QTime.currentTime()
-        
-        # Calculate elapsed time in milliseconds
-        from PySide6.QtCore import QTime
-        current_time = QTime.currentTime()
-        elapsed_ms = self.start_time.msecsTo(current_time)
-        
-        # Check if formation is complete (6.5 seconds)
-        if elapsed_ms >= self.formation_duration:
-            if not self.formation_complete:
-                self.formation_complete = True
-                self.angle = 0  # Perfect alignment
-                self.update()  # Final update
-            return  # Stop rotation
-        
-        # Continue rotation only if formation is not complete
-        self.angle = (self.angle - 6) % 360  # Counter-clockwise rotation
-        self.update()
-    def paintEvent(self, event: QPaintEvent):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Efek depth blur (bokeh) di belakang lingkaran
-        bokeh_center = self.rect().center()
-        bokeh_layers = [
-            (self.rect().width()//2 - 10, 80, 0.18),
-            (self.rect().width()//2 - 30, 120, 0.12),
-            (self.rect().width()//2 - 50, 180, 0.08),
-            (self.rect().width()//2 - 70, 255, 0.05)
-        ]
-        for radius, alpha, opacity in bokeh_layers:
-            color = QColor(255,255,255,alpha)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(color)
-            painter.setOpacity(opacity)
-            painter.drawEllipse(bokeh_center, radius, radius)
-        painter.setOpacity(1.0)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        font = painter.font()
-        font.setFamily('SF Pro Display')
-        font.setPointSize(5)
-        font.setBold(True)
-        painter.setFont(font)
-        color = QColor(255,255,255)
-        painter.setPen(color)
-        # Particle rendering handled by self._draw_rectangle_particles
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        thickness = getattr(self, 'base_thickness', 2.0)
-        margin = thickness + 4
-        rect = self.rect().adjusted(int(margin), int(margin), -int(margin), -int(margin))
-        liquid_length = 215
-        liquid_angle = self.angle
-        base = 1.875
-        # Reduce dynamic effects when formation is complete
-        if self.formation_complete:
-            dynamic = 1.0  # Static thickness
-        else:
-            dynamic = 1.2 + 0.8 * math.sin(liquid_angle * math.pi / 180)
-        liquid_thickness = base * dynamic
-        self._draw_arcs(painter, QRectF(rect), liquid_angle, liquid_length, liquid_thickness)
-        # self._draw_caustics(painter, rect)  # Caustics Effect dinonaktifkan
-        # Skip dynamic effects when formation is complete
-        # Particle rendering is currently disabled due to missing implementation
-        # if not self.formation_complete:
-        #     self._draw_particles(painter, rect, liquid_angle, liquid_length)
-        # if hasattr(self, '_draw_embers'):
-        #     self._draw_embers(painter, rect)
-
-        # Draw strong visible shadow for rounded rectangle
-        shadow_rect = self.rect().adjusted(int(margin), int(margin), -int(margin), -int(margin))
-        shadow_radius = (shadow_rect.width()) * 0.2
-        shadow_offset_x = 6
-        shadow_offset_y = 8
-        shadow_path = QPainterPath()
-        shadow_path.addRoundedRect(
-            shadow_rect.translated(shadow_offset_x, shadow_offset_y),
-            shadow_radius + 6,
-            shadow_radius + 6
-        )
-        grad = QRadialGradient(
-            shadow_rect.center().x() + shadow_offset_x,
-            shadow_rect.center().y() + shadow_offset_y + 8,
-            shadow_rect.width() * 0.8
-        )
-        grad.setColorAt(0.0, QColor(0, 0, 0, 180))
-        grad.setColorAt(0.5, QColor(0, 0, 0, 120))
-        grad.setColorAt(0.8, QColor(0, 0, 0, 60))
-        grad.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.save()
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(grad)
-        painter.drawPath(shadow_path)
-        painter.restore()
-        # Draw animated rounded rectangle outer layer FIRST
-        self._draw_animated_rounded_rectangle_layer(painter)
-
-        # Then apply circular clipping for the logo
-        painter.setClipRegion(QRegion(self.rect(), QRegion.RegionType.Ellipse))
-        # Render logo with circular mask
-        from PySide6.QtCore import QPoint
-        if hasattr(self, 'child_widget') and isinstance(self.child_widget, QWidget):
-            self.child_widget.render(painter, QPoint(0, 0))
-
-    def _draw_arcs(
-        self,
-        painter: QPainter,
-        rect: QRectF,
-        angle: float,
-        length: float,
-        thickness: float
-    ) -> None:
-        """
-        Draws a circular arc with the given parameters.
-        """
-        painter.save()
-        pen = QPen(QColor(62, 166, 255, 220))
-        pen.setWidthF(thickness)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
-        # Calculate start and span angles for the arc
-        start_angle = (angle + 90) % 360
-        span_angle = length
-        painter.drawArc(rect, int(start_angle * 16), int(span_angle * 16))
-        painter.restore()
-        
-    def _draw_animated_rounded_rectangle_layer(self, painter: QPainter) -> None:
-        """
-        Draw animated rounded rectangle border dengan efek rotasi, caustics, dan hardening.
-        Efek border dan partikel dipanggil dari fungsi terpisah.
-        """
-        center_x = self.diameter // 2
-        center_y = self.diameter // 2
-        rect_size = self.diameter * 0.85 * getattr(self, 'pulse_scale', 1.0)
-        rect_x = center_x - rect_size // 2
-        rect_y = center_y - rect_size // 2
-        corner_radius = rect_size * 0.2
-        rounded_rect = QPainterPath()
-        rounded_rect.addRoundedRect(rect_x, rect_y, rect_size, rect_size, corner_radius, corner_radius)
-        painter.save()
-        if not getattr(self, 'formation_complete', False):
-            painter.translate(center_x, center_y)
-            painter.rotate(getattr(self, 'animation_angle', 0))
-            painter.translate(-center_x, -center_y)
-                    # Perfect alignment logic removed
-        self._draw_rectangle_border_layers(painter, rounded_rect)
-        # --- Animated particles ---
-        if not getattr(self, 'formation_complete', False):
-            self._draw_rectangle_particles(painter, rect_x, rect_y, rect_size, corner_radius)
-        painter.restore()
-
-    def _draw_rectangle_border_layers(self, painter: QPainter, rounded_rect: QPainterPath) -> None:
-        """Draw multiple border layers for glow effect"""
-        # Layer 1: Premium outline (platinum)
-        painter.setPen(QPen(QColor(220, 220, 235, int(220 * 0.22)), 0.012, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawPath(rounded_rect)
-
-        # Layer 2: Gold gradient glow (ukuran diperbesar 5x)
-        from PySide6.QtGui import QLinearGradient
-        grad = QLinearGradient(rounded_rect.boundingRect().left(), rounded_rect.boundingRect().top(), rounded_rect.boundingRect().right(), rounded_rect.boundingRect().bottom())
-        grad.setColorAt(0.0, QColor(255, 215, 80, int(120 * 0.28)))  # Gold, lebih tebal
-        grad.setColorAt(0.5, QColor(180, 220, 255, int(80 * 0.18)))  # Platinum
-        grad.setColorAt(1.0, QColor(60, 120, 255, int(100 * 0.22)))  # Royal blue
-        painter.setPen(QPen(grad, 0.12, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-        painter.drawPath(rounded_rect)
-
-        # Layer 3: Extended luxury glow (soft blur, diperbesar 5x)
-        for i in range(3):
-            alpha = int(60 * (1 - i / 3) * 0.18)
-            width_val = (1.6 + i * 2.6) * 0.0825
-            if i == 0:
-                color = QColor(255, 215, 80, alpha)  # Gold
-            elif i == 1:
-                color = QColor(180, 220, 255, alpha)  # Platinum
-            else:
-                color = QColor(60, 120, 255, alpha)  # Royal blue
-            painter.setPen(QPen(color, width_val, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-            painter.drawPath(rounded_rect)
-    # Layer 4: Dynamic highlight shimmer (disabled, removed by user request)
-    # (Efek highlight berputar searah jarum jam telah dihapus)
-
-        # Layer 5: Subtle multi-layer blur (luxury aura)
-        for i in range(2):
-            painter.setPen(QPen(QColor(255, 255, 255, int(18 * 0.18)), (2.2 + i * 2.2) * 0.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-            painter.drawPath(rounded_rect)
-        
-    def _draw_rectangle_particles(
-        self,
-        painter: QPainter,
-        rect_x: float,
-        rect_y: float,
-        rect_size: float,
-        corner_radius: float
-    ) -> None:
-        """Draw animated particles around rectangle perimeter"""
-        particle_count = 12
-        
-        particle_color = QColor(62, 166, 255, 180)  # Aqua blue with some transparency
-        for i in range(particle_count):
-            # Calculate position on rounded rectangle perimeter
-            t = (i / particle_count + getattr(self, 'animation_angle', 0) / 360) % 1.0
-            particle_x, particle_y = self._get_rounded_rect_perimeter_point(
-                t, rect_x, rect_y, rect_size, corner_radius
-            )
-            particle_x = float(particle_x)
-            particle_y = float(particle_y)
-            # Particle animation
-            pulse = 0.5 + 0.5 * math.sin(getattr(self, 'animation_angle', 0) * math.pi / 180 + i * 0.8)
-            particle_size = 1.5 + 1.0 * pulse
-            particle_alpha = int(150 + 105 * pulse)
-            painter.setBrush(particle_color)
-            painter.drawEllipse(
-                QPointF(particle_x, particle_y), 
-                particle_size, particle_size
-            )
-            # Particle glow
-            glow_size = particle_size * 2.0
-            glow_alpha = int(particle_alpha * 0.3)
-            glow_color = QColor(255, 255, 255, glow_alpha)
-            painter.setBrush(glow_color)
-            painter.drawEllipse(
-                QPointF(particle_x, particle_y),
-                glow_size, glow_size
-            )
-    
-    def _get_rounded_rect_perimeter_point(
-        self,
-        t: float,
-        rect_x: float,
-        rect_y: float,
-        size: float,
-        corner_radius: float
-    ) -> tuple[float, float]:
-        """Get point on rounded rectangle perimeter based on parameter t (0-1)"""
-        width = height = size
-        straight_width = width - 2 * corner_radius
-        straight_height = height - 2 * corner_radius
-        perimeter_progress = t * 4  # 4 sides
-        if perimeter_progress < 1:  # Top edge
-            progress = perimeter_progress
-            x = rect_x + corner_radius + progress * straight_width
-            y = rect_y
-        elif perimeter_progress < 2:  # Right edge
-            progress = perimeter_progress - 1
-            x = rect_x + width
-            y = rect_y + corner_radius + progress * straight_height
-        elif perimeter_progress < 3:  # Bottom edge
-            progress = perimeter_progress - 2
-            x = rect_x + width - corner_radius - progress * straight_width
-            y = rect_y + height
-        else:  # Left edge
-            progress = perimeter_progress - 3
-            x = rect_x
-            y = rect_y + height - corner_radius - progress * straight_height
-        return x, y
-
-# --- Enhanced Circle mask widget with rounded rectangle outer layer ---
-class CircleMaskWidget(QWidget):
-    def __init__(self, child_widget: QWidget, diameter: int):
-        super().__init__()
-        self.child = child_widget
-        self.diameter = diameter
-        self.child.setParent(self)
-        self.child.setGeometry(0, 0, diameter, diameter)
-        self.setFixedSize(diameter, diameter)
-        # Tidak ada animasi border rounded rectangle, hanya circular mask
-
-    def paintEvent(self, event: QPaintEvent):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        # Hanya circular mask, tanpa border
-        painter.setClipRegion(QRegion(self.rect(), QRegion.RegionType.Ellipse))
-        from PySide6.QtCore import QPoint
-        self.child.render(painter, QPoint(0, 0))
+        except Exception:
+            logger.exception("paintEvent CircularProgress failed")
 
 # --- Glow mask widget with radial gradient ---
 class GlowMaskWidget(QWidget):
@@ -426,20 +150,96 @@ class GlowMaskWidget(QWidget):
         self.child_widget = child_widget
         self.diameter = diameter
         self.glow_color = glow_color
+        self.charging = False
+        self._t = 0
         self.setFixedSize(diameter, diameter)
         self.child_widget.setParent(self)
         self.child_widget.move(0, 0)
+        self._glow_timer = QTimer(self)
+        self._glow_timer.timeout.connect(self._update_glow)
+        self._glow_timer.start(33)
+
+    def _update_glow(self) -> None:
+        self._t = (self._t + 33) % 2400
+        self.update()
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self.charging == charging:
+            return
+        self.charging = charging
+        self.update()
+
     def paintEvent(self, event: QPaintEvent):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        grad = QRadialGradient(self.diameter/2, self.diameter/2, self.diameter/2 * 0.7)  # Glow radius lebih kecil
-        grad.setColorAt(0.0, QColor(255,255,255,0))
-        grad.setColorAt(0.7, self.glow_color)
-        grad.setColorAt(1.0, QColor(255,255,255,0))
+        phase = (self._t / 2400.0) * 2.0 * math.pi
+        pulse = 0.5 + 0.5 * math.sin(phase)
+        if self.charging:
+            core_alpha = int(26 + (8 * pulse))
+            glow_alpha = int(54 + (22 * pulse))
+            rim_alpha = int(96 + (26 * pulse))
+            glow_core = QColor(232, 250, 255, core_alpha)
+            glow_mid = QColor(103, 224, 255, glow_alpha)
+            rim_color = QColor(103, 224, 255, rim_alpha)
+            glow_edge = QColor(55, 138, 238, 0)
+        else:
+            core_alpha = int(20 + (6 * pulse))
+            glow_alpha = int(40 + (14 * pulse))
+            rim_alpha = int(66 + (18 * pulse))
+            glow_core = QColor(255, 255, 255, core_alpha)
+            glow_mid = QColor(255, 255, 255, glow_alpha)
+            rim_color = QColor(238, 244, 250, rim_alpha)
+            glow_edge = QColor(205, 216, 228, 0)
+
+        shadow = QRadialGradient(self.diameter / 2, self.diameter * 0.66, self.diameter * 0.40)
+        shadow.setColorAt(0.0, QColor(0, 0, 0, 48 if self.charging else 42))
+        shadow.setColorAt(0.58, QColor(0, 0, 0, 16 if self.charging else 14))
+        shadow.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.setBrush(QBrush(shadow))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(QRectF(self.diameter * 0.16, self.diameter * 0.40, self.diameter * 0.68, self.diameter * 0.46))
+
+        grad = QRadialGradient(self.diameter / 2, self.diameter / 2, self.diameter * 0.50)
+        grad.setColorAt(0.0, glow_core)
+        grad.setColorAt(0.58, glow_mid)
+        grad.setColorAt(1.0, glow_edge)
         painter.setBrush(grad)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(0, 0, self.diameter, self.diameter)
+
+        rim_rect = QRectF(3.0, 3.0, self.diameter - 6.0, self.diameter - 6.0)
+        rim_gradient = QLinearGradient(rim_rect.left(), rim_rect.top(), rim_rect.left(), rim_rect.bottom())
+        rim_gradient.setColorAt(0.0, QColor(rim_color.red(), rim_color.green(), rim_color.blue(), max(0, rim_color.alpha() - 20)))
+        rim_gradient.setColorAt(0.52, QColor(rim_color.red(), rim_color.green(), rim_color.blue(), rim_color.alpha() // 3))
+        rim_gradient.setColorAt(1.0, QColor(0, 0, 0, 34 if self.charging else 28))
+        rim_pen = QPen(QBrush(rim_gradient), 0.85)
+        rim_pen.setCosmetic(True)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(rim_pen)
+        painter.drawEllipse(rim_rect)
         # Child widget (globe) will be drawn automatically
+
+
+class BreathingAnchorWidget(QWidget):
+    def __init__(self, content_size: int, padding: int = 4, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._scale = 1.0
+        self._content_size = content_size
+        self._padding = padding
+        self.content = QWidget(self)
+        self.content.setFixedSize(content_size, content_size)
+        self.setFixedSize(content_size + (padding * 2), content_size + (padding * 2))
+        self.content.move((self.width() - content_size) // 2, (self.height() - content_size) // 2)
+
+    def get_scale(self) -> float:
+        return self._scale
+
+    def set_scale(self, value: float) -> None:
+        self._scale = value
+        self.content.update()
+
+    scale = Property(float, get_scale, set_scale)
 
 # --- Main boot window ---
 class AcrylicWindow(QDialog):
@@ -447,19 +247,23 @@ class AcrylicWindow(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
-        self.setFixedSize(405, int(18.5 * 0.3937 * 96))  # Samakan dengan lock.py
+        self.setFixedSize(BOOT_WIDTH, BOOT_HEIGHT)  # Samakan dengan lock.py
+        self.setWindowOpacity(0.0)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+        self._background_corner_radius = BOOT_CORNER_RADIUS
+        self._background_charging = False
         # Tempatkan window di tengah layar
         screen = QApplication.primaryScreen().geometry()
         x = int((screen.width() - self.width()) / 2)
         y = int((screen.height() - self.height()) / 2)
         self.move(x, y)
-        # Efek kaca/transparan dan rounded rectangle
+        # Background dilukis manual agar selaras dengan lock.py.
         self.setStyleSheet("""
             QDialog {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #222a36, stop:1 #3a4a5c);
-                border-radius: 24px;
-                border: 1px solid rgba(255,255,255,0.18);
+                background: transparent;
+                border: none;
             }
             QLabel {
                 color: white;
@@ -469,22 +273,19 @@ class AcrylicWindow(QDialog):
         """)
 
         # Logo globe
-        spinner_diameter = int(100 * 0.65 * 1.1)  # Perbesar diameter spinner 10%
-        globe_diameter = 92  # fixed globe diameter, never changes again
-        globe_area = math.pi * (globe_diameter / 2) ** 2
-        print(f"Luas lingkaran logo globe: {globe_area:.2f} px^2, diameter: {globe_diameter} px")
+        spinner_diameter = SPINNER_DIAMETER
+        globe_diameter = GLOBE_DIAMETER
         logo_path = os.path.join(os.path.dirname(__file__), '../../assets/logo_splash.svg')
-        self.anchor_widget = QWidget(self)
-        self.anchor_widget.setFixedSize(spinner_diameter, spinner_diameter)
-        self.spinner = CircularProgress(diameter=spinner_diameter, parent=self.anchor_widget)
+        self.anchor_widget = BreathingAnchorWidget(spinner_diameter, padding=4, parent=self)
+        self.anchor_content = self.anchor_widget.content
+        self.spinner = CircularProgress(diameter=spinner_diameter, parent=self.anchor_content)
         self.spinner.move(0, 0)
         if os.path.exists(logo_path):
-            logo = QSvgWidget(logo_path, parent=self.anchor_widget)
+            logo = QSvgWidget(logo_path, parent=self.anchor_content)
             logo.setFixedSize(globe_diameter, globe_diameter)
-            globe_widget = GlowMaskWidget(logo, globe_diameter, glow_color=QColor(255,255,255,90), parent=self.anchor_widget)
-            print("✅ Logo SVG loaded successfully")
+            globe_widget = GlowMaskWidget(logo, globe_diameter, glow_color=QColor(255,255,255,90), parent=self.anchor_content)
         else:
-            globe_widget = QLabel("🌍", parent=self.anchor_widget)
+            globe_widget = QLabel("🌍", parent=self.anchor_content)
             globe_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
             globe_widget.setStyleSheet("font-size: 48px; color: cyan;")
             globe_widget.setFixedSize(globe_diameter, globe_diameter)
@@ -493,11 +294,12 @@ class AcrylicWindow(QDialog):
         globe_y = (spinner_diameter - globe_diameter) // 2
         globe_widget.setFixedSize(globe_diameter, globe_diameter)
         globe_widget.move(globe_x, globe_y)
+        self.globe_widget = globe_widget
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addStretch(1)
+        layout.addStretch(100)
         hbox = QHBoxLayout()
         hbox.setContentsMargins(0, 0, 0, 0)
         hbox.setSpacing(0)
@@ -505,8 +307,176 @@ class AcrylicWindow(QDialog):
         hbox.addWidget(self.anchor_widget)
         hbox.addStretch(1)
         layout.addLayout(hbox)
-        layout.addStretch(1)
+        layout.addStretch(122)
         self.setLayout(layout)
+        self._breath_anim = None
+        self._charging_timer = QTimer(self)
+        self._charging_timer.timeout.connect(self.update_charging_state)
+        self._charging_timer.start(200)
+        self.update_charging_state()
+        self._fade_in_anim = QPropertyAnimation(self, b"windowOpacity", self)
+        self._fade_in_anim.setStartValue(0.0)
+        self._fade_in_anim.setEndValue(1.0)
+        self._fade_in_anim.setDuration(BOOT_FADE_IN_MS)
+        self._fade_in_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._fade_out_anim = QPropertyAnimation(self, b"windowOpacity", self)
+        self._fade_out_anim.setStartValue(1.0)
+        self._fade_out_anim.setEndValue(0.0)
+        self._fade_out_anim.setDuration(BOOT_FADE_OUT_MS)
+        self._fade_out_anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        self._fade_out_anim.finished.connect(self.accept)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if getattr(self, '_fade_in_anim', None) is not None:
+            self._fade_in_anim.stop()
+            self.setWindowOpacity(0.0)
+            self._fade_in_anim.start()
+
+    def fade_out_and_accept(self) -> None:
+        if getattr(self, '_fade_in_anim', None) is not None:
+            self._fade_in_anim.stop()
+        if getattr(self, '_fade_out_anim', None) is not None:
+            self._fade_out_anim.stop()
+            self._fade_out_anim.setStartValue(self.windowOpacity())
+            self._fade_out_anim.start()
+        else:
+            self.accept()
+
+    def update_charging_state(self) -> None:
+        try:
+            from ui.battery_status import get_battery_info
+            info = get_battery_info()
+            charging = bool(info.get('charging', False)) if info else False
+        except Exception:
+            charging = False
+        if self._background_charging != charging:
+            self._background_charging = charging
+            self.update()
+        if hasattr(self, 'spinner'):
+            self.spinner.set_charging(charging)
+        if hasattr(self, 'globe_widget') and hasattr(self.globe_widget, 'set_charging'):
+            self.globe_widget.set_charging(charging)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.fillRect(event.rect(), Qt.GlobalColor.transparent)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+
+        border_inset = 1.0
+        rect = QRectF(border_inset, border_inset, self.width() - (border_inset * 2.0), self.height() - (border_inset * 2.0))
+        radius = max(0.0, self._background_corner_radius - border_inset)
+        charging = bool(getattr(self, '_background_charging', False))
+
+        if charging:
+            top_color = QColor(18, 30, 43)
+            mid_color = QColor(31, 47, 64)
+            bottom_color = QColor(20, 36, 55)
+            accent_top = QColor(103, 224, 255, 38)
+            accent_bottom = QColor(55, 138, 238, 20)
+            focus_color = QColor(103, 224, 255, 34)
+            lower_accent_color = QColor(55, 138, 238, 18)
+            top_highlight_color = QColor(232, 250, 255, 36)
+            border_top_color = QColor(232, 250, 255, 56)
+            border_mid_color = QColor(103, 224, 255, 68)
+            border_bottom_color = QColor(55, 138, 238, 28)
+            inner_border_color = QColor(232, 250, 255, 31)
+            second_inner_border_color = QColor(103, 224, 255, 18)
+            edge_shadow_color = QColor(2, 12, 24, 27)
+            lower_shadow = QColor(4, 16, 30, 46)
+        else:
+            top_color = QColor(26, 32, 41)
+            mid_color = QColor(41, 49, 60)
+            bottom_color = QColor(31, 39, 50)
+            accent_top = QColor(255, 255, 255, 21)
+            accent_bottom = QColor(205, 216, 228, 11)
+            focus_color = QColor(255, 255, 255, 24)
+            lower_accent_color = QColor(205, 216, 228, 10)
+            top_highlight_color = QColor(255, 255, 255, 30)
+            border_top_color = QColor(255, 255, 255, 49)
+            border_mid_color = QColor(255, 255, 255, 43)
+            border_bottom_color = QColor(205, 216, 228, 22)
+            inner_border_color = QColor(255, 255, 255, 28)
+            second_inner_border_color = QColor(205, 216, 228, 13)
+            edge_shadow_color = QColor(0, 0, 0, 24)
+            lower_shadow = QColor(0, 0, 0, 44)
+
+        background = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        background.setColorAt(0.0, top_color)
+        background.setColorAt(0.48, mid_color)
+        background.setColorAt(1.0, bottom_color)
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(background))
+        painter.drawPath(path)
+
+        painter.setClipPath(path)
+        accent = QLinearGradient(rect.left(), rect.top(), rect.right(), rect.bottom())
+        accent.setColorAt(0.0, accent_top)
+        accent.setColorAt(0.60, QColor(accent_top.red(), accent_top.green(), accent_top.blue(), max(4, accent_top.alpha() // 3)))
+        accent.setColorAt(1.0, accent_bottom)
+        painter.setBrush(QBrush(accent))
+        painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
+        focus_glow = QRadialGradient(QPointF(rect.center().x(), rect.center().y() - 22.0), 170.0)
+        focus_glow.setColorAt(0.0, focus_color)
+        focus_glow.setColorAt(0.50, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), max(3, focus_color.alpha() // 3)))
+        focus_glow.setColorAt(1.0, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), 0))
+        painter.setBrush(QBrush(focus_glow))
+        painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
+        top_highlight = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.top() + 22.0)
+        top_highlight.setColorAt(0.0, top_highlight_color)
+        top_highlight.setColorAt(1.0, QColor(top_highlight_color.red(), top_highlight_color.green(), top_highlight_color.blue(), 0))
+        painter.setBrush(QBrush(top_highlight))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        lower_accent = QRadialGradient(QPointF(rect.center().x(), rect.bottom() - 8.0), 130.0)
+        lower_accent.setColorAt(0.0, lower_accent_color)
+        lower_accent.setColorAt(0.52, QColor(lower_accent_color.red(), lower_accent_color.green(), lower_accent_color.blue(), max(2, lower_accent_color.alpha() // 3)))
+        lower_accent.setColorAt(1.0, QColor(lower_accent_color.red(), lower_accent_color.green(), lower_accent_color.blue(), 0))
+        painter.setBrush(QBrush(lower_accent))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        edge_shading = QLinearGradient(rect.left(), rect.center().y(), rect.right(), rect.center().y())
+        edge_shading.setColorAt(0.0, edge_shadow_color)
+        edge_shading.setColorAt(0.18, QColor(edge_shadow_color.red(), edge_shadow_color.green(), edge_shadow_color.blue(), 0))
+        edge_shading.setColorAt(0.82, QColor(edge_shadow_color.red(), edge_shadow_color.green(), edge_shadow_color.blue(), 0))
+        edge_shading.setColorAt(1.0, edge_shadow_color)
+        painter.setBrush(QBrush(edge_shading))
+        painter.drawRoundedRect(rect.adjusted(1.1, 1.1, -1.1, -1.1), radius - 1.1, radius - 1.1)
+
+        bottom_depth = QLinearGradient(rect.left(), rect.bottom() - 32.0, rect.left(), rect.bottom())
+        bottom_depth.setColorAt(0.0, QColor(lower_shadow.red(), lower_shadow.green(), lower_shadow.blue(), 0))
+        bottom_depth.setColorAt(1.0, lower_shadow)
+        painter.setBrush(QBrush(bottom_depth))
+        painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+        painter.setClipping(False)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        inner_rect = rect.adjusted(1.05, 1.05, -1.05, -1.05)
+        inner_pen = QPen(inner_border_color, 0.65)
+        inner_pen.setCosmetic(True)
+        painter.setPen(inner_pen)
+        painter.drawRoundedRect(inner_rect, radius - 1.05, radius - 1.05)
+        second_inner_rect = rect.adjusted(2.8, 2.8, -2.8, -2.8)
+        second_inner_pen = QPen(second_inner_border_color, 0.45)
+        second_inner_pen.setCosmetic(True)
+        painter.setPen(second_inner_pen)
+        painter.drawRoundedRect(second_inner_rect, radius - 2.8, radius - 2.8)
+
+        border_gradient = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        border_gradient.setColorAt(0.0, border_top_color)
+        border_gradient.setColorAt(0.46, border_mid_color)
+        border_gradient.setColorAt(1.0, border_bottom_color)
+        border_pen = QPen(QBrush(border_gradient), 1.0)
+        border_pen.setCosmetic(True)
+        painter.setPen(border_pen)
+        painter.drawRoundedRect(rect, radius, radius)
+        painter.end()
 
 
 # --- Show boot dialog function ---
@@ -522,8 +492,5 @@ def show_boot():
         screen_geometry.x() + (screen_geometry.width() - width_px) // 2,
         screen_geometry.y() + (screen_geometry.height() - height_px) // 2
     )
-    print("[DEBUG] Boot dialog shown.")
-    from PySide6.QtCore import QTimer
-    QTimer.singleShot(3000, lambda: (print("[DEBUG] Boot dialog closing."), boot.accept()))
+    QTimer.singleShot(BOOT_DURATION_MS, boot.fade_out_and_accept)
     boot.exec()
-    print("[DEBUG] Boot dialog closed.")
