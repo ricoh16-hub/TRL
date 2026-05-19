@@ -144,6 +144,7 @@ def test_credentials_enter_key_resolves_precise_primary_action() -> None:
         "Enter username and password to continue.",
     )
     assert _resolve_credentials_enter_action("operator", "", "username") == ("focus_password", "", "")
+    assert _resolve_credentials_enter_action("operator", "", "form") == ("focus_password", "", "")
     assert _resolve_credentials_enter_action("operator", "", "password") == (
         "focus_password",
         "Password Required",

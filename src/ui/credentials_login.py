@@ -1564,7 +1564,7 @@ def _show_credentials_warning(
 
 def _resolve_credentials_enter_action(username: str, password: str, focused_field: str) -> tuple[str, str, str]:
     username = username.strip()
-    if focused_field == "username" and username and not password:
+    if focused_field in {"username", "form"} and username and not password:
         return ("focus_password", "", "")
     if not username and not password:
         return ("focus_username", "Credentials Required", "Enter username and password to continue.")
@@ -1646,6 +1646,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             font-size: 14px;
             font-family: {font_stack};
         }}
+        QLineEdit#fieldInput[identityLocked="true"] {{
+            color: {locked_identity_color};
+            font-weight: 650;
+        }}
         QLineEdit#fieldInput::placeholder {{
             color: {placeholder_color};
         }}
@@ -1690,6 +1694,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             "stop:1 rgba(28, 37, 50, 0.76)"
             ")"
         ),
+        locked_identity_color="rgba(246, 250, 255, 0.94)",
         placeholder_color="rgba(230, 237, 246, 0.42)",
         status_color="#FFFFFF",
         status_border="rgba(255, 255, 255, 0.16)",
@@ -1731,6 +1736,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             "stop:1 rgba(22, 48, 70, 0.80)"
             ")"
         ),
+        locked_identity_color="rgba(221, 247, 255, 0.96)",
         placeholder_color="rgba(224, 240, 250, 0.46)",
         status_color="#FFFFFF",
         status_border="rgba(236, 251, 255, 0.18)",
@@ -1916,6 +1922,12 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     username_input = QLineEdit()
     username_input.setObjectName("fieldInput")
     username_input.setPlaceholderText("Enter username")
+    username_input.setText(str(getattr(pin_user, "username", "") or ""))
+    username_input.setReadOnly(True)
+    username_input.setProperty("identityLocked", True)
+    username_input.setCursor(Qt.CursorShape.ArrowCursor)
+    username_input.setToolTip("Verified PIN identity")
+    username_input.setAccessibleName("Verified username")
     username_input.installEventFilter(CredentialsInputFocusFilter(username_row))
 
     username_layout.addWidget(username_icon)
@@ -2295,7 +2307,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     _update_charging()  # update awal
     # -------------------------------------------------------------------
 
-    username_input.setFocus()
+    password_input.setFocus()
     if dialog.exec() == QDialog.DialogCode.Accepted:
         return result_user["user"]
     return None
