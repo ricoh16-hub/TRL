@@ -388,6 +388,182 @@ class LockReferenceCardPanel(QFrame):
         painter.end()
 
 
+def _paint_credentials_inline_surface(
+    painter: QPainter,
+    event: QPaintEvent,
+    width: int,
+    height: int,
+    radius: float,
+    charging: bool,
+    focused: bool = False,
+    compact: bool = False,
+) -> None:
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+    painter.fillRect(event.rect(), Qt.GlobalColor.transparent)
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+
+    border_inset = 0.75
+    rect = QRectF(
+        border_inset,
+        border_inset,
+        width - (border_inset * 2.0),
+        height - (border_inset * 2.0),
+    )
+    draw_radius = max(0.0, radius - border_inset)
+
+    if charging:
+        top_color = QColor(27, 45, 60, 212 if focused else 194)
+        mid_color = QColor(22, 55, 75, 218 if focused else 198)
+        bottom_color = QColor(17, 40, 58, 224 if focused else 202)
+        accent_color = QColor(103, 224, 255, 36 if focused else 22)
+        top_highlight_color = QColor(232, 250, 255, 48 if focused else 32)
+        bottom_depth_color = QColor(2, 12, 24, 70 if focused else 52)
+        inner_border_color = QColor(232, 250, 255, 38 if focused else 24)
+        border_top_color = QColor(232, 250, 255, 132 if focused else 82)
+        border_mid_color = QColor(103, 224, 255, 118 if focused else 72)
+        border_bottom_color = QColor(55, 138, 238, 66 if focused else 40)
+    else:
+        top_color = QColor(38, 47, 59, 210 if focused else 188)
+        mid_color = QColor(31, 39, 51, 214 if focused else 194)
+        bottom_color = QColor(21, 29, 40, 222 if focused else 198)
+        accent_color = QColor(255, 255, 255, 26 if focused else 14)
+        top_highlight_color = QColor(255, 255, 255, 44 if focused else 28)
+        bottom_depth_color = QColor(0, 0, 0, 66 if focused else 42)
+        inner_border_color = QColor(255, 255, 255, 32 if focused else 20)
+        border_top_color = QColor(255, 255, 255, 118 if focused else 70)
+        border_mid_color = QColor(255, 255, 255, 88 if focused else 44)
+        border_bottom_color = QColor(205, 216, 228, 48 if focused else 24)
+
+    if compact:
+        top_color.setAlpha(max(0, top_color.alpha() - 18))
+        mid_color.setAlpha(max(0, mid_color.alpha() - 16))
+        bottom_color.setAlpha(max(0, bottom_color.alpha() - 14))
+        accent_color.setAlpha(max(0, accent_color.alpha() - 6))
+
+    path = QPainterPath()
+    path.addRoundedRect(rect, draw_radius, draw_radius)
+
+    background = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+    background.setColorAt(0.0, top_color)
+    background.setColorAt(0.48, mid_color)
+    background.setColorAt(1.0, bottom_color)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QBrush(background))
+    painter.drawPath(path)
+
+    painter.setClipPath(path)
+
+    top_highlight = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.top() + max(12.0, rect.height() * 0.42))
+    top_highlight.setColorAt(0.0, top_highlight_color)
+    top_highlight.setColorAt(1.0, QColor(top_highlight_color.red(), top_highlight_color.green(), top_highlight_color.blue(), 0))
+    painter.setBrush(QBrush(top_highlight))
+    painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -rect.height() * 0.34), draw_radius - 1.0, draw_radius - 1.0)
+
+    focus_glow = QRadialGradient(QPointF(rect.center().x(), rect.top() + rect.height() * 0.38), rect.width() * 0.64)
+    focus_glow.setColorAt(0.0, accent_color)
+    focus_glow.setColorAt(
+        0.52,
+        QColor(accent_color.red(), accent_color.green(), accent_color.blue(), max(2, accent_color.alpha() // 3)),
+    )
+    focus_glow.setColorAt(1.0, QColor(accent_color.red(), accent_color.green(), accent_color.blue(), 0))
+    painter.setBrush(QBrush(focus_glow))
+    painter.drawRoundedRect(rect.adjusted(0.8, 0.8, -0.8, -0.8), draw_radius - 0.8, draw_radius - 0.8)
+
+    bottom_depth = QLinearGradient(rect.left(), rect.center().y(), rect.left(), rect.bottom())
+    bottom_depth.setColorAt(0.0, QColor(bottom_depth_color.red(), bottom_depth_color.green(), bottom_depth_color.blue(), 0))
+    bottom_depth.setColorAt(1.0, bottom_depth_color)
+    painter.setBrush(QBrush(bottom_depth))
+    painter.drawRoundedRect(rect.adjusted(1.0, rect.height() * 0.36, -1.0, -1.0), draw_radius - 1.0, draw_radius - 1.0)
+
+    painter.setClipping(False)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    inner_pen = QPen(inner_border_color, 0.65)
+    inner_pen.setCosmetic(True)
+    painter.setPen(inner_pen)
+    painter.drawRoundedRect(rect.adjusted(1.05, 1.05, -1.05, -1.05), draw_radius - 1.05, draw_radius - 1.05)
+
+    border_gradient = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+    border_gradient.setColorAt(0.0, border_top_color)
+    border_gradient.setColorAt(0.48, border_mid_color)
+    border_gradient.setColorAt(1.0, border_bottom_color)
+    border_pen = QPen(QBrush(border_gradient), 1.0)
+    border_pen.setCosmetic(True)
+    painter.setPen(border_pen)
+    painter.drawRoundedRect(rect, draw_radius, draw_radius)
+
+
+class CredentialsGlassInputRow(QFrame):
+    """Input row surface with the same glass/depth language as the credentials card."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._charging = False
+        self._focused = False
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self.update()
+
+    def set_focused(self, focused: bool) -> None:
+        focused = bool(focused)
+        if self._focused == focused:
+            return
+        self._focused = focused
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        _paint_credentials_inline_surface(
+            painter,
+            event,
+            self.width(),
+            self.height(),
+            12.0,
+            self._charging,
+            self._focused,
+        )
+        painter.end()
+
+
+class CredentialsGlassStatusChip(QFrame):
+    """Compact status surface matched to the input rows."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._charging = False
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        _paint_credentials_inline_surface(
+            painter,
+            event,
+            self.width(),
+            self.height(),
+            11.0,
+            self._charging,
+            False,
+            compact=True,
+        )
+        painter.end()
+
+
 class CredentialsInputFocusFilter(QObject):
     def __init__(self, row: QFrame) -> None:
         super().__init__(row)
@@ -398,14 +574,17 @@ class CredentialsInputFocusFilter(QObject):
             focused = event.type() == QEvent.Type.FocusIn
             charging = bool(self._row.property("charging"))
             self._row.setProperty("focused", focused)
+            set_focused = getattr(self._row, "set_focused", None)
+            if callable(set_focused):
+                set_focused(focused)
             effect = self._row.graphicsEffect()
             if isinstance(effect, QGraphicsDropShadowEffect):
-                effect.setBlurRadius((16 if focused else 12) if charging else (13 if focused else 9))
-                effect.setOffset(0, 3 if charging or focused else 2)
+                effect.setBlurRadius((18 if focused else 13) if charging else (15 if focused else 11))
+                effect.setOffset(0, 4 if focused else 3)
                 if charging:
-                    effect.setColor(QColor(80, 180, 255, 68 if focused else 38))
+                    effect.setColor(QColor(20, 126, 190, 86) if focused else QColor(3, 18, 36, 74))
                 else:
-                    effect.setColor(QColor(255, 255, 255, 42) if focused else QColor(0, 0, 0, 42))
+                    effect.setColor(QColor(255, 255, 255, 54) if focused else QColor(0, 0, 0, 58))
             self._row.style().unpolish(self._row)
             self._row.style().polish(self._row)
             self._row.update()
@@ -669,17 +848,33 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
     cancel_btn.setPrimary(False)
     submit_btn.setPrimary(False)
 
-    def _set_button_shadow(button: CustomButton, color: QColor, blur: int, offset_y: int) -> None:
-        shadow = QGraphicsDropShadowEffect(button)
-        shadow.setBlurRadius(blur)
-        shadow.setOffset(0, offset_y)
-        shadow.setColor(color)
-        button.setGraphicsEffect(shadow)
+    def _set_button_shadow(
+        button: CustomButton,
+        normal_color: QColor,
+        normal_blur: int,
+        normal_offset_y: int,
+        hover_color: QColor,
+        hover_blur: int,
+        hover_offset_y: int,
+    ) -> None:
+        button._custom_shadow = (normal_color, normal_blur, normal_offset_y)  # type: ignore[attr-defined]
+        button._custom_hover_shadow = (hover_color, hover_blur, hover_offset_y)  # type: ignore[attr-defined]
+        button._sync_shadow()  # type: ignore[attr-defined]
 
     if charging:
         button_gradient = (QColor(22, 47, 64, 238), QColor(18, 65, 88, 242))
         button_hover_gradient = (QColor(28, 61, 82, 246), QColor(24, 91, 122, 248))
         button_border = QColor(103, 224, 255, 138)
+        button_border_gradient = (
+            QColor(232, 250, 255, 148),
+            QColor(103, 224, 255, 126),
+            QColor(55, 138, 238, 66),
+        )
+        button_hover_border_gradient = (
+            QColor(245, 253, 255, 178),
+            QColor(118, 230, 255, 158),
+            QColor(74, 154, 250, 86),
+        )
         common_text_color = QColor("#F7FCFF")
         text_shadow_color = QColor(0, 24, 42, 88)
 
@@ -688,6 +883,8 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         cancel_btn._custom_gradient = button_gradient  # type: ignore[attr-defined]
         cancel_btn._custom_hover_gradient = button_hover_gradient  # type: ignore[attr-defined]
         cancel_btn._custom_border = button_border  # type: ignore[attr-defined]
+        cancel_btn._custom_border_gradient = button_border_gradient  # type: ignore[attr-defined]
+        cancel_btn._custom_hover_border_gradient = button_hover_border_gradient  # type: ignore[attr-defined]
         cancel_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
         cancel_btn._custom_premium_surface = True  # type: ignore[attr-defined]
         cancel_btn._custom_text_shadow_color = text_shadow_color  # type: ignore[attr-defined]
@@ -697,16 +894,44 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         submit_btn._custom_gradient = button_gradient  # type: ignore[attr-defined]
         submit_btn._custom_hover_gradient = button_hover_gradient  # type: ignore[attr-defined]
         submit_btn._custom_border = button_border  # type: ignore[attr-defined]
+        submit_btn._custom_border_gradient = button_border_gradient  # type: ignore[attr-defined]
+        submit_btn._custom_hover_border_gradient = button_hover_border_gradient  # type: ignore[attr-defined]
         submit_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
         submit_btn._custom_premium_surface = True  # type: ignore[attr-defined]
         submit_btn._custom_text_shadow_color = text_shadow_color  # type: ignore[attr-defined]
 
-        _set_button_shadow(cancel_btn, QColor(3, 18, 36, 106), 17, 4)
-        _set_button_shadow(submit_btn, QColor(3, 18, 36, 106), 17, 4)
+        _set_button_shadow(
+            cancel_btn,
+            QColor(3, 18, 36, 106),
+            17,
+            4,
+            QColor(26, 167, 228, 86),
+            22,
+            4,
+        )
+        _set_button_shadow(
+            submit_btn,
+            QColor(3, 18, 36, 106),
+            17,
+            4,
+            QColor(26, 167, 228, 86),
+            22,
+            4,
+        )
     else:
         button_gradient = (QColor(42, 51, 64, 236), QColor(27, 36, 49, 242))
         button_hover_gradient = (QColor(54, 64, 79, 246), QColor(36, 47, 62, 248))
         button_border = QColor(255, 255, 255, 104)
+        button_border_gradient = (
+            QColor(255, 255, 255, 132),
+            QColor(255, 255, 255, 92),
+            QColor(205, 216, 228, 46),
+        )
+        button_hover_border_gradient = (
+            QColor(255, 255, 255, 164),
+            QColor(255, 255, 255, 124),
+            QColor(223, 232, 242, 62),
+        )
         common_text_color = QColor("#FFFFFF")
         text_shadow_color = QColor(0, 0, 0, 84)
 
@@ -715,6 +940,8 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         cancel_btn._custom_gradient = button_gradient  # type: ignore[attr-defined]
         cancel_btn._custom_hover_gradient = button_hover_gradient  # type: ignore[attr-defined]
         cancel_btn._custom_border = button_border  # type: ignore[attr-defined]
+        cancel_btn._custom_border_gradient = button_border_gradient  # type: ignore[attr-defined]
+        cancel_btn._custom_hover_border_gradient = button_hover_border_gradient  # type: ignore[attr-defined]
         cancel_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
         cancel_btn._custom_premium_surface = True  # type: ignore[attr-defined]
         cancel_btn._custom_text_shadow_color = text_shadow_color  # type: ignore[attr-defined]
@@ -724,12 +951,30 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         submit_btn._custom_gradient = button_gradient  # type: ignore[attr-defined]
         submit_btn._custom_hover_gradient = button_hover_gradient  # type: ignore[attr-defined]
         submit_btn._custom_border = button_border  # type: ignore[attr-defined]
+        submit_btn._custom_border_gradient = button_border_gradient  # type: ignore[attr-defined]
+        submit_btn._custom_hover_border_gradient = button_hover_border_gradient  # type: ignore[attr-defined]
         submit_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
         submit_btn._custom_premium_surface = True  # type: ignore[attr-defined]
         submit_btn._custom_text_shadow_color = text_shadow_color  # type: ignore[attr-defined]
 
-        _set_button_shadow(cancel_btn, QColor(0, 0, 0, 86), 16, 4)
-        _set_button_shadow(submit_btn, QColor(0, 0, 0, 86), 16, 4)
+        _set_button_shadow(
+            cancel_btn,
+            QColor(0, 0, 0, 86),
+            16,
+            4,
+            QColor(255, 255, 255, 58),
+            20,
+            4,
+        )
+        _set_button_shadow(
+            submit_btn,
+            QColor(0, 0, 0, 86),
+            16,
+            4,
+            QColor(255, 255, 255, 58),
+            20,
+            4,
+        )
 
     cancel_btn.update()
     submit_btn.update()
@@ -1317,6 +1562,19 @@ def _show_credentials_warning(
     CredentialsWarningDialog(parent, title, message, charging, width, window_title, visual_mode).exec()
 
 
+def _resolve_credentials_enter_action(username: str, password: str, focused_field: str) -> tuple[str, str, str]:
+    username = username.strip()
+    if focused_field == "username" and username and not password:
+        return ("focus_password", "", "")
+    if not username and not password:
+        return ("focus_username", "Credentials Required", "Enter username and password to continue.")
+    if not username:
+        return ("focus_username", "Username Required", "Enter username to continue.")
+    if not password:
+        return ("focus_password", "Password Required", "Enter password to continue.")
+    return ("submit", "", "")
+
+
 def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[QWidget] = None) -> Optional[User]:
     """Step 2: username/password validation after successful PIN step."""
     dialog = PremiumCredentialsDialog(parent)
@@ -1365,18 +1623,16 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             font-family: {font_stack};
         }}
         QFrame#inputRow {{
-            border: 1px solid {input_border};
-            border-radius: 12px;
-            background: {input_row_bg};
+            border: none;
+            background: transparent;
         }}
         QFrame#inputRow[focused="true"] {{
-            border: 1px solid {input_focus_border};
-            background: {input_focus_bg};
+            border: none;
+            background: transparent;
         }}
         QFrame#statusChip {{
-            border: 1px solid {status_border};
-            border-radius: 11px;
-            background: {status_bg};
+            border: none;
+            background: transparent;
         }}
         QLabel#fieldIcon {{
             min-width: 24px;
@@ -1493,16 +1749,16 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     )
 
     _TITLE_NORMAL = (
-        "<p style='margin:0; padding:0; font-size:20px; font-weight:650; letter-spacing:0px; color:#FFFFFF;'>"
-        "Credentials</p>"
+        "<p style='margin:0; padding:0; font-size:20px; font-weight:620; letter-spacing:0px; color:#FFFFFF;'>"
+        "Secure Access</p>"
         "<p style='margin:5px 0 0 0; padding:0; font-size:12px; color:rgba(230,237,246,0.72); font-weight:400;'>"
-        "Enter your credentials to continue securely</p>"
+        "Verify your credentials to continue</p>"
     )
     _TITLE_CHARGING = (
-        "<p style='margin:0; padding:0; font-size:20px; font-weight:650; letter-spacing:0px; color:#FFFFFF;'>"
-        "Credentials</p>"
+        "<p style='margin:0; padding:0; font-size:20px; font-weight:620; letter-spacing:0px; color:#FFFFFF;'>"
+        "Secure Access</p>"
         "<p style='margin:5px 0 0 0; padding:0; font-size:12px; color:rgba(213,244,255,0.76); font-weight:400;'>"
-        "Enter your credentials to continue securely</p>"
+        "Verify your credentials to continue</p>"
     )
 
     dialog.setStyleSheet(_STYLE_NORMAL)
@@ -1549,8 +1805,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             self._charging = False
             self._color_charging = QColor(80, 180, 255, 180)
             self._color_charging_core = QColor(80, 180, 255, 255)
-            self._color_normal = QColor(255, 255, 255, 96)
-            self._color_normal_core = QColor(255, 255, 255, 172)
+            self._color_normal = QColor(255, 255, 255, 76)
+            self._color_normal_core = QColor(255, 255, 255, 136)
             self._shimmer_active = True
             self._shimmer_pos = 0.0
             from PySide6.QtCore import QEasingCurve, QSequentialAnimationGroup, QPauseAnimation, QPropertyAnimation
@@ -1629,25 +1885,25 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     # Jalankan shimmer hanya 2 kali saat form dibuat
     top_glow.start_shimmer()
 
-    username_label = QLabel("User")
+    username_label = QLabel("Username")
     username_label.setObjectName("fieldLabel")
     # Efek glow awal
     username_glow = QGraphicsDropShadowEffect(username_label)
     username_glow.setBlurRadius(5)
     username_glow.setOffset(0, 0)
-    username_glow.setColor(QColor(255, 255, 255, 32))
+    username_glow.setColor(QColor(255, 255, 255, 24))
     username_label.setGraphicsEffect(username_glow)
     card_layout.addWidget(username_label)
     card_layout.addSpacing(8)  # Tambahkan jarak 8px antara label dan textbox user
 
-    username_row = QFrame()
+    username_row = CredentialsGlassInputRow()
     username_row.setObjectName("inputRow")
     username_row.setProperty("focused", False)
     username_row.setFixedHeight(41)
     username_row_shadow = QGraphicsDropShadowEffect(username_row)
-    username_row_shadow.setBlurRadius(9)
-    username_row_shadow.setOffset(0, 2)
-    username_row_shadow.setColor(QColor(0, 0, 0, 34))
+    username_row_shadow.setBlurRadius(11)
+    username_row_shadow.setOffset(0, 3)
+    username_row_shadow.setColor(QColor(0, 0, 0, 58))
     username_row.setGraphicsEffect(username_row_shadow)
     username_layout = QHBoxLayout(username_row)
     username_layout.setContentsMargins(14, 0, 14, 0)
@@ -1659,7 +1915,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
     username_input = QLineEdit()
     username_input.setObjectName("fieldInput")
-    username_input.setPlaceholderText("Enter your username")
+    username_input.setPlaceholderText("Enter username")
     username_input.installEventFilter(CredentialsInputFocusFilter(username_row))
 
     username_layout.addWidget(username_icon)
@@ -1674,19 +1930,19 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     password_glow = QGraphicsDropShadowEffect(password_label)
     password_glow.setBlurRadius(5)
     password_glow.setOffset(0, 0)
-    password_glow.setColor(QColor(255, 255, 255, 32))
+    password_glow.setColor(QColor(255, 255, 255, 24))
     password_label.setGraphicsEffect(password_glow)
     card_layout.addWidget(password_label)
     card_layout.addSpacing(8)  # Tambahkan jarak 8px antara label dan textbox password
 
-    password_row = QFrame()
+    password_row = CredentialsGlassInputRow()
     password_row.setObjectName("inputRow")
     password_row.setProperty("focused", False)
     password_row.setFixedHeight(41)
     password_row_shadow = QGraphicsDropShadowEffect(password_row)
-    password_row_shadow.setBlurRadius(9)
-    password_row_shadow.setOffset(0, 2)
-    password_row_shadow.setColor(QColor(0, 0, 0, 34))
+    password_row_shadow.setBlurRadius(11)
+    password_row_shadow.setOffset(0, 3)
+    password_row_shadow.setColor(QColor(0, 0, 0, 58))
     password_row.setGraphicsEffect(password_row_shadow)
     password_layout = QHBoxLayout(password_row)
     password_layout.setContentsMargins(14, 0, 14, 0)
@@ -1699,7 +1955,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     password_input = QLineEdit()
     password_input.setObjectName("fieldInput")
     password_input.setEchoMode(QLineEdit.EchoMode.Password)
-    password_input.setPlaceholderText("Enter your password")
+    password_input.setPlaceholderText("Enter password")
     password_input.installEventFilter(CredentialsInputFocusFilter(password_row))
 
     toggle_password_btn = QToolButton()
@@ -1720,13 +1976,13 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     # Tambahkan jarak antara input password dan status row
     card_layout.addSpacing(22)
 
-    status_chip = QFrame()
+    status_chip = CredentialsGlassStatusChip()
     status_chip.setObjectName("statusChip")
     status_chip.setFixedHeight(34)
     status_chip_shadow = QGraphicsDropShadowEffect(status_chip)
-    status_chip_shadow.setBlurRadius(10)
-    status_chip_shadow.setOffset(0, 2)
-    status_chip_shadow.setColor(QColor(0, 0, 0, 32))
+    status_chip_shadow.setBlurRadius(12)
+    status_chip_shadow.setOffset(0, 3)
+    status_chip_shadow.setColor(QColor(0, 0, 0, 54))
     status_chip.setGraphicsEffect(status_chip_shadow)
     status_row = QHBoxLayout(status_chip)
     status_row.setContentsMargins(12, 0, 12, 0)
@@ -1740,7 +1996,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     status_icon_glow.setOffset(0, 0)
     status_icon_glow.setColor(QColor(255, 255, 255, 28))
     status_icon.setGraphicsEffect(status_icon_glow)
-    status_text = QLabel(f"PIN verified <span style='font-size:12px; font-weight:650;'>{getattr(pin_user, 'username', '-')}</span>")
+    status_text = QLabel(f"PIN verified · <span style='font-size:12px; font-weight:650;'>{getattr(pin_user, 'username', '-')}</span>")
     status_text.setObjectName("statusText")
     status_text.setTextFormat(Qt.TextFormat.RichText)
     # Efek glow awal
@@ -1755,7 +2011,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     card_layout.addWidget(status_chip)
 
     root_layout.addWidget(card)
-    root_layout.addSpacing(18)
+    root_layout.addSpacing(14)
 
     result_user: dict[str, Optional[User]] = {"user": None}
 
@@ -1795,13 +2051,19 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         username = username_input.text().strip()
         password = password_input.text()
         if not username or not password:
-            _show_credentials_warning(
-                dialog,
-                "Credentials Required",
-                "Enter your username and password.",
-                bool(_charging_cache.get("prev")),
-                card.width(),
-            )
+            action, title_text, message_text = _resolve_credentials_enter_action(username, password, "form")
+            if action == "focus_username":
+                username_input.setFocus()
+            elif action == "focus_password":
+                password_input.setFocus()
+            if title_text and message_text:
+                _show_credentials_warning(
+                    dialog,
+                    title_text,
+                    message_text,
+                    bool(_charging_cache.get("prev")),
+                    card.width(),
+                )
             return
 
         authenticated_user = authenticate_credentials_step(
@@ -1827,6 +2089,53 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     toggle_password_btn.clicked.connect(toggle_password_visibility)
     submit_btn.clicked.connect(on_submit)
     cancel_btn.clicked.connect(dialog.reject)
+
+    def _handle_enter_key() -> None:
+        focused_widget = app.focusWidget()
+        focused_field = "username" if focused_widget is username_input else "password" if focused_widget is password_input else "form"
+        action, title_text, message_text = _resolve_credentials_enter_action(
+            username_input.text(),
+            password_input.text(),
+            focused_field,
+        )
+        if action == "focus_username":
+            username_input.setFocus()
+        elif action == "focus_password":
+            password_input.setFocus()
+        elif action == "submit":
+            on_submit()
+            return
+
+        if title_text and message_text:
+            _show_credentials_warning(
+                dialog,
+                title_text,
+                message_text,
+                bool(_charging_cache.get("prev")),
+                card.width(),
+            )
+
+    class CredentialsDialogKeyFilter(QObject):
+        def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+            if event.type() != QEvent.Type.KeyPress:
+                return super().eventFilter(watched, event)
+            key = event.key()
+            if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                _handle_enter_key()
+                event.accept()
+                return True
+            if key == Qt.Key.Key_Escape:
+                dialog.reject()
+                event.accept()
+                return True
+            return super().eventFilter(watched, event)
+
+    username_input.returnPressed.connect(_handle_enter_key)
+    password_input.returnPressed.connect(_handle_enter_key)
+    credentials_key_filter = CredentialsDialogKeyFilter(dialog)
+    dialog._credentials_key_filter = credentials_key_filter  # type: ignore[attr-defined]
+    for key_widget in (dialog, card, username_input, password_input, toggle_password_btn, cancel_btn, submit_btn):
+        key_widget.installEventFilter(credentials_key_filter)
 
     # --- Charging state: dark glass base with restrained cyan accents. ---
     try:
@@ -1880,7 +2189,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         # Inline styles must also switch color; otherwise they override the dialog QSS.
         username_row.setProperty("charging", charging)
         password_row.setProperty("charging", charging)
-        field_label_color = "#F7FCFF" if charging else "#FFFFFF"
+        username_row.set_charging(charging)
+        password_row.set_charging(charging)
+        status_chip.set_charging(charging)
+        field_label_color = "rgba(221, 247, 255, 0.92)" if charging else "rgba(244, 248, 255, 0.88)"
         status_label_color = "#FFFFFF" if charging else "#FFFFFF"
         field_label_style = (
             f"color: {field_label_color}; "
@@ -1896,11 +2208,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
         # Update glow/outline effect
         glow_color = QColor("#67E0FF" if charging else "#FFFFFF")
-        glow_alpha = 50 if charging else 32
+        glow_alpha = 38 if charging else 24
         for eff in [username_label.graphicsEffect(), password_label.graphicsEffect(), status_text.graphicsEffect()]:
             if isinstance(eff, QGraphicsDropShadowEffect):
                 eff.setColor(QColor(glow_color.red(), glow_color.green(), glow_color.blue(), glow_alpha))
-                eff.setBlurRadius(7 if charging else 5)
+                eff.setBlurRadius(6 if charging else 4)
 
         if isinstance(status_icon_glow, QGraphicsDropShadowEffect):
             status_icon_glow.setBlurRadius(5 if charging else 5)
@@ -1908,17 +2220,17 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
         for eff in (username_row_shadow, password_row_shadow):
             focused = eff.parent() is not None and bool(getattr(eff.parent(), "property", lambda _: False)("focused"))
-            eff.setBlurRadius((16 if focused else 12) if charging else (13 if focused else 9))
-            eff.setOffset(0, 3 if charging or focused else 2)
+            eff.setBlurRadius((18 if focused else 13) if charging else (15 if focused else 11))
+            eff.setOffset(0, 4 if focused else 3)
             if charging:
-                eff.setColor(QColor(103, 224, 255, 54 if focused else 28))
+                eff.setColor(QColor(20, 126, 190, 86) if focused else QColor(3, 18, 36, 74))
             else:
-                eff.setColor(QColor(255, 255, 255, 42) if focused else QColor(0, 0, 0, 42))
+                eff.setColor(QColor(255, 255, 255, 54) if focused else QColor(0, 0, 0, 58))
 
         if isinstance(status_chip_shadow, QGraphicsDropShadowEffect):
-            status_chip_shadow.setBlurRadius(12 if charging else 10)
-            status_chip_shadow.setOffset(0, 2)
-            status_chip_shadow.setColor(QColor(103, 224, 255, 28) if charging else QColor(0, 0, 0, 32))
+            status_chip_shadow.setBlurRadius(14 if charging else 12)
+            status_chip_shadow.setOffset(0, 3)
+            status_chip_shadow.setColor(QColor(3, 18, 36, 70) if charging else QColor(0, 0, 0, 54))
 
         _apply_action_button_theme(cancel_btn, submit_btn, charging)
 

@@ -1,6 +1,6 @@
 from PySide6.QtCore import QEvent, QRectF, QSize, Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QLinearGradient, QPainter, QPen
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtWidgets import QGraphicsDropShadowEffect, QPushButton
 
 
 class CustomButton(QPushButton):
@@ -23,9 +23,13 @@ class CustomButton(QPushButton):
         self._custom_gradient = None
         self._custom_hover_gradient = None
         self._custom_border = None
+        self._custom_border_gradient = None
+        self._custom_hover_border_gradient = None
         self._custom_text_color = None
         self._custom_premium_surface = False
         self._custom_text_shadow_color = None
+        self._custom_shadow = None
+        self._custom_hover_shadow = None
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet("border: none; background: transparent; font-weight: 600; font-family: 'SF Pro Display', Arial, sans-serif;")
         self.setMinimumHeight(5)
@@ -41,17 +45,37 @@ class CustomButton(QPushButton):
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Enter:
             self._hovered = True
+            self._sync_shadow()
             self.update()
         elif event.type() == QEvent.Leave:
             self._hovered = False
             self.update()
+            self._sync_shadow()
         elif event.type() == QEvent.MouseButtonPress:
             self._pressed = True
+            self._sync_shadow()
             self.update()
         elif event.type() == QEvent.MouseButtonRelease:
             self._pressed = False
+            self._sync_shadow()
             self.update()
         return super().eventFilter(obj, event)
+
+    def _sync_shadow(self) -> None:
+        shadow_spec = self._custom_shadow
+        if self._hovered and self._custom_hover_shadow is not None:
+            shadow_spec = self._custom_hover_shadow
+        if shadow_spec is None:
+            return
+
+        color, blur_radius, offset_y = shadow_spec
+        effect = self.graphicsEffect()
+        if not isinstance(effect, QGraphicsDropShadowEffect):
+            effect = QGraphicsDropShadowEffect(self)
+            self.setGraphicsEffect(effect)
+        effect.setBlurRadius(blur_radius)
+        effect.setOffset(0, offset_y)
+        effect.setColor(QColor(color))
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -120,9 +144,18 @@ class CustomButton(QPushButton):
                 if self._custom_border is not None:
                     border_color = QColor(self._custom_border)
                     border_grad = QLinearGradient(surface_rect.left(), surface_rect.top(), surface_rect.left(), surface_rect.bottom())
-                    border_grad.setColorAt(0.0, _alpha(QColor(255, 255, 255), min(border_color.alpha() + 32, 210)))
-                    border_grad.setColorAt(0.48, border_color)
-                    border_grad.setColorAt(1.0, _alpha(border_color, max(12, border_color.alpha() // 2)))
+                    border_stops = getattr(self, "_custom_border_gradient", None)
+                    if self._hovered and getattr(self, "_custom_hover_border_gradient", None) is not None:
+                        border_stops = self._custom_hover_border_gradient
+                    if border_stops is not None:
+                        border_top, border_mid, border_bottom = border_stops
+                        border_grad.setColorAt(0.0, QColor(border_top))
+                        border_grad.setColorAt(0.48, QColor(border_mid))
+                        border_grad.setColorAt(1.0, QColor(border_bottom))
+                    else:
+                        border_grad.setColorAt(0.0, _alpha(QColor(255, 255, 255), min(border_color.alpha() + 32, 210)))
+                        border_grad.setColorAt(0.48, border_color)
+                        border_grad.setColorAt(1.0, _alpha(border_color, max(12, border_color.alpha() // 2)))
                     border_pen = QPen(QBrush(border_grad), 1.0)
                     border_pen.setCosmetic(True)
                     painter.setPen(border_pen)
