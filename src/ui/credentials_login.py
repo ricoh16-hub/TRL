@@ -1655,7 +1655,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             );
         }}
         QLabel#fieldLabel {{
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 700;
             letter-spacing: 0.8px;
             color: {label_color};
@@ -1683,11 +1683,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             background: transparent;
             padding: 0px 4px;
             font-size: 14px;
+            font-weight: 550;
             font-family: {font_stack};
         }}
         QLineEdit#fieldInput[identityLocked="true"] {{
             color: {locked_identity_color};
-            font-weight: 650;
         }}
         QLineEdit#fieldInput::placeholder {{
             color: {placeholder_color};
@@ -1704,6 +1704,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         QLabel#statusText {{
             color: {status_color};
             font-size: 12px;
+            font-weight: 550;
             font-family: {font_stack};
         }}
     """
@@ -2047,7 +2048,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     status_icon_glow.setOffset(0, 0)
     status_icon_glow.setColor(QColor(255, 255, 255, 28))
     status_icon.setGraphicsEffect(status_icon_glow)
-    status_text = QLabel(f"PIN verified · <span style='font-size:12px; font-weight:650;'>{getattr(pin_user, 'username', '-')}</span>")
+    status_text = QLabel(f"PIN verified: <span style='font-size:12px; font-weight:550;'>{getattr(pin_user, 'username', '-')}</span>")
     status_text.setObjectName("statusText")
     status_text.setTextFormat(Qt.TextFormat.RichText)
     # Efek glow awal
@@ -2255,14 +2256,14 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         status_label_color = "#FFFFFF" if charging else "#FFFFFF"
         field_label_style = (
             f"color: {field_label_color}; "
-            "font-size: 13px; font-weight: 700; letter-spacing: 0.8px; "
+            "font-size: 12px; font-weight: 700; letter-spacing: 0.8px; "
             f"font-family: {CREDENTIALS_FONT_STACK};"
         )
         username_label.setStyleSheet(field_label_style)  # type: ignore
         password_label.setStyleSheet(field_label_style)  # type: ignore
         status_text.setStyleSheet(
             f"color: {status_label_color}; "
-            f"font-size: 12px; font-weight: 500; font-family: {CREDENTIALS_FONT_STACK};"
+            f"font-size: 12px; font-weight: 550; font-family: {CREDENTIALS_FONT_STACK};"
         )  # type: ignore
 
         # Update glow/outline effect

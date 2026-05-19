@@ -780,18 +780,18 @@ class ChevronExitButton(QWidget):
         y2a = (1-p)*y2 + p*yh
         y3a = (1-p)*y3 + p*yh
         if self._charging:
-            top_color = QColor(103, 224, 255, 245)
-            bottom_color = QColor(55, 138, 238, 232)
-            shadow_color = QColor(22, 84, 145, 54)
-            highlight_color = QColor(232, 250, 255, 46)
+            top_color = QColor(126, 232, 255, 244)
+            bottom_color = QColor(58, 146, 236, 232)
+            shadow_color = QColor(18, 76, 132, 34)
+            highlight_color = QColor(236, 252, 255, 38)
         else:
-            top_color = QColor(255, 255, 255, 244)
-            bottom_color = QColor(205, 216, 228, 230)
-            shadow_color = QColor(0, 0, 0, 48)
-            highlight_color = QColor(255, 255, 255, 38)
-        shadow_pen = QPen(shadow_color, 4.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+            top_color = QColor(252, 254, 255, 244)
+            bottom_color = QColor(198, 209, 221, 230)
+            shadow_color = QColor(0, 0, 0, 32)
+            highlight_color = QColor(255, 255, 255, 34)
+        shadow_pen = QPen(shadow_color, 4.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         painter.setPen(shadow_pen)
-        shadow_offset = 0.85
+        shadow_offset = 0.72
         painter.drawLine(QPointF(x1, y1a + shadow_offset), QPointF(x2, y2a + shadow_offset))
         painter.drawLine(QPointF(x2, y2a + shadow_offset), QPointF(x3, y3a + shadow_offset))
         # Warna gradasi mengikuti status charging dan clock palette
@@ -802,11 +802,11 @@ class ChevronExitButton(QWidget):
         else:
             grad.setColorAt(0.0, top_color)
             grad.setColorAt(1.0, bottom_color)
-        pen = QPen(QBrush(grad), 4.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        pen = QPen(QBrush(grad), 4.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
         painter.drawLine(QPointF(x1, y1a), QPointF(x2, y2a))
         painter.drawLine(QPointF(x2, y2a), QPointF(x3, y3a))
-        highlight_pen = QPen(highlight_color, 1.05, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        highlight_pen = QPen(highlight_color, 0.9, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         painter.setPen(highlight_pen)
         highlight_offset = -0.45
         painter.drawLine(QPointF(x1, y1a + highlight_offset), QPointF(x2, y2a + highlight_offset))
@@ -897,19 +897,19 @@ class TimeVerticalStretchLabel(QWidget):
             path_x += char_widths[i] + self._letter_spacing
         path_bounds = text_path.boundingRect()
         if self._charging:
-            top_color = QColor(103, 224, 255, 248)
-            mid_color = QColor(80, 180, 255, 244)
-            bottom_color = QColor(55, 138, 238, 236)
-            shadow_color = QColor(22, 84, 145, 54)
-            highlight_color = QColor(232, 250, 255, 58)
+            top_color = QColor(126, 232, 255, 248)
+            mid_color = QColor(86, 188, 252, 244)
+            bottom_color = QColor(58, 146, 236, 236)
+            shadow_color = QColor(18, 76, 132, 44)
+            highlight_color = QColor(236, 252, 255, 54)
         else:
-            top_color = QColor(255, 255, 255, 246)
-            mid_color = QColor(238, 244, 250, 240)
-            bottom_color = QColor(205, 216, 228, 232)
-            shadow_color = QColor(0, 0, 0, 48)
-            highlight_color = QColor(255, 255, 255, 46)
+            top_color = QColor(252, 254, 255, 246)
+            mid_color = QColor(232, 239, 246, 240)
+            bottom_color = QColor(198, 209, 221, 232)
+            shadow_color = QColor(0, 0, 0, 38)
+            highlight_color = QColor(255, 255, 255, 44)
         shadow_path = QPainterPath(text_path)
-        shadow_path.translate(0.0, 0.85)
+        shadow_path.translate(0.0, 0.72)
         painter.setBrush(QBrush(shadow_color))
         painter.drawPath(shadow_path)
         grad = QLinearGradient(
@@ -925,7 +925,7 @@ class TimeVerticalStretchLabel(QWidget):
         painter.setBrush(QBrush(grad))
         painter.drawPath(text_path)
         highlight_path = QPainterPath(text_path)
-        highlight_path.translate(0.0, -0.55)
+        highlight_path.translate(0.0, -0.48)
         painter.setBrush(QBrush(highlight_color))
         painter.drawPath(highlight_path)
         painter.restore()
@@ -950,7 +950,7 @@ class TimeSeparatorWidget(QWidget):
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        side = 16.0
+        side = 14.5
         rect = QRect(
             int((self.width() - side) / 2),
             int((self.height() - side) / 2 + 0.4),
@@ -958,16 +958,16 @@ class TimeSeparatorWidget(QWidget):
             int(side),
         )
         if self._charging:
-            top_color = QColor(103, 224, 255, 245)
-            bottom_color = QColor(55, 138, 238, 232)
-            shadow_color = QColor(22, 84, 145, 64)
-            highlight_color = QColor(232, 250, 255, 58)
+            top_color = QColor(126, 232, 255, 232)
+            bottom_color = QColor(58, 146, 236, 220)
+            shadow_color = QColor(18, 76, 132, 38)
+            highlight_color = QColor(236, 252, 255, 42)
         else:
-            top_color = QColor(255, 255, 255, 244)
-            bottom_color = QColor(205, 216, 228, 230)
-            shadow_color = QColor(0, 0, 0, 56)
-            highlight_color = QColor(255, 255, 255, 44)
-        shadow_rect = rect.translated(0, 1)
+            top_color = QColor(252, 254, 255, 232)
+            bottom_color = QColor(198, 209, 221, 218)
+            shadow_color = QColor(0, 0, 0, 34)
+            highlight_color = QColor(255, 255, 255, 34)
+        shadow_rect = QRectF(rect).translated(0.0, 0.72)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(shadow_color))
         painter.drawRoundedRect(shadow_rect, 0.9, 0.9)
@@ -976,7 +976,7 @@ class TimeSeparatorWidget(QWidget):
         grad.setColorAt(1.0, bottom_color)
         painter.setBrush(QBrush(grad))
         painter.drawRoundedRect(rect, 0.9, 0.9)
-        highlight_rect = QRect(rect.left(), rect.top(), rect.width(), max(1, int(rect.height() * 0.38)))
+        highlight_rect = QRect(rect.left(), rect.top(), rect.width(), max(1, int(rect.height() * 0.34)))
         painter.setBrush(QBrush(highlight_color))
         painter.drawRoundedRect(highlight_rect, 0.8, 0.8)
         painter.end()
@@ -1032,19 +1032,19 @@ class PremiumDateLabel(QWidget):
         text_path.addText(QPointF(x, y), font, self._text)
         bounds = text_path.boundingRect()
         if self._charging:
-            top_color = QColor(147, 233, 255, 238)
-            mid_color = QColor(80, 180, 255, 226)
-            bottom_color = QColor(62, 144, 235, 224)
-            shadow_color = QColor(18, 70, 130, 76)
-            highlight_color = QColor(232, 250, 255, 42)
+            top_color = QColor(158, 235, 255, 236)
+            mid_color = QColor(96, 190, 250, 224)
+            bottom_color = QColor(68, 150, 232, 222)
+            shadow_color = QColor(18, 76, 132, 46)
+            highlight_color = QColor(236, 252, 255, 38)
         else:
-            top_color = QColor(255, 255, 255, 238)
-            mid_color = QColor(238, 244, 250, 226)
-            bottom_color = QColor(205, 216, 228, 222)
-            shadow_color = QColor(0, 0, 0, 66)
-            highlight_color = QColor(255, 255, 255, 36)
+            top_color = QColor(252, 254, 255, 236)
+            mid_color = QColor(232, 239, 246, 224)
+            bottom_color = QColor(198, 209, 221, 222)
+            shadow_color = QColor(0, 0, 0, 42)
+            highlight_color = QColor(255, 255, 255, 34)
         shadow_path = QPainterPath(text_path)
-        shadow_path.translate(0.0, 0.85)
+        shadow_path.translate(0.0, 0.72)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(shadow_color))
         painter.drawPath(shadow_path)
