@@ -1047,12 +1047,27 @@ class CredentialsWarningDialog(QDialog):
             "panel_bg1": "transparent",
             "title_bar_alpha": "0.000",
             "separator_alpha": "0.14",
+            "separator_color": QColor(244, 248, 255, 42),
+            "window_title_color": QColor(222, 232, 245, 210),
+            "headline_color": QColor(244, 248, 255, 236),
+            "message_color": QColor(214, 224, 238, 204),
+            "warning_icon_accent": QColor(222, 232, 245, 188),
+            "warning_mark_color": QColor(244, 248, 255, 220),
             "headline_alpha": "0.92",
             "message_alpha": "0.82",
             "close_hover_rgb": "80, 180, 255",
             "close_hover_border_alpha": "0.42",
             "close_hover_bg_alpha": "0.08",
             "close_pressed_bg_alpha": "0.13",
+            "close_idle_icon": QColor(198, 207, 218, 196),
+            "close_idle_border": QColor(255, 255, 255, 0),
+            "close_idle_bg": QColor(255, 255, 255, 0),
+            "close_hover_icon": QColor(255, 255, 255, 252),
+            "close_pressed_icon": QColor(255, 255, 255, 255),
+            "close_hover_border": QColor(255, 142, 150, 172),
+            "close_hover_bg": QColor(226, 54, 68, 226),
+            "close_pressed_bg": QColor(194, 38, 52, 238),
+            "close_glow": QColor(226, 54, 68, 88),
             "close_glow_alpha": 70,
             "icon_fill_alpha": 30,
             "shadow": QColor(255, 255, 255, 56),
@@ -1065,12 +1080,27 @@ class CredentialsWarningDialog(QDialog):
             "panel_bg1": "transparent",
             "title_bar_alpha": "0.000",
             "separator_alpha": "0.18",
+            "separator_color": QColor(79, 183, 232, 58),
+            "window_title_color": QColor(142, 231, 255, 210),
+            "headline_color": QColor(221, 247, 255, 236),
+            "message_color": QColor(170, 220, 242, 204),
+            "warning_icon_accent": QColor(120, 223, 255, 198),
+            "warning_mark_color": QColor(221, 247, 255, 222),
             "headline_alpha": "0.94",
             "message_alpha": "0.86",
             "close_hover_rgb": "80, 180, 255",
             "close_hover_border_alpha": "0.58",
             "close_hover_bg_alpha": "0.115",
             "close_pressed_bg_alpha": "0.18",
+            "close_idle_icon": QColor(175, 207, 220, 206),
+            "close_idle_border": QColor(255, 255, 255, 0),
+            "close_idle_bg": QColor(255, 255, 255, 0),
+            "close_hover_icon": QColor(255, 255, 255, 252),
+            "close_pressed_icon": QColor(255, 255, 255, 255),
+            "close_hover_border": QColor(255, 168, 176, 184),
+            "close_hover_bg": QColor(226, 54, 68, 232),
+            "close_pressed_bg": QColor(194, 38, 52, 242),
+            "close_glow": QColor(226, 54, 68, 98),
             "close_glow_alpha": 90,
             "icon_fill_alpha": 34,
             "shadow": QColor(80, 180, 255, 86),
@@ -1085,12 +1115,27 @@ class CredentialsWarningDialog(QDialog):
             "panel_bg1": "rgba(48, 58, 72, 0.95)",
             "title_bar_alpha": "0.045",
             "separator_alpha": "0.14",
+            "separator_color": QColor(244, 248, 255, 42),
+            "window_title_color": QColor(222, 232, 245, 210),
+            "headline_color": QColor(244, 248, 255, 236),
+            "message_color": QColor(214, 224, 238, 204),
+            "warning_icon_accent": QColor(222, 232, 245, 188),
+            "warning_mark_color": QColor(244, 248, 255, 220),
             "headline_alpha": "0.92",
             "message_alpha": "0.82",
             "close_hover_rgb": "80, 180, 255",
             "close_hover_border_alpha": "0.42",
             "close_hover_bg_alpha": "0.08",
             "close_pressed_bg_alpha": "0.13",
+            "close_idle_icon": QColor(198, 207, 218, 196),
+            "close_idle_border": QColor(255, 255, 255, 0),
+            "close_idle_bg": QColor(255, 255, 255, 0),
+            "close_hover_icon": QColor(255, 255, 255, 252),
+            "close_pressed_icon": QColor(255, 255, 255, 255),
+            "close_hover_border": QColor(255, 142, 150, 172),
+            "close_hover_bg": QColor(226, 54, 68, 226),
+            "close_pressed_bg": QColor(194, 38, 52, 238),
+            "close_glow": QColor(226, 54, 68, 88),
             "close_glow_alpha": 70,
             "icon_fill_alpha": 30,
             "shadow": QColor(255, 255, 255, 56),
@@ -1103,12 +1148,27 @@ class CredentialsWarningDialog(QDialog):
             "panel_bg1": "rgba(36, 70, 106, 0.96)",
             "title_bar_alpha": "0.045",
             "separator_alpha": "0.18",
+            "separator_color": QColor(79, 183, 232, 58),
+            "window_title_color": QColor(142, 231, 255, 210),
+            "headline_color": QColor(221, 247, 255, 236),
+            "message_color": QColor(170, 220, 242, 204),
+            "warning_icon_accent": QColor(120, 223, 255, 198),
+            "warning_mark_color": QColor(221, 247, 255, 222),
             "headline_alpha": "0.94",
             "message_alpha": "0.86",
             "close_hover_rgb": "80, 180, 255",
             "close_hover_border_alpha": "0.58",
             "close_hover_bg_alpha": "0.115",
             "close_pressed_bg_alpha": "0.18",
+            "close_idle_icon": QColor(175, 207, 220, 206),
+            "close_idle_border": QColor(255, 255, 255, 0),
+            "close_idle_bg": QColor(255, 255, 255, 0),
+            "close_hover_icon": QColor(255, 255, 255, 252),
+            "close_pressed_icon": QColor(255, 255, 255, 255),
+            "close_hover_border": QColor(255, 168, 176, 184),
+            "close_hover_bg": QColor(226, 54, 68, 232),
+            "close_pressed_bg": QColor(194, 38, 52, 242),
+            "close_glow": QColor(226, 54, 68, 98),
             "close_glow_alpha": 90,
             "icon_fill_alpha": 34,
             "shadow": QColor(80, 180, 255, 86),
@@ -1125,7 +1185,7 @@ class CredentialsWarningDialog(QDialog):
     CLOSE_ICON_SIZE = 14
     CLOSE_ICON_HOVER_SIZE = 15
     CLOSE_ICON_PRESSED_SIZE = 13
-    CLOSE_BUTTON_SIZE = 20
+    CLOSE_BUTTON_SIZE = 22
     CREDENTIAL_ICON_SIZE = 26
     SEPARATOR_HEIGHT = 1
 
@@ -1186,20 +1246,17 @@ class CredentialsWarningDialog(QDialog):
         self._set_close_hover(False)
         self._refresh_theme_tree()
 
-    def _pin_accent_color(self) -> QColor:
-        color = QColor(self._accent)
-        color.setAlphaF(float(self._palette.get("headline_alpha", "0.92")))
-        return color
-
     def _draw_warning_icon(self) -> QPixmap:
+        icon_accent = QColor(self._palette.get("warning_icon_accent", self._accent))
+        mark_color = QColor(self._palette.get("warning_mark_color", self._accent))
         if self._uses_lock_reference_warning():
             return _draw_credentials_alert_icon(
                 self.CREDENTIAL_ICON_SIZE,
-                self._accent,
-                self._pin_accent_color(),
+                icon_accent,
+                mark_color,
                 int(self._palette.get("icon_fill_alpha", 34)),
             )
-        return _draw_credentials_alert_icon(self.CREDENTIAL_ICON_SIZE, self._accent)
+        return _draw_credentials_alert_icon(self.CREDENTIAL_ICON_SIZE, icon_accent, mark_color)
 
     def _read_current_charging(self) -> bool:
         parent = self.parentWidget()
@@ -1253,25 +1310,15 @@ class CredentialsWarningDialog(QDialog):
                 );
             """
             title_bar_style = f"border: none; background: rgba(255, 255, 255, {self._palette.get('title_bar_alpha', '0.025')});"
-        title_rgb = self._accent_rgb if self._uses_lock_reference_warning() else "244, 248, 255"
-        title_alpha = (
-            self._palette.get("headline_alpha", "0.92")
-            if self._uses_lock_reference_warning()
-            else "0.74"
-        )
-        close_hover_rgb = self._palette.get("close_hover_rgb", self._accent_rgb)
-        close_hover_border_rgb = close_hover_rgb if self._uses_lock_reference_warning() else "255, 255, 255"
-        close_hover_border_alpha = self._palette.get("close_hover_border_alpha", "0.58" if self._uses_lock_reference_warning() else "0.18")
-        close_hover_bg_rgb = close_hover_rgb if self._uses_lock_reference_warning() else "255, 255, 255"
-        close_hover_bg_alpha = self._palette.get("close_hover_bg_alpha", "0.115" if self._uses_lock_reference_warning() else "0.052")
-        close_pressed_bg_rgb = close_hover_rgb if self._uses_lock_reference_warning() else "255, 255, 255"
-        close_pressed_bg_alpha = self._palette.get("close_pressed_bg_alpha", "0.18" if self._uses_lock_reference_warning() else "0.085")
-        message_rgb = self._accent_rgb if self._uses_lock_reference_warning() else "244, 248, 255"
-        message_alpha = (
-            self._palette.get("message_alpha", "0.86")
-            if self._uses_lock_reference_warning()
-            else self._palette.get("message_alpha", "0.80")
-        )
+        title_color = QColor(self._palette.get("window_title_color", QColor(244, 248, 255, 190)))
+        separator_color = QColor(self._palette.get("separator_color", QColor(self._accent)))
+        headline_color = QColor(self._palette.get("headline_color", QColor(self._accent)))
+        close_idle_border = QColor(self._palette.get("close_idle_border", QColor(255, 255, 255, 0)))
+        close_idle_bg = QColor(self._palette.get("close_idle_bg", QColor(255, 255, 255, 0)))
+        close_hover_border = QColor(self._palette.get("close_hover_border", QColor(255, 255, 255, 80)))
+        close_hover_bg = QColor(self._palette.get("close_hover_bg", QColor(255, 255, 255, 22)))
+        close_pressed_bg = QColor(self._palette.get("close_pressed_bg", QColor(255, 255, 255, 34)))
+        message_color = QColor(self._palette.get("message_color", QColor(244, 248, 255, 204)))
         self.setStyleSheet(f"""
             QDialog#credentialsWarningDialog {{
                 background: transparent;
@@ -1284,40 +1331,40 @@ class CredentialsWarningDialog(QDialog):
             }}
             QFrame#warningSeparator {{
                 border: none;
-                background: rgba({self._accent_rgb}, {self._palette.get("separator_alpha", "0.10")});
+                background: rgba({separator_color.red()}, {separator_color.green()}, {separator_color.blue()}, {separator_color.alphaF():.3f});
             }}
             QLabel#warningIcon {{
                 min-width: 30px;
                 max-width: 30px;
             }}
             QLabel#warningWindowTitle {{
-                color: rgba({title_rgb}, {title_alpha});
+                color: rgba({title_color.red()}, {title_color.green()}, {title_color.blue()}, {title_color.alphaF():.3f});
                 font-size: 11px;
                 font-weight: 700;
                 letter-spacing: 0.2px;
                 font-family: 'Segoe UI', Arial, sans-serif;
             }}
             QToolButton#warningClose {{
-                border: 1px solid rgba(255, 255, 255, 0.00);
+                border: 1px solid rgba({close_idle_border.red()}, {close_idle_border.green()}, {close_idle_border.blue()}, {close_idle_border.alphaF():.3f});
                 border-radius: 8px;
-                background: transparent;
+                background: rgba({close_idle_bg.red()}, {close_idle_bg.green()}, {close_idle_bg.blue()}, {close_idle_bg.alphaF():.3f});
             }}
             QToolButton#warningClose:hover {{
-                border: 1px solid rgba({close_hover_border_rgb}, {close_hover_border_alpha});
-                background: rgba({close_hover_bg_rgb}, {close_hover_bg_alpha});
+                border: 1px solid rgba({close_hover_border.red()}, {close_hover_border.green()}, {close_hover_border.blue()}, {close_hover_border.alphaF():.3f});
+                background: rgba({close_hover_bg.red()}, {close_hover_bg.green()}, {close_hover_bg.blue()}, {close_hover_bg.alphaF():.3f});
             }}
             QToolButton#warningClose:pressed {{
-                background: rgba({close_pressed_bg_rgb}, {close_pressed_bg_alpha});
+                background: rgba({close_pressed_bg.red()}, {close_pressed_bg.green()}, {close_pressed_bg.blue()}, {close_pressed_bg.alphaF():.3f});
             }}
             QLabel#warningHeadline {{
-                color: rgba({self._accent_rgb}, {self._palette.get("headline_alpha", "0.92")});
+                color: rgba({headline_color.red()}, {headline_color.green()}, {headline_color.blue()}, {headline_color.alphaF():.3f});
                 font-size: 14px;
                 font-weight: 800;
                 letter-spacing: 0.2px;
                 font-family: 'Segoe UI', Arial, sans-serif;
             }}
             QLabel#warningMessage {{
-                color: rgba({message_rgb}, {message_alpha});
+                color: rgba({message_color.red()}, {message_color.green()}, {message_color.blue()}, {message_color.alphaF():.3f});
                 font-size: 12px;
                 font-family: 'Segoe UI', Arial, sans-serif;
             }}
@@ -1381,9 +1428,7 @@ class CredentialsWarningDialog(QDialog):
 
         self._close_btn = QToolButton(title_bar_frame)
         self._close_btn.setObjectName("warningClose")
-        close_icon_color = QColor(self._accent) if self._uses_lock_reference_warning() else QColor(244, 248, 255, 185)
-        if self._uses_lock_reference_warning():
-            close_icon_color.setAlphaF(float(self._palette.get("headline_alpha", "0.92")))
+        close_icon_color = QColor(self._palette.get("close_idle_icon", QColor(244, 248, 255, 206)))
         self._close_btn.setIcon(QIcon(_draw_close_icon(self.CLOSE_ICON_SIZE, close_icon_color)))
         self._close_btn.setIconSize(QSize(self.CLOSE_ICON_SIZE, self.CLOSE_ICON_SIZE))
         self._close_btn.setFixedSize(self.CLOSE_BUTTON_SIZE, self.CLOSE_BUTTON_SIZE)
@@ -1457,26 +1502,18 @@ class CredentialsWarningDialog(QDialog):
         if self._close_btn is None:
             return
         if self._uses_lock_reference_warning():
-            if hovered and not self._charging:
-                close_icon_color = QColor(80, 180, 255, 255)
+            if self._close_btn.isDown():
+                close_icon_color = QColor(self._palette.get("close_pressed_icon", QColor(255, 94, 104, 255)))
             elif hovered:
-                close_icon_color = QColor(255, 255, 255, 245)
+                close_icon_color = QColor(self._palette.get("close_hover_icon", QColor(255, 118, 126, 246)))
             else:
-                close_icon_color = QColor(self._accent)
-            if not hovered:
-                close_icon_color.setAlphaF(float(self._palette.get("headline_alpha", "0.92")))
+                close_icon_color = QColor(self._palette.get("close_idle_icon", QColor(244, 248, 255, 206)))
             if hovered:
-                close_icon_color.setAlpha(255)
-                glow_rgb = [int(channel.strip()) for channel in str(self._palette.get("close_hover_rgb", self._accent_rgb)).split(",")]
+                glow_color = QColor(self._palette.get("close_glow", QColor(255, 92, 104, 72)))
                 shadow = QGraphicsDropShadowEffect(self._close_btn)
                 shadow.setBlurRadius(12)
                 shadow.setOffset(0, 0)
-                shadow.setColor(QColor(
-                    glow_rgb[0],
-                    glow_rgb[1],
-                    glow_rgb[2],
-                    int(self._palette.get("close_glow_alpha", 90)),
-                ))
+                shadow.setColor(glow_color)
                 self._close_btn.setGraphicsEffect(shadow)
             else:
                 self._close_btn.setGraphicsEffect(None)  # type: ignore[arg-type]
@@ -1515,12 +1552,14 @@ class CredentialsWarningDialog(QDialog):
     def _close_mouse_press(self, event) -> None:
         if self._close_btn is not None and event.button() == Qt.MouseButton.LeftButton:
             self._animate_close_icon_size(self.CLOSE_ICON_PRESSED_SIZE)
+            self._set_close_hover(True)
         QToolButton.mousePressEvent(self._close_btn, event)
 
     def _close_mouse_release(self, event) -> None:
         if self._close_btn is not None and event.button() == Qt.MouseButton.LeftButton:
             target_size = self.CLOSE_ICON_HOVER_SIZE if self._close_btn.underMouse() else self.CLOSE_ICON_SIZE
             self._animate_close_icon_size(target_size)
+            self._set_close_hover(self._close_btn.underMouse())
         QToolButton.mouseReleaseEvent(self._close_btn, event)
 
     def _start_drag(self, event) -> None:
@@ -1538,7 +1577,7 @@ class CredentialsWarningDialog(QDialog):
         event.accept()
 
     def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_Escape:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Escape):
             self.reject()
             event.accept()
             return
@@ -2076,6 +2115,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                     bool(_charging_cache.get("prev")),
                     card.width(),
                 )
+                if action == "focus_username":
+                    username_input.setFocus()
+                elif action == "focus_password":
+                    password_input.setFocus()
             return
 
         authenticated_user = authenticate_credentials_step(
@@ -2126,6 +2169,10 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
                 bool(_charging_cache.get("prev")),
                 card.width(),
             )
+            if action == "focus_username":
+                username_input.setFocus()
+            elif action == "focus_password":
+                password_input.setFocus()
 
     class CredentialsDialogKeyFilter(QObject):
         def eventFilter(self, watched: QObject, event: QEvent) -> bool:

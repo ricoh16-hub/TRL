@@ -3,8 +3,8 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QApplication, QGraphicsDropShadowEffect, QWidget
+from PySide6.QtGui import QKeyEvent, QPixmap
+from PySide6.QtWidgets import QApplication, QDialog, QGraphicsDropShadowEffect, QWidget
 
 from src.ui.credentials_login import (
     CredentialsGlassInputRow,
@@ -176,7 +176,11 @@ def test_credentials_warning_dialog_matches_card_width() -> None:
     assert dialog.height() == CredentialsWarningDialog.HEIGHT
     assert "QFrame#warningPanel" in dialog.styleSheet()
     assert "background: transparent" in dialog.styleSheet()
-    assert "255, 255, 255" in dialog.styleSheet()
+    assert "222, 232, 245" in dialog.styleSheet()
+    assert dialog._palette["close_idle_icon"].name().lower() == "#c6cfda"  # type: ignore[index]
+    assert dialog._palette["close_hover_icon"].name().lower() == "#ffffff"  # type: ignore[index]
+    assert dialog._palette["headline_color"].name().lower() == "#f4f8ff"  # type: ignore[index]
+    assert dialog._palette["message_color"].name().lower() == "#d6e0ee"  # type: ignore[index]
 
     close_btn = dialog.findChild(QWidget, "warningClose")
     assert close_btn is not None
@@ -201,7 +205,11 @@ def test_credentials_warning_dialog_supports_charging_palette() -> None:
     assert dialog.objectName() == "credentialsWarningDialog"
     assert dialog.width() == 333
     assert dialog.height() == CredentialsWarningDialog.HEIGHT
-    assert "80, 180, 255" in dialog.styleSheet()
+    assert "142, 231, 255" in dialog.styleSheet()
+    assert dialog._palette["close_idle_icon"].name().lower() == "#afcfdc"  # type: ignore[index]
+    assert dialog._palette["close_hover_icon"].name().lower() == "#ffffff"  # type: ignore[index]
+    assert dialog._palette["headline_color"].name().lower() == "#ddf7ff"  # type: ignore[index]
+    assert dialog._palette["message_color"].name().lower() == "#aadcf2"  # type: ignore[index]
 
 
 def test_credentials_warning_dialog_can_switch_palette_after_opening() -> None:
@@ -217,11 +225,11 @@ def test_credentials_warning_dialog_can_switch_palette_after_opening() -> None:
         width=333,
     )
 
-    assert "255, 255, 255" in dialog.styleSheet()
+    assert "222, 232, 245" in dialog.styleSheet()
     dialog._set_charging(True)
-    assert "80, 180, 255" in dialog.styleSheet()
+    assert "142, 231, 255" in dialog.styleSheet()
     dialog._set_charging(False)
-    assert "255, 255, 255" in dialog.styleSheet()
+    assert "222, 232, 245" in dialog.styleSheet()
 
 
 def test_credentials_warning_dialog_enforces_minimum_width() -> None:
@@ -238,6 +246,26 @@ def test_credentials_warning_dialog_enforces_minimum_width() -> None:
     )
 
     assert dialog.width() == CredentialsWarningDialog.WIDTH_MIN
+
+
+def test_credentials_warning_dialog_closes_on_enter_and_escape() -> None:
+    _get_app()
+    parent = QWidget()
+    parent.resize(405, 699)
+
+    for key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Escape):
+        dialog = CredentialsWarningDialog(
+            parent,
+            "Password Required",
+            "Enter password to continue.",
+            charging=True,
+            width=333,
+        )
+        event = QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier)
+        dialog.keyPressEvent(event)
+        assert event.isAccepted()
+        assert dialog.result() == QDialog.DialogCode.Rejected
+        dialog.close()
 
 
 def test_pin_warning_dialog_uses_lock_reference_panel_and_renders() -> None:
