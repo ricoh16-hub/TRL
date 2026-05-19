@@ -75,20 +75,20 @@ class PremiumCredentialsDialog(QDialog):
         charging = bool(getattr(self, "_background_charging", False))
 
         if charging:
-            top_color = QColor(24, 32, 43)
-            mid_color = QColor(38, 49, 62)
-            bottom_color = QColor(25, 39, 54)
-            accent_top = QColor(103, 224, 255, 24)
-            accent_bottom = QColor(55, 138, 238, 12)
-            focus_color = QColor(103, 224, 255, 20)
-            inner_highlight = QColor(236, 251, 255, 31)
-            lower_shadow = QColor(3, 14, 27, 46)
-            lower_accent_color = QColor(55, 138, 238, 11)
-            edge_shadow_color = QColor(1, 10, 22, 24)
-            inner_border_color = QColor(236, 251, 255, 25)
-            border_top_color = QColor(236, 251, 255, 50)
-            border_mid_color = QColor(103, 224, 255, 44)
-            border_bottom_color = QColor(55, 138, 238, 20)
+            top_color = QColor(18, 30, 43)
+            mid_color = QColor(31, 47, 64)
+            bottom_color = QColor(20, 36, 55)
+            accent_top = QColor(103, 224, 255, 34)
+            accent_bottom = QColor(55, 138, 238, 18)
+            focus_color = QColor(103, 224, 255, 30)
+            inner_highlight = QColor(232, 250, 255, 34)
+            lower_shadow = QColor(4, 16, 30, 44)
+            lower_accent_color = QColor(55, 138, 238, 16)
+            edge_shadow_color = QColor(2, 12, 24, 26)
+            inner_border_color = QColor(232, 250, 255, 28)
+            border_top_color = QColor(232, 250, 255, 54)
+            border_mid_color = QColor(103, 224, 255, 64)
+            border_bottom_color = QColor(55, 138, 238, 26)
         else:
             top_color = QColor(26, 32, 41)
             mid_color = QColor(41, 49, 60)
@@ -220,20 +220,20 @@ def _paint_lock_reference_background(
     radius = max(0.0, corner_radius - border_inset)
 
     if charging:
-        top_color = QColor(24, 32, 43)
-        mid_color = QColor(38, 49, 62)
-        bottom_color = QColor(25, 39, 54)
-        accent_top = QColor(103, 224, 255, 24)
-        accent_bottom = QColor(55, 138, 238, 12)
-        border_color = QColor(103, 224, 255, 44)
-        inner_highlight = QColor(236, 251, 255, 31)
-        lower_shadow = QColor(3, 14, 27, 46)
-        focus_color = QColor(103, 224, 255, 20)
-        inner_border_color = QColor(236, 251, 255, 25)
-        lower_accent_color = QColor(55, 138, 238, 11)
-        edge_shadow_color = QColor(1, 10, 22, 24)
-        border_top_color = QColor(236, 251, 255, 50)
-        border_bottom_color = QColor(55, 138, 238, 20)
+        top_color = QColor(18, 30, 43)
+        mid_color = QColor(31, 47, 64)
+        bottom_color = QColor(20, 36, 55)
+        accent_top = QColor(103, 224, 255, 34)
+        accent_bottom = QColor(55, 138, 238, 18)
+        border_color = QColor(103, 224, 255, 64)
+        inner_highlight = QColor(232, 250, 255, 34)
+        lower_shadow = QColor(4, 16, 30, 44)
+        focus_color = QColor(103, 224, 255, 30)
+        inner_border_color = QColor(232, 250, 255, 28)
+        lower_accent_color = QColor(55, 138, 238, 16)
+        edge_shadow_color = QColor(2, 12, 24, 26)
+        border_top_color = QColor(232, 250, 255, 54)
+        border_bottom_color = QColor(55, 138, 238, 26)
     else:
         top_color = QColor(26, 32, 41)
         mid_color = QColor(41, 49, 60)
@@ -677,63 +677,59 @@ def _apply_action_button_theme(cancel_btn: CustomButton, submit_btn: CustomButto
         button.setGraphicsEffect(shadow)
 
     if charging:
-        cancel_gradient = (QColor(34, 45, 59, 226), QColor(24, 34, 48, 232))
-        cancel_hover_gradient = (QColor(43, 56, 72, 236), QColor(30, 43, 59, 240))
-        cancel_border = QColor(236, 251, 255, 66)
-        submit_gradient = (QColor(34, 54, 72, 238), QColor(25, 73, 102, 242))
-        submit_hover_gradient = (QColor(40, 66, 88, 244), QColor(34, 94, 128, 246))
-        submit_border = QColor(103, 224, 255, 132)
+        button_gradient = (QColor(22, 47, 64, 238), QColor(18, 65, 88, 242))
+        button_hover_gradient = (QColor(28, 61, 82, 246), QColor(24, 91, 122, 248))
+        button_border = QColor(103, 224, 255, 138)
         common_text_color = QColor("#F7FCFF")
+        text_shadow_color = QColor(0, 24, 42, 88)
 
         cancel_btn._custom_bg = None  # type: ignore[attr-defined]
         cancel_btn._custom_hover_bg = None  # type: ignore[attr-defined]
-        cancel_btn._custom_gradient = cancel_gradient  # type: ignore[attr-defined]
-        cancel_btn._custom_hover_gradient = cancel_hover_gradient  # type: ignore[attr-defined]
-        cancel_btn._custom_border = cancel_border  # type: ignore[attr-defined]
+        cancel_btn._custom_gradient = button_gradient  # type: ignore[attr-defined]
+        cancel_btn._custom_hover_gradient = button_hover_gradient  # type: ignore[attr-defined]
+        cancel_btn._custom_border = button_border  # type: ignore[attr-defined]
         cancel_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
         cancel_btn._custom_premium_surface = True  # type: ignore[attr-defined]
-        cancel_btn._custom_text_shadow_color = QColor(0, 0, 0, 70)  # type: ignore[attr-defined]
+        cancel_btn._custom_text_shadow_color = text_shadow_color  # type: ignore[attr-defined]
 
         submit_btn._custom_bg = None  # type: ignore[attr-defined]
         submit_btn._custom_hover_bg = None  # type: ignore[attr-defined]
-        submit_btn._custom_gradient = submit_gradient  # type: ignore[attr-defined]
-        submit_btn._custom_hover_gradient = submit_hover_gradient  # type: ignore[attr-defined]
-        submit_btn._custom_border = submit_border  # type: ignore[attr-defined]
+        submit_btn._custom_gradient = button_gradient  # type: ignore[attr-defined]
+        submit_btn._custom_hover_gradient = button_hover_gradient  # type: ignore[attr-defined]
+        submit_btn._custom_border = button_border  # type: ignore[attr-defined]
         submit_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
         submit_btn._custom_premium_surface = True  # type: ignore[attr-defined]
-        submit_btn._custom_text_shadow_color = QColor(0, 24, 42, 88)  # type: ignore[attr-defined]
+        submit_btn._custom_text_shadow_color = text_shadow_color  # type: ignore[attr-defined]
 
-        _set_button_shadow(cancel_btn, QColor(0, 0, 0, 44), 10, 2)
-        _set_button_shadow(submit_btn, QColor(80, 180, 255, 58), 13, 2)
+        _set_button_shadow(cancel_btn, QColor(3, 18, 36, 106), 17, 4)
+        _set_button_shadow(submit_btn, QColor(3, 18, 36, 106), 17, 4)
     else:
-        cancel_gradient = (QColor(36, 44, 56, 222), QColor(25, 33, 44, 228))
-        cancel_hover_gradient = (QColor(45, 54, 68, 232), QColor(32, 42, 55, 236))
-        cancel_border = QColor(255, 255, 255, 62)
-        submit_gradient = (QColor(48, 57, 70, 236), QColor(34, 43, 56, 240))
-        submit_hover_gradient = (QColor(59, 69, 84, 242), QColor(43, 53, 68, 244))
-        submit_border = QColor(255, 255, 255, 108)
+        button_gradient = (QColor(42, 51, 64, 236), QColor(27, 36, 49, 242))
+        button_hover_gradient = (QColor(54, 64, 79, 246), QColor(36, 47, 62, 248))
+        button_border = QColor(255, 255, 255, 104)
         common_text_color = QColor("#FFFFFF")
+        text_shadow_color = QColor(0, 0, 0, 84)
 
         cancel_btn._custom_bg = None  # type: ignore[attr-defined]
         cancel_btn._custom_hover_bg = None  # type: ignore[attr-defined]
-        cancel_btn._custom_gradient = cancel_gradient  # type: ignore[attr-defined]
-        cancel_btn._custom_hover_gradient = cancel_hover_gradient  # type: ignore[attr-defined]
-        cancel_btn._custom_border = cancel_border  # type: ignore[attr-defined]
+        cancel_btn._custom_gradient = button_gradient  # type: ignore[attr-defined]
+        cancel_btn._custom_hover_gradient = button_hover_gradient  # type: ignore[attr-defined]
+        cancel_btn._custom_border = button_border  # type: ignore[attr-defined]
         cancel_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
         cancel_btn._custom_premium_surface = True  # type: ignore[attr-defined]
-        cancel_btn._custom_text_shadow_color = QColor(0, 0, 0, 78)  # type: ignore[attr-defined]
+        cancel_btn._custom_text_shadow_color = text_shadow_color  # type: ignore[attr-defined]
 
         submit_btn._custom_bg = None  # type: ignore[attr-defined]
         submit_btn._custom_hover_bg = None  # type: ignore[attr-defined]
-        submit_btn._custom_gradient = submit_gradient  # type: ignore[attr-defined]
-        submit_btn._custom_hover_gradient = submit_hover_gradient  # type: ignore[attr-defined]
-        submit_btn._custom_border = submit_border  # type: ignore[attr-defined]
+        submit_btn._custom_gradient = button_gradient  # type: ignore[attr-defined]
+        submit_btn._custom_hover_gradient = button_hover_gradient  # type: ignore[attr-defined]
+        submit_btn._custom_border = button_border  # type: ignore[attr-defined]
         submit_btn._custom_text_color = common_text_color  # type: ignore[attr-defined]
         submit_btn._custom_premium_surface = True  # type: ignore[attr-defined]
-        submit_btn._custom_text_shadow_color = QColor(0, 0, 0, 84)  # type: ignore[attr-defined]
+        submit_btn._custom_text_shadow_color = text_shadow_color  # type: ignore[attr-defined]
 
-        _set_button_shadow(cancel_btn, QColor(0, 0, 0, 42), 10, 2)
-        _set_button_shadow(submit_btn, QColor(255, 255, 255, 42), 13, 2)
+        _set_button_shadow(cancel_btn, QColor(0, 0, 0, 86), 16, 4)
+        _set_button_shadow(submit_btn, QColor(0, 0, 0, 86), 16, 4)
 
     cancel_btn.update()
     submit_btn.update()
@@ -1929,9 +1925,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         # Update card shadow
         parent_widget = card.parentWidget()
         if charging:
-            card_shadow.setBlurRadius(17)
-            card_shadow.setOffset(0, 7)
-            card_shadow.setColor(QColor(80, 180, 255, 46))
+            card_shadow.setBlurRadius(24)
+            card_shadow.setOffset(0, 9)
+            card_shadow.setColor(QColor(3, 18, 36, 118))
             if parent_widget is not None:
                 from PySide6.QtWidgets import QGraphicsEffect
                 from typing import cast
