@@ -611,16 +611,16 @@ def _draw_eye_icon(
 
     if crossed:
         lid_color = QColor(color)
-        lid_color.setAlpha(228)
-        lid_gradient = QLinearGradient(size * 0.18, size * 0.49, size * 0.82, size * 0.49)
+        lid_color.setAlpha(232)
+        lid_gradient = QLinearGradient(size * 0.16, size * 0.485, size * 0.84, size * 0.485)
         lid_edge = QColor(lid_color)
-        lid_edge.setAlpha(176)
+        lid_edge.setAlpha(188)
         lid_core = QColor(color)
-        lid_core.setAlpha(242)
+        lid_core.setAlpha(252)
         lid_gradient.setColorAt(0.0, lid_edge)
         lid_gradient.setColorAt(0.50, lid_core)
         lid_gradient.setColorAt(1.0, lid_edge)
-        lid_pen = QPen(QBrush(lid_gradient), 1.42)
+        lid_pen = QPen(QBrush(lid_gradient), 1.50)
         lid_pen.setCosmetic(True)
         lid_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         lid_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -628,35 +628,57 @@ def _draw_eye_icon(
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
         lid = QPainterPath()
-        lid.moveTo(size * 0.18, size * 0.49)
-        lid.cubicTo(size * 0.34, size * 0.66, size * 0.66, size * 0.66, size * 0.82, size * 0.49)
+        lid.moveTo(size * 0.165, size * 0.485)
+        lid.cubicTo(size * 0.335, size * 0.660, size * 0.665, size * 0.660, size * 0.835, size * 0.485)
         painter.drawPath(lid)
 
-        lash_gradient = QLinearGradient(size * 0.25, size * 0.59, size * 0.75, size * 0.80)
+        lash_specs = (
+            (0.360, 0.600, 0.328, 0.650, 0.306, 0.698, 0.288, 0.744),
+            (0.500, 0.628, 0.500, 0.680, 0.500, 0.730, 0.500, 0.774),
+            (0.640, 0.600, 0.672, 0.650, 0.694, 0.698, 0.712, 0.744),
+        )
+
+        def draw_lashes(pen: QPen) -> None:
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            for start_x, start_y, ctrl1_x, ctrl1_y, ctrl2_x, ctrl2_y, end_x, end_y in lash_specs:
+                lash = QPainterPath()
+                lash.moveTo(size * start_x, size * start_y)
+                lash.cubicTo(
+                    size * ctrl1_x,
+                    size * ctrl1_y,
+                    size * ctrl2_x,
+                    size * ctrl2_y,
+                    size * end_x,
+                    size * end_y,
+                )
+                painter.drawPath(lash)
+
+        lash_shadow = QColor(color)
+        lash_shadow.setAlpha(74)
+        shadow_pen = QPen(lash_shadow, 1.00)
+        shadow_pen.setCosmetic(True)
+        shadow_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        shadow_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        draw_lashes(shadow_pen)
+
+        lash_gradient = QLinearGradient(size * 0.22, size * 0.55, size * 0.78, size * 0.74)
         lash_edge = QColor(color)
-        lash_edge.setAlpha(108)
+        lash_edge.setAlpha(216)
         lash_core = QColor(color)
-        lash_core.setAlpha(168)
-        lash_gradient.setColorAt(0.0, lash_edge)
-        lash_gradient.setColorAt(0.50, lash_core)
-        lash_gradient.setColorAt(1.0, lash_edge)
-        lash_pen = QPen(QBrush(lash_gradient), 0.54)
+        lash_core.setAlpha(255)
+        lash_highlight = QColor(color)
+        lash_highlight.setAlpha(248)
+        lash_gradient.setColorAt(0.00, lash_edge)
+        lash_gradient.setColorAt(0.31, lash_core)
+        lash_gradient.setColorAt(0.50, lash_highlight)
+        lash_gradient.setColorAt(0.69, lash_core)
+        lash_gradient.setColorAt(1.00, lash_edge)
+        lash_pen = QPen(QBrush(lash_gradient), 0.84)
         lash_pen.setCosmetic(True)
         lash_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         lash_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        painter.setPen(lash_pen)
-        left_lash = QPainterPath()
-        left_lash.moveTo(size * 0.34, size * 0.59)
-        left_lash.cubicTo(size * 0.30, size * 0.65, size * 0.28, size * 0.70, size * 0.25, size * 0.76)
-        painter.drawPath(left_lash)
-        center_lash = QPainterPath()
-        center_lash.moveTo(size * 0.50, size * 0.64)
-        center_lash.cubicTo(size * 0.50, size * 0.69, size * 0.50, size * 0.74, size * 0.50, size * 0.80)
-        painter.drawPath(center_lash)
-        right_lash = QPainterPath()
-        right_lash.moveTo(size * 0.66, size * 0.59)
-        right_lash.cubicTo(size * 0.70, size * 0.65, size * 0.72, size * 0.70, size * 0.75, size * 0.76)
-        painter.drawPath(right_lash)
+        draw_lashes(lash_pen)
         painter.end()
         return pixmap
 
