@@ -413,16 +413,16 @@ def _paint_credentials_inline_surface(
     draw_radius = max(0.0, radius - border_inset)
 
     if charging:
-        top_color = QColor(27, 45, 60, 212 if focused else 194)
-        mid_color = QColor(22, 55, 75, 218 if focused else 198)
-        bottom_color = QColor(17, 40, 58, 224 if focused else 202)
-        accent_color = QColor(103, 224, 255, 36 if focused else 22)
-        top_highlight_color = QColor(232, 250, 255, 48 if focused else 32)
-        bottom_depth_color = QColor(2, 12, 24, 70 if focused else 52)
-        inner_border_color = QColor(232, 250, 255, 38 if focused else 24)
-        border_top_color = QColor(232, 250, 255, 132 if focused else 82)
-        border_mid_color = QColor(103, 224, 255, 118 if focused else 72)
-        border_bottom_color = QColor(55, 138, 238, 66 if focused else 40)
+        top_color = QColor(29, 48, 63, 210 if focused else 190)
+        mid_color = QColor(23, 54, 73, 214 if focused else 194)
+        bottom_color = QColor(17, 40, 57, 220 if focused else 198)
+        accent_color = QColor(126, 232, 255, 30 if focused else 18)
+        top_highlight_color = QColor(236, 252, 255, 44 if focused else 28)
+        bottom_depth_color = QColor(2, 12, 24, 64 if focused else 46)
+        inner_border_color = QColor(236, 252, 255, 34 if focused else 22)
+        border_top_color = QColor(236, 252, 255, 118 if focused else 70)
+        border_mid_color = QColor(126, 232, 255, 98 if focused else 58)
+        border_bottom_color = QColor(58, 146, 236, 54 if focused else 34)
     else:
         top_color = QColor(38, 47, 59, 210 if focused else 188)
         mid_color = QColor(31, 39, 51, 214 if focused else 194)
@@ -582,7 +582,7 @@ class CredentialsInputFocusFilter(QObject):
                 effect.setBlurRadius((18 if focused else 13) if charging else (15 if focused else 11))
                 effect.setOffset(0, 4 if focused else 3)
                 if charging:
-                    effect.setColor(QColor(20, 126, 190, 86) if focused else QColor(3, 18, 36, 74))
+                    effect.setColor(QColor(18, 76, 132, 72) if focused else QColor(3, 18, 36, 68))
                 else:
                     effect.setColor(QColor(255, 255, 255, 54) if focused else QColor(0, 0, 0, 58))
             self._row.style().unpolish(self._row)
@@ -805,10 +805,10 @@ def _draw_check_icon(size: int, color: QColor, charging: bool = False) -> QPixma
 
     ring_rect = QRectF(size * 0.18, size * 0.18, size * 0.64, size * 0.64)
     if charging:
-        ring_color = QColor("#DDF7FF")
-        ring_color.setAlpha(214)
-        check_color = QColor("#FFFFFF")
-        check_color.setAlpha(246)
+        ring_color = QColor("#ECFCFF")
+        ring_color.setAlpha(206)
+        check_color = QColor("#F8FCFF")
+        check_color.setAlpha(242)
     else:
         ring_color = QColor("#F4F8FF")
         ring_color.setAlpha(210)
@@ -1081,9 +1081,9 @@ class CredentialsWarningDialog(QDialog):
             "title_bar_alpha": "0.000",
             "separator_alpha": "0.18",
             "separator_color": QColor(79, 183, 232, 58),
-            "window_title_color": QColor(142, 231, 255, 210),
-            "headline_color": QColor(221, 247, 255, 236),
-            "message_color": QColor(170, 220, 242, 204),
+            "window_title_color": QColor(222, 232, 245, 210),
+            "headline_color": QColor(244, 248, 255, 236),
+            "message_color": QColor(214, 224, 238, 204),
             "warning_icon_accent": QColor(120, 223, 255, 198),
             "warning_mark_color": QColor(221, 247, 255, 222),
             "headline_alpha": "0.94",
@@ -1149,9 +1149,9 @@ class CredentialsWarningDialog(QDialog):
             "title_bar_alpha": "0.045",
             "separator_alpha": "0.18",
             "separator_color": QColor(79, 183, 232, 58),
-            "window_title_color": QColor(142, 231, 255, 210),
-            "headline_color": QColor(221, 247, 255, 236),
-            "message_color": QColor(170, 220, 242, 204),
+            "window_title_color": QColor(222, 232, 245, 210),
+            "headline_color": QColor(244, 248, 255, 236),
+            "message_color": QColor(214, 224, 238, 204),
             "warning_icon_accent": QColor(120, 223, 255, 198),
             "warning_mark_color": QColor(221, 247, 255, 222),
             "headline_alpha": "0.94",
@@ -1678,7 +1678,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             max-width: 24px;
         }}
         QLineEdit#fieldInput {{
-            color: #edf4ff;
+            color: {input_text_color};
             border: none;
             background: transparent;
             padding: 0px 4px;
@@ -1718,6 +1718,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         card_bg1="transparent",
         glow="rgba(255, 255, 255, 0.36)",
         label_color="#FFFFFF",
+        input_text_color="#EDF4FF",
         input_border="rgba(255, 255, 255, 0.18)",
         input_focus_border="rgba(255, 255, 255, 0.38)",
         input_row_bg=(
@@ -1758,8 +1759,9 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         card_bg0="transparent",
         card_bg_mid="transparent",
         card_bg1="transparent",
-        glow="rgba(103, 224, 255, 0.46)",
-        label_color="#F7FCFF",
+        glow="rgba(126, 232, 255, 0.38)",
+        label_color="#FFFFFF",
+        input_text_color="#EDF4FF",
         input_border="rgba(236, 251, 255, 0.19)",
         input_focus_border="rgba(103, 224, 255, 0.46)",
         input_row_bg=(
@@ -1776,8 +1778,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
             "stop:1 rgba(22, 48, 70, 0.80)"
             ")"
         ),
-        locked_identity_color="rgba(221, 247, 255, 0.96)",
-        placeholder_color="rgba(224, 240, 250, 0.46)",
+        locked_identity_color="rgba(246, 250, 255, 0.94)",
+        placeholder_color="rgba(230, 237, 246, 0.42)",
         status_color="#FFFFFF",
         status_border="rgba(236, 251, 255, 0.18)",
         status_bg=(
@@ -1795,15 +1797,15 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     )
 
     _TITLE_NORMAL = (
-        "<p style='margin:0; padding:0; font-size:20px; font-weight:620; letter-spacing:0px; color:#FFFFFF;'>"
+        "<p style='margin:0; padding:0; font-size:20px; font-weight:620; letter-spacing:0px; color:#FFFFFF; font-family:Segoe UI, Arial, sans-serif;'>"
         "Secure Access</p>"
-        "<p style='margin:5px 0 0 0; padding:0; font-size:12px; color:rgba(230,237,246,0.72); font-weight:400;'>"
+        "<p style='margin:5px 0 0 0; padding:0; font-size:12px; color:rgba(230,237,246,0.72); font-weight:400; font-family:Segoe UI, Arial, sans-serif;'>"
         "Verify your credentials to continue</p>"
     )
     _TITLE_CHARGING = (
-        "<p style='margin:0; padding:0; font-size:20px; font-weight:620; letter-spacing:0px; color:#FFFFFF;'>"
+        "<p style='margin:0; padding:0; font-size:20px; font-weight:620; letter-spacing:0px; color:#FFFFFF; font-family:Segoe UI, Arial, sans-serif;'>"
         "Secure Access</p>"
-        "<p style='margin:5px 0 0 0; padding:0; font-size:12px; color:rgba(213,244,255,0.76); font-weight:400;'>"
+        "<p style='margin:5px 0 0 0; padding:0; font-size:12px; color:rgba(230,237,246,0.72); font-weight:400; font-family:Segoe UI, Arial, sans-serif;'>"
         "Verify your credentials to continue</p>"
     )
 
@@ -2096,7 +2098,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         # Ikuti warna outline dari status charging
         charging = bool(_charging_cache.get("prev"))
         crossed = password_input.echoMode() == QLineEdit.EchoMode.Password
-        eye_color = QColor("#DDF7FF") if charging else QColor("#F4F8FF")
+        eye_color = QColor("#ECFCFF") if charging else QColor("#F4F8FF")
         toggle_password_btn.setIcon(QIcon(_draw_eye_icon(18, eye_color, crossed=crossed)))
 
     def on_submit() -> None:
@@ -2232,11 +2234,11 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         title.setText(_TITLE_CHARGING if charging else _TITLE_NORMAL)
         if isinstance(title.graphicsEffect(), QGraphicsDropShadowEffect):
             title_effect = title.graphicsEffect()
-            title_effect.setBlurRadius(12 if charging else 11)
-            title_effect.setColor(QColor(103, 224, 255, 54) if charging else QColor(255, 255, 255, 42))
-        icon_color = QColor("#DDF7FF") if charging else QColor("#F4F8FF")
-        check_color = QColor("#DDF7FF") if charging else QColor("#FFFFFF")
-        eye_color = QColor("#DDF7FF") if charging else QColor("#F4F8FF")
+            title_effect.setBlurRadius(11 if charging else 11)
+            title_effect.setColor(QColor(255, 255, 255, 42) if charging else QColor(255, 255, 255, 42))
+        icon_color = QColor("#ECFCFF") if charging else QColor("#F4F8FF")
+        check_color = QColor("#ECFCFF") if charging else QColor("#FFFFFF")
+        eye_color = QColor("#ECFCFF") if charging else QColor("#F4F8FF")
 
         # Update icon colors
         _set_icon(username_icon, _draw_user_icon(18, icon_color))
@@ -2252,7 +2254,7 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         username_row.set_charging(charging)
         password_row.set_charging(charging)
         status_chip.set_charging(charging)
-        field_label_color = "rgba(221, 247, 255, 0.92)" if charging else "rgba(244, 248, 255, 0.88)"
+        field_label_color = "rgba(244, 248, 255, 0.88)" if charging else "rgba(244, 248, 255, 0.88)"
         status_label_color = "#FFFFFF" if charging else "#FFFFFF"
         field_label_style = (
             f"color: {field_label_color}; "
@@ -2267,8 +2269,8 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
         )  # type: ignore
 
         # Update glow/outline effect
-        glow_color = QColor("#67E0FF" if charging else "#FFFFFF")
-        glow_alpha = 38 if charging else 24
+        glow_color = QColor("#7EE8FF" if charging else "#FFFFFF")
+        glow_alpha = 30 if charging else 24
         for eff in [username_label.graphicsEffect(), password_label.graphicsEffect(), status_text.graphicsEffect()]:
             if isinstance(eff, QGraphicsDropShadowEffect):
                 eff.setColor(QColor(glow_color.red(), glow_color.green(), glow_color.blue(), glow_alpha))
@@ -2276,14 +2278,14 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
 
         if isinstance(status_icon_glow, QGraphicsDropShadowEffect):
             status_icon_glow.setBlurRadius(5 if charging else 5)
-            status_icon_glow.setColor(QColor(221, 247, 255, 30) if charging else QColor(255, 255, 255, 28))
+            status_icon_glow.setColor(QColor(236, 252, 255, 24) if charging else QColor(255, 255, 255, 28))
 
         for eff in (username_row_shadow, password_row_shadow):
             focused = eff.parent() is not None and bool(getattr(eff.parent(), "property", lambda _: False)("focused"))
             eff.setBlurRadius((18 if focused else 13) if charging else (15 if focused else 11))
             eff.setOffset(0, 4 if focused else 3)
             if charging:
-                eff.setColor(QColor(20, 126, 190, 86) if focused else QColor(3, 18, 36, 74))
+                eff.setColor(QColor(18, 76, 132, 72) if focused else QColor(3, 18, 36, 68))
             else:
                 eff.setColor(QColor(255, 255, 255, 54) if focused else QColor(0, 0, 0, 58))
 
