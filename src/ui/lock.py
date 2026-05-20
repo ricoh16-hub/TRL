@@ -229,7 +229,7 @@ class WiFiLogoWidget(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None, battery_widget: Optional[QWidget] = None):
         self.battery_widget: Optional[QWidget] = battery_widget
-        self._wifi_name = "Tidak diketahui"  # Inisialisasi lebih awal agar selalu ada
+        self._wifi_name = "Unknown"  # Inisialisasi lebih awal agar selalu ada
         super().__init__(parent)
         if self.battery_widget and hasattr(self.battery_widget, 'timer'):
             self.battery_widget.timer.timeout.connect(self.update)  # type: ignore[attr-defined]
@@ -254,12 +254,6 @@ class WiFiLogoWidget(QWidget):
         try:
             import subprocess
             result = subprocess.run(['netsh', 'wlan', 'show', 'interfaces'], capture_output=True, text=True)
-            # Simpan output ke file untuk analisis
-            try:
-                with open('wifi_debug.txt', 'w', encoding='utf-8') as f:
-                    f.write(result.stdout)
-            except Exception:
-                pass
             lines = result.stdout.splitlines()
             ssid = None
             for line in lines:
@@ -348,7 +342,12 @@ class WiFiLogoWidget(QWidget):
         base_y = icon_rect.top() + icon_H * 0.62 + vertical_offset
         arc_thickness = 1.0
         connected = self._is_connected()
-        base_color = QColor(80, 180, 255, 255) if charging else QColor(255, 255, 255, 255)
+        if charging and connected:
+            base_color = QColor(80, 180, 255, 255)
+        elif charging:
+            base_color = QColor(176, 222, 242, 255)
+        else:
+            base_color = QColor(255, 255, 255, 255)
         arc_span = 125
         arc_radii = [icon_W * 0.22]  # lengkungan kecil
         arc_gap = 3
@@ -361,12 +360,12 @@ class WiFiLogoWidget(QWidget):
             dot_alpha = 255
         else:
             arc_specs = [
-                (arc_radii[0], 118, 170, 0.0),
-                (arc_radii[1], 104, 104, 0.0),
-                (arc_radii[2], 76, 48, 0.7),
-                (arc_radii[3], 58, 30, 1.1),
+                (arc_radii[0], 118, 182, 0.0),
+                (arc_radii[1], 104, 122, 0.0),
+                (arc_radii[2], 76, 68, 0.7),
+                (arc_radii[3], 58, 42, 1.1),
             ]
-            dot_alpha = 150
+            dot_alpha = 158
 
         for radius, span, alpha, y_offset in arc_specs:
             arc_color = QColor(base_color)
