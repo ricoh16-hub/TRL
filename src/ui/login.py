@@ -7,7 +7,7 @@ from PySide6.QtGui import QPainter, QBrush, QPen, QColor, QRadialGradient, QMous
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QLinearGradient
 # Import widgets from lock.py
-from ui.lock import BatteryLogoWidget, KeyCapWidget, GearIconWidget, WiFiLogoWidget, _hide_top_bar_tooltip, _premium_tooltip_text, _show_top_bar_tooltip, show_lock
+from ui.lock import BatteryLogoWidget, KeyCapWidget, GearIconWidget, WiFiLogoWidget, _hide_top_bar_tooltip, _paint_premium_padlock, _premium_tooltip_text, _show_top_bar_tooltip, show_lock
 
 try:
     from ui.credentials_login import _show_credentials_warning
@@ -1163,82 +1163,17 @@ class CustomUnlockIcon(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         W, H = self.width(), self.height()
-        if getattr(self, '_hovering', False):
-            glow_color = QColor(80, 180, 255, 36) if self.charging else QColor(255, 255, 255, 20)
-            glow = QRadialGradient(QPointF(W / 2, 42.0), 25.0)
-            glow.setColorAt(0.0, glow_color)
-            glow.setColorAt(0.70, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(5, glow_color.alpha() // 3)))
-            glow.setColorAt(1.0, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), 0))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(glow))
-            painter.drawEllipse(QRectF(10.0, 18.0, W - 20.0, H - 20.0))
         painter.translate(W/2, H/2)
         painter.scale(getattr(self, '_scale', 1.0), getattr(self, '_scale', 1.0))
         painter.translate(-W/2, -H/2)
-        margin_x = 8
-        padlock_w = W - 2 * margin_x
-        # Dynamic gradient for body fill
-        body_width = 21.5
-        body_height = 18
-        body_x = int(margin_x + (padlock_w - body_width) // 2)
-        body_y = int(36.75)
-        painter.setPen(Qt.PenStyle.NoPen)
-        # Gradient for unlock body
-        body_rect = QRect(int(body_x), int(body_y), int(body_width), int(body_height))
-        if self.charging:
-            # Gradasi biru aqua premium ke electric blue lembut dari kiri ke kanan
-            gradient = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.right(), body_rect.bottom())
-            gradient.setColorAt(0.0, QColor(78, 217, 255))   # #4ED9FF
-            gradient.setColorAt(1.0, QColor(90, 167, 255))  # #5AA7FF
-            painter.setBrush(QBrush(gradient))
-        else:
-            # Gunakan self.lock_color sebagai warna utama body
-            base_color = self.lock_color if hasattr(self, 'lock_color') else QColor(255, 255, 255)
-            gradient = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.left(), body_rect.bottom())
-            gradient.setColorAt(0.0, base_color)
-            gradient.setColorAt(1.0, QColor(230, 230, 230))
-            painter.setBrush(QBrush(gradient))
-        painter.drawRoundedRect(body_rect, 3.1, 3.1)
-        # SHACKLE (open)
-        shackle_width = 11
-        shackle_height = 13.5
-        shackle_x = int(body_x + (body_width - shackle_width) // 2)
-        shackle_y = body_y - 7.5
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        shackle_rect = QRect(int(shackle_x), int(shackle_y), int(shackle_width), int(shackle_height))
-        # Shackle: gunakan warna sesuai charging atau self.lock_color
-        if self.charging:
-            shackle_pen = QPen(QColor(78, 217, 255, 240), 1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap)
-        else:
-            shackle_color = self.lock_color if hasattr(self, 'lock_color') else QColor(255, 255, 255, 240)
-            shackle_pen = QPen(shackle_color, 1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap)
-        painter.setPen(shackle_pen)
-        # Draw open shackle (arc, not full circle)
-        painter.drawArc(shackle_rect, 30 * 16, 210 * 16)  # arc dari kiri ke atas, kanan terbuka
-        # (Dihapus) Garis kaki kiri shackle ke body agar visual lebih bersih
-        # KEYHOLE
-        keyhole_x = int(W // 2)
-        keyhole_y = int(body_y + body_height // 2)
-        painter.setPen(QPen(QColor(15, 20, 30, 200), 1))
-        painter.setBrush(QBrush(QColor(15, 20, 30, 200)))
-        painter.drawEllipse(int(keyhole_x - 2), int(keyhole_y - 2), 4, 4)
-        painter.drawRect(int(keyhole_x - 1), int(keyhole_y + 1), 2, 3)
-        painter.setPen(QPen(QColor(34, 42, 54, 255), 1))
-        painter.setBrush(QBrush(QColor(34, 42, 54, 255)))
-        painter.drawEllipse(int(keyhole_x - 1), int(keyhole_y - 1), 2, 2)
-        painter.drawRect(int(keyhole_x - 1), int(keyhole_y), 2, 2)
-        highlight_alpha = 120
-        painter.setPen(QPen(QColor(75, 85, 100, highlight_alpha), 1))
-        painter.setBrush(QBrush(QColor(75, 85, 100, highlight_alpha)))
-        painter.drawPoint(int(keyhole_x), int(keyhole_y))
-        # FINISHING TOUCHES
-        highlight_color = QColor(255, 255, 255, 100)
-        painter.setPen(QPen(highlight_color, 0.5))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawLine(int(body_x + 1), int(body_y + 1), int(body_x + body_width - 1), int(body_y + 1))
-        painter.drawLine(int(body_x + 1), int(body_y + 1), int(body_x + 1), int(body_y + body_height - 1))
-        # (Dihapus) Arc highlight finishing touches pada shackle agar tidak terjadi duplikasi lengkungan
-        # (Dihapus) Glow lingkaran biru saat hover agar identik dengan CustomLockIcon
+        _paint_premium_padlock(
+            painter,
+            QRectF(0.0, 0.0, float(W), float(H)),
+            charging=self.charging,
+            unlocked=True,
+            hovering=getattr(self, '_hovering', False),
+            lock_color=self.lock_color if hasattr(self, 'lock_color') else QColor(255, 255, 255),
+        )
 
     clicked = Signal()
 

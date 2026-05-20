@@ -611,6 +611,175 @@ class BatteryLogoWidget(QWidget):
     # scale = Property(float, get_scale, set_scale)
     scale = Property(float, get_scale, set_scale)
 
+def _paint_premium_padlock(
+    painter: QPainter,
+    bounds: QRectF,
+    *,
+    charging: bool,
+    unlocked: bool,
+    hovering: bool,
+    lock_color: QColor,
+) -> None:
+    width = bounds.width()
+    height = bounds.height()
+    center_x = bounds.center().x()
+
+    if hovering:
+        glow_color = QColor(80, 180, 255, 34) if charging else QColor(255, 255, 255, 19)
+        glow = QRadialGradient(QPointF(center_x, bounds.top() + height * 0.66), width * 0.40)
+        glow.setColorAt(0.0, glow_color)
+        glow.setColorAt(0.70, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(5, glow_color.alpha() // 3)))
+        glow.setColorAt(1.0, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), 0))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(glow))
+        painter.drawEllipse(QRectF(center_x - 22.5, bounds.top() + height * 0.34, 45.0, 36.0))
+
+    body_rect = QRectF(center_x - 11.0, bounds.top() + 36.1, 22.0, 18.8)
+
+    if charging:
+        body_top = QColor(126, 234, 255)
+        body_mid = QColor(72, 199, 255)
+        body_bottom = QColor(58, 135, 232)
+        shackle_color = QColor(148, 236, 255, 238)
+        edge_color = QColor(184, 246, 255, 76)
+        keyhole_dark = QColor(3, 26, 50, 208)
+    else:
+        base = QColor(lock_color)
+        body_top = QColor(247, 251, 255, 236)
+        body_mid = QColor(max(214, base.red() - 10), max(222, base.green() - 10), max(232, base.blue() - 10), 226)
+        body_bottom = QColor(187, 201, 217, 220)
+        shackle_color = QColor(238, 244, 252, 224)
+        edge_color = QColor(255, 255, 255, 48)
+        keyhole_dark = QColor(16, 24, 36, 214)
+
+    shackle_path = QPainterPath()
+    if unlocked:
+        left_x = body_rect.left() + 6.0
+        shoulder_y = body_rect.top() - 7.7
+        crown_y = body_rect.top() - 14.0
+        end_x = body_rect.right() + 5.4
+        end_y = body_rect.top() - 10.7
+        shackle_path.moveTo(left_x, body_rect.top() + 0.4)
+        shackle_path.lineTo(left_x, shoulder_y)
+        shackle_path.cubicTo(
+            QPointF(left_x - 0.5, crown_y - 2.1),
+            QPointF(end_x - 8.4, crown_y - 3.3),
+            QPointF(end_x - 1.5, end_y),
+        )
+        end_cap = QPainterPath()
+        end_cap.addEllipse(QRectF(end_x - 2.35, end_y - 0.85, 1.9, 1.9))
+    else:
+        left_x = body_rect.left() + 6.0
+        right_x = body_rect.right() - 6.0
+        crown_y = body_rect.top() - 14.0
+        shoulder_y = body_rect.top() - 7.7
+        foot_y = body_rect.top() + 0.8
+        shackle_path.moveTo(left_x, foot_y)
+        shackle_path.lineTo(left_x, shoulder_y)
+        shackle_path.cubicTo(
+            QPointF(left_x - 0.2, crown_y - 2.1),
+            QPointF(right_x + 0.2, crown_y - 2.1),
+            QPointF(right_x, shoulder_y),
+        )
+        shackle_path.lineTo(right_x, foot_y)
+
+    shackle_shadow = QPen(QColor(0, 0, 0, 50 if charging else 42), 1.35, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    shackle_shadow.setCosmetic(True)
+    painter.save()
+    painter.translate(0.0, 0.75)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.setPen(shackle_shadow)
+    painter.drawPath(shackle_path)
+    painter.restore()
+
+    shackle_pen = QPen(shackle_color, 1.22, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    shackle_pen.setCosmetic(True)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.setPen(shackle_pen)
+    painter.drawPath(shackle_path)
+
+    shackle_highlight = QPen(QColor(255, 255, 255, 66 if charging else 42), 0.46, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    shackle_highlight.setCosmetic(True)
+    painter.save()
+    painter.translate(-0.18, -0.28)
+    painter.setPen(shackle_highlight)
+    painter.drawPath(shackle_path)
+    painter.restore()
+    if unlocked:
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(shackle_color))
+        painter.drawPath(end_cap)
+        painter.setBrush(QBrush(QColor(255, 255, 255, 70 if charging else 44)))
+        painter.drawEllipse(end_cap.boundingRect().adjusted(0.42, 0.34, -0.58, -0.72))
+
+    body_shadow = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.left(), body_rect.bottom() + 2.0)
+    body_shadow.setColorAt(0.0, QColor(0, 0, 0, 0))
+    body_shadow.setColorAt(0.68, QColor(0, 0, 0, 24 if charging else 18))
+    body_shadow.setColorAt(1.0, QColor(0, 0, 0, 58 if charging else 46))
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QBrush(body_shadow))
+    painter.drawRoundedRect(body_rect.adjusted(0.45, 1.05, -0.45, 1.35), 3.4, 3.4)
+
+    body_gradient = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.left(), body_rect.bottom())
+    body_gradient.setColorAt(0.0, body_top)
+    body_gradient.setColorAt(0.48, body_mid)
+    body_gradient.setColorAt(1.0, body_bottom)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QBrush(body_gradient))
+    painter.drawRoundedRect(body_rect, 3.4, 3.4)
+
+    border = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.left(), body_rect.bottom())
+    border.setColorAt(0.0, edge_color)
+    border.setColorAt(1.0, QColor(0, 0, 0, 54))
+    border_pen = QPen(QBrush(border), 0.72)
+    border_pen.setCosmetic(True)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.setPen(border_pen)
+    painter.drawRoundedRect(body_rect, 3.4, 3.4)
+
+    top_lip = QPen(QColor(255, 255, 255, 74 if charging else 52), 0.62)
+    top_lip.setCosmetic(True)
+    painter.setPen(top_lip)
+    painter.drawLine(QPointF(body_rect.left() + 3.7, body_rect.top() + 1.35), QPointF(body_rect.right() - 3.7, body_rect.top() + 1.35))
+
+    bottom_lip = QPen(QColor(0, 0, 0, 42 if charging else 32), 0.62)
+    bottom_lip.setCosmetic(True)
+    painter.setPen(bottom_lip)
+    painter.drawLine(QPointF(body_rect.left() + 4.1, body_rect.bottom() - 1.2), QPointF(body_rect.right() - 4.1, body_rect.bottom() - 1.2))
+
+    socket_shadow = QColor(3, 18, 32, 82 if charging else 58)
+    socket_highlight = QColor(255, 255, 255, 58 if charging else 38)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QBrush(socket_shadow))
+    painter.drawRoundedRect(QRectF(body_rect.left() + 5.4, body_rect.top() - 0.35, 2.7, 2.0), 0.8, 0.8)
+    painter.drawRoundedRect(QRectF(body_rect.right() - 8.1, body_rect.top() - 0.35, 2.7, 2.0), 0.8, 0.8)
+    painter.setBrush(QBrush(socket_highlight))
+    painter.drawRoundedRect(QRectF(body_rect.left() + 5.95, body_rect.top() + 0.05, 1.6, 0.65), 0.32, 0.32)
+    if not unlocked:
+        painter.drawRoundedRect(QRectF(body_rect.right() - 7.55, body_rect.top() + 0.05, 1.6, 0.65), 0.32, 0.32)
+    else:
+        painter.setBrush(QBrush(QColor(0, 0, 0, 54 if charging else 38)))
+        painter.drawRoundedRect(QRectF(body_rect.right() - 7.62, body_rect.top() + 0.18, 1.7, 0.58), 0.3, 0.3)
+
+    sheen = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.left(), body_rect.top() + body_rect.height() * 0.55)
+    sheen.setColorAt(0.0, QColor(255, 255, 255, 66 if charging else 48))
+    sheen.setColorAt(1.0, QColor(255, 255, 255, 0))
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QBrush(sheen))
+    painter.drawRoundedRect(body_rect.adjusted(1.2, 1.0, -1.2, -body_rect.height() * 0.52), 2.2, 2.2)
+
+    keyhole = QPainterPath()
+    key_center = QPointF(body_rect.center().x(), body_rect.top() + body_rect.height() * 0.48)
+    keyhole.addEllipse(QRectF(key_center.x() - 2.05, key_center.y() - 2.25, 4.1, 4.1))
+    keyhole.addRoundedRect(QRectF(key_center.x() - 1.0, key_center.y() + 0.7, 2.0, 4.5), 0.65, 0.65)
+    painter.setBrush(QBrush(keyhole_dark))
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.drawPath(keyhole)
+
+    key_sheen = QColor(255, 255, 255, 42 if charging else 34)
+    painter.setBrush(QBrush(key_sheen))
+    painter.drawEllipse(QRectF(key_center.x() - 0.65, key_center.y() - 1.0, 1.3, 1.3))
+
 class CustomLockIcon(QWidget):
     def enterEvent(self, event: QEnterEvent):
         self._hovering = True
@@ -717,80 +886,17 @@ class CustomLockIcon(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         W, H = self.width(), self.height()
-        if getattr(self, '_hovering', False):
-            glow_color = QColor(80, 180, 255, 36) if self.charging else QColor(255, 255, 255, 20)
-            glow = QRadialGradient(QPointF(W / 2, 42.0), 25.0)
-            glow.setColorAt(0.0, glow_color)
-            glow.setColorAt(0.70, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(5, glow_color.alpha() // 3)))
-            glow.setColorAt(1.0, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), 0))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(glow))
-            painter.drawEllipse(QRectF(10.0, 18.0, W - 20.0, H - 20.0))
         painter.translate(W/2, H/2)
         painter.scale(getattr(self, '_scale', 1.0), getattr(self, '_scale', 1.0))
         painter.translate(-W/2, -H/2)
-        margin_x = 8
-        padlock_w = W - 2 * margin_x
-        # Dynamic gradient for body fill
-        body_width = 21.5
-        body_height = 18
-        body_x = int(margin_x + (padlock_w - body_width) // 2)
-        body_y = int(36.75)
-        painter.setPen(Qt.PenStyle.NoPen)
-        # Gradient for lock body
-        body_rect = QRect(int(body_x), int(body_y), int(body_width), int(body_height))
-        if self.charging:
-            # Gradasi biru aqua premium ke electric blue lembut dari kiri ke kanan
-            gradient = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.right(), body_rect.bottom())
-            gradient.setColorAt(0.0, QColor(78, 217, 255))   # #4ED9FF
-            gradient.setColorAt(1.0, QColor(90, 167, 255))  # #5AA7FF
-            painter.setBrush(QBrush(gradient))
-        else:
-            # Gunakan self.lock_color sebagai warna utama body
-            base_color = self.lock_color if hasattr(self, 'lock_color') else QColor(255, 255, 255)
-            gradient = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.left(), body_rect.bottom())
-            gradient.setColorAt(0.0, base_color)
-            gradient.setColorAt(1.0, QColor(230, 230, 230))
-            painter.setBrush(QBrush(gradient))
-        painter.drawRoundedRect(body_rect, 3.1, 3.1)
-        # SHACKLE
-        shackle_width = 11
-        shackle_height = 13.5
-        shackle_x = int(body_x + (body_width - shackle_width) // 2)
-        shackle_y = body_y - 7.5
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        shackle_rect = QRect(int(shackle_x), int(shackle_y), int(shackle_width), int(shackle_height))
-        # Shackle: gunakan warna sesuai charging atau self.lock_color
-        if self.charging:
-            shackle_pen = QPen(QColor(78, 217, 255, 240), 1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap)
-        else:
-            shackle_color = self.lock_color if hasattr(self, 'lock_color') else QColor(255, 255, 255, 240)
-            shackle_pen = QPen(shackle_color, 1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap)
-        painter.setPen(shackle_pen)
-        painter.drawArc(shackle_rect, 0, 180 * 16)
-        # KEYHOLE
-        keyhole_x = int(W // 2)
-        keyhole_y = int(body_y + body_height // 2)
-        painter.setPen(QPen(QColor(15, 20, 30, 200), 1))
-        painter.setBrush(QBrush(QColor(15, 20, 30, 200)))
-        painter.drawEllipse(int(keyhole_x - 2), int(keyhole_y - 2), 4, 4)
-        painter.drawRect(int(keyhole_x - 1), int(keyhole_y + 1), 2, 3)
-        painter.setPen(QPen(QColor(34, 42, 54, 255), 1))
-        painter.setBrush(QBrush(QColor(34, 42, 54, 255)))
-        painter.drawEllipse(int(keyhole_x - 1), int(keyhole_y - 1), 2, 2)
-        painter.drawRect(int(keyhole_x - 1), int(keyhole_y), 2, 2)
-        highlight_alpha = 120
-        painter.setPen(QPen(QColor(75, 85, 100, highlight_alpha), 1))
-        painter.setBrush(QBrush(QColor(75, 85, 100, highlight_alpha)))
-        painter.drawPoint(int(keyhole_x), int(keyhole_y))
-        # FINISHING TOUCHES
-        highlight_color = QColor(255, 255, 255, 100)
-        painter.setPen(QPen(highlight_color, 0.5))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawLine(int(body_x + 1), int(body_y + 1), int(body_x + body_width - 1), int(body_y + 1))
-        painter.drawLine(int(body_x + 1), int(body_y + 1), int(body_x + 1), int(body_y + body_height - 1))
-        painter.drawArc(int(shackle_x + 1), int(shackle_y + 1), int(shackle_width - 2), int(shackle_height - 2), 10 * 16, 160 * 16)
-        # No restore needed; no save was called
+        _paint_premium_padlock(
+            painter,
+            QRectF(0.0, 0.0, float(W), float(H)),
+            charging=self.charging,
+            unlocked=False,
+            hovering=getattr(self, '_hovering', False),
+            lock_color=self.lock_color if hasattr(self, 'lock_color') else QColor(255, 255, 255),
+        )
 
     def setColor(self, color: QColor) -> None:
         self.lock_color = color
@@ -1957,6 +2063,7 @@ class KeyCapWidget(QWidget):
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         if getattr(self, '_hovering', False):
             glow_color = QColor(80, 180, 255, 34) if getattr(self, 'charging', False) else QColor(255, 255, 255, 18)
             glow = QRadialGradient(QPointF(self.width() / 2, self.height() / 2), min(self.width(), self.height()) * 0.54)
@@ -1970,78 +2077,138 @@ class KeyCapWidget(QWidget):
         painter.translate(self.width() / 2, self.height() / 2)
         painter.scale(scale, scale)
         painter.translate(-self.width() / 2, -self.height() / 2)
-        rect = self.rect().adjusted(4, int(7.5), -4, int(-4.5))
-        radius = 2.5
-
-        # --- LOGIKA WARNA BARU ---
+        rect = QRectF(self.rect()).adjusted(4.2, 7.9, -4.2, -4.4)
+        radius = 2.8
         charging = getattr(self, 'charging', False)
-        # Outline keycap
+
         if charging:
-            outline_color = QColor(90, 167, 255)  # blue lembut
+            outline_color = QColor(126, 214, 255, 224)
+            body_top = QColor(105, 218, 255, 34)
+            body_bottom = QColor(42, 132, 216, 16)
+            inactive_color = QColor(132, 215, 255, 176)
+            active_color = QColor(255, 255, 255, 242)
+            active_glow = QColor(80, 180, 255, 68)
         else:
-            outline_color = QColor(255, 255, 255, 255)  # putih
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(outline_color, 0.45))
+            outline_color = QColor(255, 255, 255, 220)
+            body_top = QColor(255, 255, 255, 30)
+            body_bottom = QColor(205, 218, 232, 11)
+            inactive_color = QColor(235, 242, 250, 194)
+            active_color = QColor(80, 180, 255, 238)
+            active_glow = QColor(80, 180, 255, 54)
+
+        body_wash = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        body_wash.setColorAt(0.0, body_top)
+        body_wash.setColorAt(1.0, body_bottom)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(body_wash))
         painter.drawRoundedRect(rect, radius, radius)
 
-        # LED indikator CapsLock
-        led_diameter = 2.8
-        led_x = rect.left() + 3
-        led_y = rect.top() + 3
-        if charging:
-            if self._capslock_on:
-                led_color = QColor(255, 255, 255, 255)  # putih terang
-            else:
-                led_color = QColor(90, 167, 255)  # blue lembut
-        else:
-            if self._capslock_on:
-                led_color = QColor(80, 180, 255)  # biru terang
-            else:
-                led_color = QColor(255, 255, 255, 255)  # putih
-        painter.setBrush(QBrush(led_color))
-        painter.setPen(QPen(led_color, 1))
-        painter.drawEllipse(int(led_x), int(led_y), int(2 * led_diameter), int(2 * led_diameter))
-
-        # Simbol panah (Shift)
-        arrow_height = 6
-        center_x = rect.center().x() + 2
-        center_y = rect.center().y() + 3 - 0.75
-        shaft_top = center_y - arrow_height // 2 + 2
-        shaft_bottom = center_y + arrow_height // 2
-        shaft_width = 2
-        if charging:
-            if self._shift_on:
-                shaft_color = QColor(255, 255, 255, 255)  # putih terang
-            else:
-                shaft_color = QColor(90, 167, 255)  # blue lembut
-        else:
-            if self._shift_on:
-                shaft_color = QColor(80, 180, 255)  # biru terang
-            else:
-                shaft_color = QColor(255, 255, 255, 255)  # putih
-        painter.setPen(QPen(shaft_color, 0.8))
-        painter.setBrush(shaft_color)
-        painter.drawRect(int(center_x - shaft_width//2), int(shaft_top), int(shaft_width), int(shaft_bottom - shaft_top))
-
-        # Arrowhead
-        head_height = 4
-        head_width = 8
-        head_top = shaft_top - head_height
-        left_base = center_x - head_width//2
-        right_base = center_x + head_width//2
-        base_y = shaft_top
-        from PySide6.QtGui import QPainterPath
-        arrowhead = QPainterPath()
-        arrowhead.moveTo(center_x, head_top)
-        arrowhead.lineTo(left_base, base_y)
-        arrowhead.lineTo(right_base, base_y)
-        arrowhead.closeSubpath()
-        painter.setBrush(QBrush(shaft_color))
-        painter.setPen(QPen(shaft_color, 0.8))
-        painter.drawPath(arrowhead)
+        inner_rect = rect.adjusted(1.35, 1.25, -1.35, -1.25)
+        inner_pen = QPen(QColor(255, 255, 255, 24 if charging else 22), 0.34)
+        inner_pen.setCosmetic(True)
+        painter.setPen(inner_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(outline_color, 0.45))
-        painter.end()
+        painter.drawRoundedRect(inner_rect, max(1.4, radius - 1.1), max(1.4, radius - 1.1))
+
+        divider_x = rect.left() + rect.width() * 0.34
+        if self._capslock_on:
+            cap_area = QRectF(rect.left() + 1.0, rect.top() + 1.0, divider_x - rect.left() - 1.55, rect.height() - 2.0)
+            cap_wash = QLinearGradient(cap_area.left(), cap_area.top(), cap_area.left(), cap_area.bottom())
+            cap_wash.setColorAt(0.0, QColor(active_glow.red(), active_glow.green(), active_glow.blue(), 28))
+            cap_wash.setColorAt(1.0, QColor(active_glow.red(), active_glow.green(), active_glow.blue(), 4))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(cap_wash))
+            painter.drawRoundedRect(cap_area, 1.8, 1.8)
+
+        if self._shift_on:
+            shift_area = QRectF(divider_x + 0.65, rect.top() + 1.0, rect.right() - divider_x - 1.65, rect.height() - 2.0)
+            shift_wash = QLinearGradient(shift_area.left(), shift_area.top(), shift_area.left(), shift_area.bottom())
+            shift_wash.setColorAt(0.0, QColor(active_glow.red(), active_glow.green(), active_glow.blue(), 24))
+            shift_wash.setColorAt(1.0, QColor(active_glow.red(), active_glow.green(), active_glow.blue(), 4))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(shift_wash))
+            painter.drawRoundedRect(shift_area, 1.8, 1.8)
+
+        border = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        border.setColorAt(0.0, QColor(outline_color.red(), outline_color.green(), outline_color.blue(), min(255, outline_color.alpha() + 22)))
+        border.setColorAt(1.0, QColor(outline_color.red(), outline_color.green(), outline_color.blue(), max(50, outline_color.alpha() // 2)))
+        border_pen = QPen(QBrush(border), 0.66)
+        border_pen.setCosmetic(True)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(border_pen)
+        painter.drawRoundedRect(rect, radius, radius)
+
+        top_sheen = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.top() + rect.height() * 0.50)
+        top_sheen.setColorAt(0.0, QColor(255, 255, 255, 32 if charging else 28))
+        top_sheen.setColorAt(1.0, QColor(255, 255, 255, 0))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(top_sheen))
+        painter.drawRoundedRect(rect.adjusted(1.1, 0.9, -1.1, -rect.height() * 0.58), 2.0, 2.0)
+
+        divider = QLinearGradient(divider_x, rect.top() + 2.1, divider_x, rect.bottom() - 2.1)
+        divider.setColorAt(0.0, QColor(255, 255, 255, 0))
+        divider.setColorAt(0.45, QColor(outline_color.red(), outline_color.green(), outline_color.blue(), 58 if charging else 46))
+        divider.setColorAt(1.0, QColor(255, 255, 255, 0))
+        divider_pen = QPen(QBrush(divider), 0.46)
+        divider_pen.setCosmetic(True)
+        painter.setPen(divider_pen)
+        painter.drawLine(QPointF(divider_x, rect.top() + 2.1), QPointF(divider_x, rect.bottom() - 2.1))
+
+        led_center = QPointF(rect.left() + (divider_x - rect.left()) * 0.50, rect.top() + 4.05)
+        led_radius = 1.58
+        if self._capslock_on:
+            led_color = QColor(active_color)
+            led_ring = QColor(active_glow)
+        else:
+            led_color = QColor(inactive_color)
+            led_color.setAlpha(124 if charging else 140)
+            led_ring = QColor(inactive_color)
+            led_ring.setAlpha(54)
+        painter.setPen(Qt.PenStyle.NoPen)
+        if self._capslock_on:
+            glow = QRadialGradient(led_center, 5.0)
+            glow.setColorAt(0.0, active_glow)
+            glow.setColorAt(0.72, QColor(active_glow.red(), active_glow.green(), active_glow.blue(), max(10, active_glow.alpha() // 4)))
+            glow.setColorAt(1.0, QColor(active_glow.red(), active_glow.green(), active_glow.blue(), 0))
+            painter.setBrush(QBrush(glow))
+            painter.drawEllipse(QRectF(led_center.x() - 4.3, led_center.y() - 4.3, 8.6, 8.6))
+        ring_pen = QPen(led_ring, 0.55)
+        ring_pen.setCosmetic(True)
+        painter.setPen(ring_pen)
+        painter.setBrush(QBrush(led_color))
+        painter.drawEllipse(QRectF(led_center.x() - led_radius, led_center.y() - led_radius, led_radius * 2, led_radius * 2))
+
+        arrow_color = QColor(active_color if self._shift_on else inactive_color)
+        if not self._shift_on:
+            arrow_color.setAlpha(162 if charging else 178)
+        arrow_center = QPointF((divider_x + rect.right()) * 0.50 + 0.55, rect.center().y() + 1.55)
+        arrow_path = QPainterPath()
+        arrow_path.moveTo(arrow_center.x(), arrow_center.y() - 5.85)
+        arrow_path.lineTo(arrow_center.x() - 4.05, arrow_center.y() - 1.55)
+        arrow_path.lineTo(arrow_center.x() - 1.38, arrow_center.y() - 1.55)
+        arrow_path.lineTo(arrow_center.x() - 1.38, arrow_center.y() + 4.0)
+        arrow_path.lineTo(arrow_center.x() + 1.38, arrow_center.y() + 4.0)
+        arrow_path.lineTo(arrow_center.x() + 1.38, arrow_center.y() - 1.55)
+        arrow_path.lineTo(arrow_center.x() + 4.05, arrow_center.y() - 1.55)
+        arrow_path.closeSubpath()
+
+        if self._shift_on:
+            shift_glow = QRadialGradient(arrow_center, 10.0)
+            shift_glow.setColorAt(0.0, active_glow)
+            shift_glow.setColorAt(0.68, QColor(active_glow.red(), active_glow.green(), active_glow.blue(), max(8, active_glow.alpha() // 4)))
+            shift_glow.setColorAt(1.0, QColor(active_glow.red(), active_glow.green(), active_glow.blue(), 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(shift_glow))
+            painter.drawEllipse(QRectF(arrow_center.x() - 8.2, arrow_center.y() - 8.0, 16.4, 16.0))
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(arrow_color))
+        painter.drawPath(arrow_path)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        edge_pen = QPen(QColor(255, 255, 255, 36 if self._shift_on else 20), 0.28)
+        edge_pen.setCosmetic(True)
+        painter.setPen(edge_pen)
+        painter.drawPath(arrow_path)
 
 class GearIconWidget(QWidget):
     gearHovered = Signal()
@@ -2077,44 +2244,80 @@ class GearIconWidget(QWidget):
 
     def _get_gear_path_and_brush(self) -> tuple[QPainterPath, QBrush, float]:
         import math
-        from PySide6.QtGui import QPainterPath, QColor, QBrush
+        from PySide6.QtGui import QPainterPath, QColor, QBrush, QRadialGradient
         from PySide6.QtCore import QRectF
         gear_d = float(self._size)
         r_outer = gear_d / 2
-        r_inner = r_outer * 0.65
+        r_inner = r_outer * 0.76
         n_teeth = 8
-        # Generate symmetric gear path centered at (0,0)
         path = QPainterPath()
-        # Bangun path gear tanpa QPainter
-        for i in range(n_teeth * 2):
-            angle = 2 * math.pi * i / (n_teeth * 2)
-            r = r_outer if i % 2 == 0 else r_inner
-            px = r * math.cos(angle)
-            py = r * math.sin(angle)
+        points: list[tuple[float, float, float]] = []
+        for tooth in range(n_teeth):
+            center = 2 * math.pi * tooth / n_teeth
+            for offset, radius in (
+                (-0.36, r_inner),
+                (-0.18, r_outer),
+                (0.18, r_outer),
+                (0.36, r_inner),
+            ):
+                angle = center + (2 * math.pi / n_teeth) * offset
+                points.append((angle, radius, 0.0))
+
+        for i, (angle, radius, _) in enumerate(points):
+            px = radius * math.cos(angle)
+            py = radius * math.sin(angle)
             if i == 0:
                 path.moveTo(px, py)
             else:
-                path.lineTo(px, py)
+                prev_angle, prev_radius, _ = points[i - 1]
+                prev_x = prev_radius * math.cos(prev_angle)
+                prev_y = prev_radius * math.sin(prev_angle)
+                delta = angle - prev_angle
+                c1_angle = prev_angle + delta * 0.48
+                c2_angle = angle - delta * 0.48
+                c1_radius = prev_radius + (radius - prev_radius) * 0.36
+                c2_radius = radius - (radius - prev_radius) * 0.36
+                c1 = QPointF(c1_radius * math.cos(c1_angle), c1_radius * math.sin(c1_angle))
+                c2 = QPointF(c2_radius * math.cos(c2_angle), c2_radius * math.sin(c2_angle))
+                path.cubicTo(c1, c2, QPointF(px, py))
+
+        first_angle, first_radius, _ = points[0]
+        last_angle, last_radius, _ = points[-1]
+        first = QPointF(first_radius * math.cos(first_angle), first_radius * math.sin(first_angle))
+        last_angle_adjusted = last_angle
+        first_angle_adjusted = first_angle + 2 * math.pi
+        delta = first_angle_adjusted - last_angle_adjusted
+        c1_angle = last_angle_adjusted + delta * 0.48
+        c2_angle = first_angle_adjusted - delta * 0.48
+        c1_radius = last_radius + (first_radius - last_radius) * 0.36
+        c2_radius = first_radius - (first_radius - last_radius) * 0.36
+        path.cubicTo(
+            QPointF(c1_radius * math.cos(c1_angle), c1_radius * math.sin(c1_angle)),
+            QPointF(c2_radius * math.cos(c2_angle), c2_radius * math.sin(c2_angle)),
+            first,
+        )
         path.closeSubpath()
-        # Center hole
-        hole_radius = r_outer * 0.45
+        hole_radius = r_outer * 0.38
         hole = QPainterPath()
         hole.addEllipse(QRectF(-hole_radius, -hole_radius, hole_radius*2, hole_radius*2))
-        # Tambahkan lingkaran di antara gigi dan lubang tengah
-        mid_radius = (r_outer + hole_radius) / 2
-        mid_circle = QPainterPath()
-        mid_circle.addEllipse(QRectF(-mid_radius, -mid_radius, mid_radius*2, mid_radius*2))
         gear_with_hole = path.subtracted(hole)
-        # Warna dinamis: biru lembut saat charging, putih jika tidak
         charging = getattr(self, 'charging', False)
         if charging:
-            bg_color = QColor(90, 167, 255)  # Biru lembut
-            outline_color = QColor(90, 167, 255)
+            fill_core = QColor(126, 220, 255, 208)
+            fill_edge = QColor(56, 146, 232, 174)
+            outline_color = QColor(152, 226, 255, 188)
         else:
-            bg_color = QColor(255, 255, 255)
-            outline_color = QColor(255, 255, 255)
-        brush = QBrush(bg_color)
+            fill_core = QColor(255, 255, 255, 204)
+            fill_edge = QColor(206, 218, 232, 168)
+            outline_color = QColor(255, 255, 255, 176)
+        gradient = QRadialGradient(QPointF(-r_outer * 0.20, -r_outer * 0.25), r_outer * 1.25)
+        gradient.setColorAt(0.0, fill_core)
+        gradient.setColorAt(0.58, QColor(fill_core.red(), fill_core.green(), fill_core.blue(), max(130, fill_core.alpha() - 28)))
+        gradient.setColorAt(1.0, fill_edge)
+        brush = QBrush(gradient)
         self._outline_color = outline_color
+        self._hole_radius = hole_radius
+        self._ring_color = QColor(outline_color.red(), outline_color.green(), outline_color.blue(), 68 if charging else 60)
         return gear_with_hole, brush, r_inner
 
     def setGraphicsEffectOnce(self, effect: QGraphicsDropShadowEffect) -> None:
@@ -2132,7 +2335,7 @@ class GearIconWidget(QWidget):
     def __init__(self, parent: Optional[QWidget] = None, rotation_duration: int = 5000, rotation_direction: int = 1) -> None:
         super().__init__(parent)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._size = 28.175 * 0.8  # ukuran gear tetap
+        self._size = 28.175 * 0.77
         self._target_size = int(28 * 0.8)
         widget_size = int(28.175 * 0.8) + 16  # tambah ukuran widget lebih besar
         self.setFixedSize(widget_size, widget_size)
@@ -2174,7 +2377,7 @@ class GearIconWidget(QWidget):
         # Animasi rotasi saat hover
         self._rotation_anim = QPropertyAnimation(self, b"rotation")
         self._rotation_anim.setStartValue(getattr(self, '_rotation', 0.0))
-        self._rotation_anim.setEndValue(getattr(self, '_rotation', 0.0) + 90.0 * self.rotation_direction)
+        self._rotation_anim.setEndValue(getattr(self, '_rotation', 0.0) + 60.0 * self.rotation_direction)
         self._rotation_anim.setDuration(260)
         self._rotation_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._rotation_anim.valueChanged.connect(self.update)
@@ -2209,7 +2412,7 @@ class GearIconWidget(QWidget):
         center_x = self.width() / 2
         center_y = self.height() / 2
         if getattr(self, '_hovering', False):
-            glow_color = QColor(80, 180, 255, 36) if getattr(self, 'charging', False) else QColor(255, 255, 255, 20)
+            glow_color = QColor(80, 180, 255, 26) if getattr(self, 'charging', False) else QColor(255, 255, 255, 15)
             glow = QRadialGradient(QPointF(center_x, center_y), min(self.width(), self.height()) * 0.45)
             glow.setColorAt(0.0, glow_color)
             glow.setColorAt(0.72, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(5, glow_color.alpha() // 3)))
@@ -2224,24 +2427,28 @@ class GearIconWidget(QWidget):
         painter.rotate(getattr(self, '_rotation', 0.0))
         path, brush, _ = self._get_gear_path_and_brush()
         outline_color = getattr(self, '_outline_color', QColor(80, 80, 80))
-        painter.setPen(QPen(outline_color, 2.5))
+        outline_pen = QPen(outline_color, 0.82)
+        outline_pen.setCosmetic(True)
+        outline_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(outline_pen)
         painter.setBrush(brush)
         painter.drawPath(path)
-        # Draw mid-circle as a filled semi-transparent gray ring (tidak berubah saat charging)
         from PySide6.QtGui import QPainterPath
         gear_d = float(self._size)
         r_outer = gear_d / 2
-        hole_radius = r_outer * 0.45
-        mid_radius = hole_radius + 0.45
-        mid_circle_color = QColor(180, 180, 180, 120)  # Semi-transparent gray
-        # Create ring path: outer ellipse minus inner ellipse
+        hole_radius = getattr(self, '_hole_radius', r_outer * 0.38)
+        mid_radius = hole_radius + 0.72
         mid_circle_path = QPainterPath()
         mid_circle_path.addEllipse(QRectF(-mid_radius, -mid_radius, mid_radius*2, mid_radius*2))
         mid_circle_path_inner = QPainterPath()
         mid_circle_path_inner.addEllipse(QRectF(-hole_radius, -hole_radius, hole_radius*2, hole_radius*2))
         ring_path = mid_circle_path.subtracted(mid_circle_path_inner)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(mid_circle_color))
+        painter.setBrush(QBrush(getattr(self, '_ring_color', QColor(255, 255, 255, 72))))
         painter.drawPath(ring_path)
+        highlight = QPainterPath()
+        highlight.addEllipse(QRectF(-r_outer * 0.42, -r_outer * 0.48, r_outer * 0.84, r_outer * 0.84))
+        painter.setBrush(QBrush(QColor(255, 255, 255, 20 if getattr(self, 'charging', False) else 18)))
+        painter.drawPath(highlight.intersected(path))
         painter.restore()
 
