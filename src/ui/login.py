@@ -1,13 +1,13 @@
 from importlib import import_module
 from typing import Callable, Optional, Union, cast
 from database.models import User
-from PySide6.QtWidgets import QWidget, QDialog, QVBoxLayout, QGridLayout, QLabel, QGraphicsDropShadowEffect, QToolTip, QApplication, QMessageBox
+from PySide6.QtWidgets import QWidget, QDialog, QVBoxLayout, QGridLayout, QLabel, QGraphicsDropShadowEffect, QApplication, QMessageBox
 from PySide6.QtCore import Qt, Signal, QRectF, QEasingCurve, QPropertyAnimation, Property, QEvent, QPointF, QSize
 from PySide6.QtGui import QPainter, QBrush, QPen, QColor, QRadialGradient, QMouseEvent, QPaintEvent, QEnterEvent, QKeyEvent, QCloseEvent, QPainterPath
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QLinearGradient
 # Import widgets from lock.py
-from ui.lock import BatteryLogoWidget, KeyCapWidget, GearIconWidget, WiFiLogoWidget, show_lock
+from ui.lock import BatteryLogoWidget, KeyCapWidget, GearIconWidget, WiFiLogoWidget, _hide_top_bar_tooltip, _premium_tooltip_text, _show_top_bar_tooltip, show_lock
 
 try:
     from ui.credentials_login import _show_credentials_warning
@@ -39,6 +39,91 @@ QLabel[charging="false"] {
     color: #FFFFFF;
 }
 """
+
+
+def _paint_pin_key_surface(
+    painter: QPainter,
+    rect: QRectF,
+    charging: bool,
+    hovered: bool,
+    pressed: bool = False,
+) -> None:
+    """Paint a clean filled premium surface for PIN keypad controls."""
+    lift = 0.75 if pressed else 0.0
+    surface = rect.adjusted(3.0, 3.0 + lift, -3.0, -3.2 + lift)
+    radius = surface.width() / 2.0
+
+    if charging:
+        center_color = QColor(34, 72, 96, 206)
+        mid_color = QColor(16, 49, 74, 212)
+        edge_color = QColor(5, 27, 49, 224)
+        bevel_top = QColor(188, 244, 255, 46)
+        bevel_bottom = QColor(1, 13, 28, 104)
+        border_top = QColor(188, 244, 255, 68)
+        border_bottom = QColor(40, 124, 210, 34)
+        halo_color = QColor(80, 180, 255, 14)
+        lower_shadow = QColor(2, 10, 22, 76)
+    else:
+        center_color = QColor(57, 66, 80, 206)
+        mid_color = QColor(34, 43, 56, 212)
+        edge_color = QColor(15, 24, 37, 224)
+        bevel_top = QColor(255, 255, 255, 42)
+        bevel_bottom = QColor(0, 0, 0, 104)
+        border_top = QColor(255, 255, 255, 60)
+        border_bottom = QColor(182, 194, 210, 24)
+        halo_color = QColor(255, 255, 255, 10)
+        lower_shadow = QColor(0, 0, 0, 76)
+
+    if hovered:
+        center_color.setAlpha(min(255, center_color.alpha() + 18))
+        mid_color.setAlpha(min(255, mid_color.alpha() + 20))
+        border_top.setAlpha(min(255, border_top.alpha() + 18))
+        halo_color.setAlpha(min(255, halo_color.alpha() + 12))
+
+    cast_shadow = QRadialGradient(surface.center() + QPointF(0.0, 2.8), radius * 0.96)
+    cast_shadow.setColorAt(0.0, QColor(lower_shadow.red(), lower_shadow.green(), lower_shadow.blue(), max(12, lower_shadow.alpha() - 18)))
+    cast_shadow.setColorAt(0.70, QColor(lower_shadow.red(), lower_shadow.green(), lower_shadow.blue(), max(8, lower_shadow.alpha() // 2)))
+    cast_shadow.setColorAt(1.0, QColor(lower_shadow.red(), lower_shadow.green(), lower_shadow.blue(), 0))
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QBrush(cast_shadow))
+    painter.drawEllipse(surface.adjusted(0.6, 2.4, -0.6, 3.8))
+
+    halo = QRadialGradient(surface.center(), radius * 1.02)
+    halo.setColorAt(0.0, halo_color)
+    halo.setColorAt(0.82, QColor(halo_color.red(), halo_color.green(), halo_color.blue(), max(3, halo_color.alpha() // 3)))
+    halo.setColorAt(1.0, QColor(halo_color.red(), halo_color.green(), halo_color.blue(), 0))
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QBrush(halo))
+    painter.drawEllipse(surface.adjusted(-1.2, -1.2, 1.2, 1.2))
+
+    base = QRadialGradient(surface.center() + QPointF(-radius * 0.16, -radius * 0.22), radius * 1.18)
+    base.setColorAt(0.0, center_color)
+    base.setColorAt(0.58, mid_color)
+    base.setColorAt(1.0, edge_color)
+    painter.setBrush(QBrush(base))
+    painter.drawEllipse(surface)
+
+    bevel = QLinearGradient(surface.left(), surface.top(), surface.left(), surface.bottom())
+    bevel.setColorAt(0.0, bevel_top)
+    bevel.setColorAt(0.32, QColor(bevel_top.red(), bevel_top.green(), bevel_top.blue(), 0))
+    bevel.setColorAt(0.72, QColor(bevel_bottom.red(), bevel_bottom.green(), bevel_bottom.blue(), 0))
+    bevel.setColorAt(1.0, bevel_bottom)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.setPen(QPen(QBrush(bevel), 1.15))
+    painter.drawEllipse(surface.adjusted(1.1, 1.1, -1.1, -1.1))
+
+    inner_pen = QPen(QColor(255, 255, 255, 16 if hovered else 11), 0.55)
+    inner_pen.setCosmetic(True)
+    painter.setPen(inner_pen)
+    painter.drawEllipse(surface.adjusted(2.2, 2.2, -2.2, -2.2))
+
+    border = QLinearGradient(surface.left(), surface.top(), surface.left(), surface.bottom())
+    border.setColorAt(0.0, border_top)
+    border.setColorAt(1.0, border_bottom)
+    border_pen = QPen(QBrush(border), 0.88)
+    border_pen.setCosmetic(True)
+    painter.setPen(border_pen)
+    painter.drawEllipse(surface)
 
 
 class BackspaceButton(QWidget):
@@ -152,13 +237,16 @@ class BackspaceButton(QWidget):
         from PySide6.QtCore import QRectF
         
         center_x, center_y = 28.0, 28.0
+        _paint_pin_key_surface(
+            painter,
+            QRectF(0.0, 0.0, float(w), float(h)),
+            self.charging,
+            bool(getattr(self, '_hovering', False)),
+            self._scale < 0.98,
+        )
         
-        # Triple layer dengan lingkaran penuh untuk setiap layer
-        layers: list[dict[str, float]] = [
-            {'radius': 27.7, 'scale': 1.0, 'opacity_base': 19.0 if not self.charging else 15.0, 'opacity_max': 84.0 if not self.charging else 78.0},
-            {'radius': 26.9, 'scale': 0.9, 'opacity_base': 27.0 if not self.charging else 23.0, 'opacity_max': 98.0 if not self.charging else 92.0},
-            {'radius': 26.0, 'scale': 0.75, 'opacity_base': 16.0 if not self.charging else 12.0, 'opacity_max': 68.0 if not self.charging else 62.0}
-        ]
+        # Surface glass utama sudah membawa bevel, rim, dan depth.
+        layers: list[dict[str, float]] = []
         if getattr(self, '_hovering', False):
             for layer in layers:
                 layer['opacity_base'] += 7.0
@@ -432,13 +520,16 @@ class BackButton(QWidget):
         from PySide6.QtCore import QRectF
         
         center_x, center_y = 28.0, 28.0
+        _paint_pin_key_surface(
+            painter,
+            QRectF(0.0, 0.0, float(w), float(h)),
+            self.charging,
+            bool(getattr(self, '_hovering', False)),
+            self._scale < 0.98,
+        )
         
-        # Triple layer dengan lingkaran penuh untuk setiap layer
-        layers: list[dict[str, float]] = [
-            {'radius': 27.7, 'scale': 1.0, 'opacity_base': 19.0 if not self.charging else 15.0, 'opacity_max': 84.0 if not self.charging else 78.0},
-            {'radius': 26.9, 'scale': 0.9, 'opacity_base': 27.0 if not self.charging else 23.0, 'opacity_max': 98.0 if not self.charging else 92.0},
-            {'radius': 26.0, 'scale': 0.75, 'opacity_base': 16.0 if not self.charging else 12.0, 'opacity_max': 68.0 if not self.charging else 62.0}
-        ]
+        # Surface glass utama sudah membawa bevel, rim, dan depth.
+        layers: list[dict[str, float]] = []
         if getattr(self, '_hovering', False):
             for layer in layers:
                 layer['opacity_base'] += 7.0
@@ -916,13 +1007,16 @@ class RoundLabel(QLabel):
         from PySide6.QtCore import QRectF
         
         center_x, center_y = 28.0, 28.0
+        _paint_pin_key_surface(
+            painter,
+            QRectF(0.0, 0.0, float(w), float(h)),
+            self.charging,
+            bool(getattr(self, '_hovering', False)),
+            self._scale < 0.98,
+        )
         
-        # Triple layer dengan lingkaran penuh untuk setiap layer
-        layers: list[dict[str, float]] = [
-            {'radius': 27.7, 'scale': 1.0, 'opacity_base': 19.0 if not self.charging else 15.0, 'opacity_max': 84.0 if not self.charging else 78.0},
-            {'radius': 26.9, 'scale': 0.9, 'opacity_base': 27.0 if not self.charging else 23.0, 'opacity_max': 98.0 if not self.charging else 92.0},
-            {'radius': 26.0, 'scale': 0.75, 'opacity_base': 16.0 if not self.charging else 12.0, 'opacity_max': 68.0 if not self.charging else 62.0}
-        ]
+        # Surface glass utama sudah membawa bevel, rim, dan depth.
+        layers: list[dict[str, float]] = []
         if getattr(self, '_hovering', False):
             for layer in layers:
                 layer['opacity_base'] += 7.0
@@ -1325,11 +1419,14 @@ class UnlockIconWidget(QWidget):
     def enterEvent(self, event: QEvent):
         self.hovered = True
         self.update()
-        QToolTip.showText(self.mapToGlobal(self.rect().center()), self.toolTip())
+        parent = self.parentWidget()
+        charging = bool(getattr(parent, "_background_charging", False)) if parent is not None else False
+        _show_top_bar_tooltip(self, _premium_tooltip_text(self, "Login"), charging)
 
     def leaveEvent(self, event: QEvent):
         self.hovered = False
         self.update()
+        _hide_top_bar_tooltip(self)
 
 class HomeButton(QWidget):
     clicked = Signal()
@@ -1347,15 +1444,20 @@ class HomeButton(QWidget):
         super().__init__(parent)
         self.setFixedSize(48, 32)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("Kembali ke Home")
+        self.setToolTip("")
+        self.setAccessibleDescription("Kembali ke Home")
         self._hover = False
     def enterEvent(self, event: QEnterEvent) -> None:
         self._hover = True
         self.update()
+        parent = self.parentWidget()
+        charging = bool(getattr(parent, "_background_charging", False)) if parent is not None else False
+        _show_top_bar_tooltip(self, _premium_tooltip_text(self, "Kembali ke Home"), charging)
         super().enterEvent(event)
     def leaveEvent(self, event: QEvent) -> None:
         self._hover = False
         self.update()
+        _hide_top_bar_tooltip(self)
         super().leaveEvent(event)
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -1819,13 +1921,27 @@ class PINDotWidget(QWidget):
                 painter.setBrush(QBrush(highlight_color))
                 painter.drawEllipse(dot_rect.adjusted(2.8, 2.0, -2.8, -7.2))
             else:
+                empty_fill_top = QColor(255, 255, 255, 18) if not self.charging else QColor(103, 224, 255, 18)
+                empty_fill_mid = QColor(25, 34, 47, 38) if not self.charging else QColor(12, 48, 74, 38)
+                empty_fill_bottom = QColor(0, 0, 0, 12) if not self.charging else QColor(6, 28, 50, 18)
+                empty_fill = QLinearGradient(dot_rect.left(), dot_rect.top(), dot_rect.left(), dot_rect.bottom())
+                empty_fill.setColorAt(0.0, empty_fill_top)
+                empty_fill.setColorAt(0.48, empty_fill_mid)
+                empty_fill.setColorAt(1.0, empty_fill_bottom)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(empty_fill))
+                painter.drawEllipse(dot_rect)
+                empty_highlight = QColor(255, 255, 255, 18) if not self.charging else QColor(236, 250, 255, 20)
+                painter.setBrush(QBrush(empty_highlight))
+                painter.drawEllipse(dot_rect.adjusted(3.4, 2.6, -3.4, -8.2))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-                outer_ring = QPen(empty_border, 0.9)
+                empty_border.setAlpha(max(64, int(empty_border.alpha() * 0.78)))
+                outer_ring = QPen(empty_border, 0.74)
                 outer_ring.setCosmetic(True)
                 painter.setPen(outer_ring)
                 painter.drawEllipse(dot_rect)
-                inner_color = QColor(empty_border.red(), empty_border.green(), empty_border.blue(), max(18, empty_border.alpha() // 3))
-                inner_ring = QPen(inner_color, 0.55)
+                inner_color = QColor(empty_border.red(), empty_border.green(), empty_border.blue(), max(16, empty_border.alpha() // 3))
+                inner_ring = QPen(inner_color, 0.36)
                 inner_ring.setCosmetic(True)
                 painter.setPen(inner_ring)
                 painter.drawEllipse(dot_rect.adjusted(2.0, 2.0, -2.0, -2.0))
@@ -1860,15 +1976,15 @@ class PremiumSecurityPinLabel(QWidget):
         from PySide6.QtGui import QFont
         font = QFont("SF Pro Display")
         font.setFamilies(["SF Pro Display", "SF Pro Text", "Segoe UI", "Arial"])
-        font.setPointSizeF(11.7)
-        font.setWeight(QFont.Weight.Medium)
-        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.50)
+        font.setPointSizeF(12.1)
+        font.setWeight(QFont.Weight.DemiBold)
+        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.45)
         return font
 
     def sizeHint(self) -> QSize:
         from PySide6.QtGui import QFontMetrics
         metrics = QFontMetrics(self._font())
-        return QSize(metrics.horizontalAdvance(self._text) + 18, metrics.height() + 9)
+        return QSize(metrics.horizontalAdvance(self._text) + 24, metrics.height() + 12)
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
@@ -1883,32 +1999,72 @@ class PremiumSecurityPinLabel(QWidget):
         text_path.addText(QPointF(x, y), font, self._text)
         bounds = text_path.boundingRect()
         if self._charging:
-            top_color = QColor(147, 233, 255, 238)
-            mid_color = QColor(80, 180, 255, 226)
-            bottom_color = QColor(62, 144, 235, 224)
-            shadow_color = QColor(18, 70, 130, 76)
-            highlight_color = QColor(232, 250, 255, 42)
+            top_color = QColor(218, 250, 255, 246)
+            mid_color = QColor(100, 202, 255, 236)
+            bottom_color = QColor(51, 139, 224, 234)
+            cast_shadow = QColor(1, 16, 36, 138)
+            bevel_shadow = QColor(4, 48, 94, 92)
+            bevel_light = QColor(248, 254, 255, 94)
+            inner_light = QColor(246, 254, 255, 54)
+            edge_color = QColor(122, 222, 255, 54)
+            outline_color = QColor(3, 37, 70, 54)
         else:
-            top_color = QColor(255, 255, 255, 238)
-            mid_color = QColor(238, 244, 250, 226)
-            bottom_color = QColor(205, 216, 228, 222)
-            shadow_color = QColor(0, 0, 0, 66)
-            highlight_color = QColor(255, 255, 255, 36)
-        shadow_path = QPainterPath(text_path)
-        shadow_path.translate(0.0, 0.85)
+            top_color = QColor(255, 255, 255, 246)
+            mid_color = QColor(238, 244, 250, 236)
+            bottom_color = QColor(193, 206, 221, 232)
+            cast_shadow = QColor(0, 0, 0, 126)
+            bevel_shadow = QColor(54, 65, 82, 82)
+            bevel_light = QColor(255, 255, 255, 86)
+            inner_light = QColor(255, 255, 255, 48)
+            edge_color = QColor(255, 255, 255, 50)
+            outline_color = QColor(10, 16, 24, 58)
+
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(shadow_color))
+
+        from PySide6.QtGui import QPainterPathStroker
+        stroker = QPainterPathStroker()
+        stroker.setWidth(0.56)
+        outline_path = stroker.createStroke(text_path)
+
+        shadow_path = QPainterPath(text_path)
+        shadow_path.translate(0.0, 1.15)
+        painter.setBrush(QBrush(cast_shadow))
         painter.drawPath(shadow_path)
+
+        bevel_shadow_path = QPainterPath(text_path)
+        bevel_shadow_path.translate(0.45, 0.70)
+        painter.setBrush(QBrush(bevel_shadow))
+        painter.drawPath(bevel_shadow_path)
+
+        bevel_light_path = QPainterPath(text_path)
+        bevel_light_path.translate(-0.38, -0.48)
+        painter.save()
+        painter.setClipRect(QRectF(bounds.left() - 2.0, bounds.top() - 2.0, bounds.width() + 4.0, bounds.height() * 0.62))
+        painter.setBrush(QBrush(bevel_light))
+        painter.drawPath(bevel_light_path)
+        painter.restore()
+
+        painter.setBrush(QBrush(outline_color))
+        painter.drawPath(outline_path)
+
         grad = QLinearGradient(bounds.left(), bounds.top(), bounds.left(), bounds.bottom())
         grad.setColorAt(0.0, top_color)
-        grad.setColorAt(0.52, mid_color)
+        grad.setColorAt(0.42, mid_color)
         grad.setColorAt(1.0, bottom_color)
         painter.setBrush(QBrush(grad))
+        edge_pen = QPen(edge_color, 0.28)
+        edge_pen.setCosmetic(True)
+        painter.setPen(edge_pen)
         painter.drawPath(text_path)
+
         highlight_path = QPainterPath(text_path)
-        highlight_path.translate(0.0, -0.35)
-        painter.setBrush(QBrush(highlight_color))
+        highlight_path.translate(-0.14, -0.24)
+        painter.save()
+        painter.setClipRect(QRectF(bounds.left() - 1.5, bounds.top() - 1.5, bounds.width() + 3.0, bounds.height() * 0.42))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(inner_light))
         painter.drawPath(highlight_path)
+        painter.restore()
         painter.end()
 
 _active_login_dialog = None

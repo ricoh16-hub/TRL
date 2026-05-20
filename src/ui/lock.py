@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import Optional, Protocol, runtime_checkable
 
-from PySide6.QtCore import QEvent, QPointF, QPropertyAnimation, QRect, QRectF, Qt, QTimer, Signal, QEasingCurve, Property
-from PySide6.QtGui import QBrush, QCloseEvent, QColor, QEnterEvent, QFont, QKeyEvent, QLinearGradient, QMouseEvent, QPaintEvent, QPainter, QPainterPath, QPen, QRadialGradient
-from PySide6.QtWidgets import QDialog, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QWidget
+from PySide6.QtCore import QEvent, QPoint, QPointF, QPropertyAnimation, QRect, QRectF, QSize, Qt, QTimer, Signal, QEasingCurve, Property
+from PySide6.QtGui import QBrush, QCloseEvent, QColor, QEnterEvent, QFont, QFontMetrics, QKeyEvent, QLinearGradient, QMouseEvent, QPaintEvent, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
+from PySide6.QtWidgets import QDialog, QGraphicsDropShadowEffect, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QWidget
 
 
 def get_theme_color(charging: bool) -> str:
@@ -30,6 +30,191 @@ QLabel[charging="false"] {
     color: #FFFFFF;
 }
 """
+
+class PremiumTopBarTooltip(QWidget):
+    """Small glass tooltip that follows the lock/login top-bar palette."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._text = ""
+        self._charging = False
+        self._duration_ms = 900
+        self._backdrop = QPixmap()
+        self._hide_timer = QTimer(self)
+        self._hide_timer.setSingleShot(True)
+        self._hide_timer.timeout.connect(self.hide)
+        self._show_timer = QTimer(self)
+        self._show_timer.setSingleShot(True)
+        self._show_timer.timeout.connect(self._reveal)
+        self._opacity_effect = QGraphicsOpacityEffect(self)
+        self._opacity_effect.setOpacity(0.0)
+        self.setGraphicsEffect(self._opacity_effect)
+        self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
+        self._fade_anim.setDuration(130)
+        self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.hide()
+
+    def show_text(self, anchor: QWidget, text: str, charging: bool, duration_ms: int = 900) -> None:
+        parent = self.parentWidget()
+        if parent is None:
+            return
+        self._text = text
+        self._charging = bool(charging)
+        self._duration_ms = duration_ms
+        self._hide_timer.stop()
+        self.resize(self.sizeHint())
+
+        global_pos = anchor.mapToGlobal(QPoint(0, anchor.height() + 5))
+        local_pos = parent.mapFromGlobal(global_pos)
+        x = max(8, min(local_pos.x(), parent.width() - self.width() - 8))
+        y = max(8, min(local_pos.y(), parent.height() - self.height() - 8))
+        self.move(x, y)
+        self._capture_backdrop()
+        self.update()
+        self._show_timer.stop()
+        if self.isVisible():
+            self._reveal()
+        else:
+            self._opacity_effect.setOpacity(0.0)
+            self._show_timer.start(120)
+        self._hide_timer.start(self._duration_ms)
+
+    def _reveal(self) -> None:
+        self.raise_()
+        self.show()
+        self._fade_anim.stop()
+        self._fade_anim.setStartValue(float(self._opacity_effect.opacity()))
+        self._fade_anim.setEndValue(1.0)
+        self._fade_anim.start()
+
+    def _capture_backdrop(self) -> None:
+        parent = self.parentWidget()
+        if parent is None or self.width() <= 0 or self.height() <= 0:
+            self._backdrop = QPixmap()
+            return
+        was_visible = self.isVisible()
+        if was_visible:
+            self.hide()
+        source_rect = QRect(self.x(), self.y(), self.width(), self.height()).intersected(parent.rect())
+        if source_rect.isEmpty():
+            self._backdrop = QPixmap()
+            return
+        captured = parent.grab(source_rect)
+        if captured.isNull():
+            self._backdrop = QPixmap()
+            return
+        small_size = QSize(max(1, captured.width() // 8), max(1, captured.height() // 8))
+        softened = captured.scaled(
+            small_size,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        ).scaled(
+            captured.size(),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self._backdrop = softened
+
+    def sizeHint(self) -> QSize:
+        font = QFont("Segoe UI", 8, QFont.Weight.DemiBold)
+        metrics = QFontMetrics(font)
+        lines = self._text.splitlines() or [""]
+        width = max(metrics.horizontalAdvance(line) for line in lines) + 24
+        height = (metrics.height() * len(lines)) + 14
+        return QSize(max(86, width), max(30, height))
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        shadow_rect = QRectF(2.2, 2.8, self.width() - 4.4, self.height() - 4.4)
+        rect = QRectF(1.3, 1.0, self.width() - 2.6, self.height() - 2.7)
+        radius = min(8.0, max(6.0, rect.height() * 0.24))
+
+        wash_core = QColor(255, 255, 255, 30)
+        wash_mid = QColor(255, 255, 255, 14)
+        wash_edge = QColor(255, 255, 255, 5)
+        border_color = QColor(255, 255, 255, 42)
+        text_color = QColor(249, 251, 255)
+        muted_text = QColor(221, 227, 236, 218)
+        shadow = QColor(0, 0, 0, 36)
+
+        cast_shadow = QRadialGradient(QPointF(shadow_rect.center().x(), shadow_rect.bottom() - 1.0), shadow_rect.width() * 0.72)
+        cast_shadow.setColorAt(0.0, shadow)
+        cast_shadow.setColorAt(0.58, QColor(shadow.red(), shadow.green(), shadow.blue(), max(18, shadow.alpha() // 3)))
+        cast_shadow.setColorAt(1.0, QColor(shadow.red(), shadow.green(), shadow.blue(), 0))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(cast_shadow))
+        painter.drawRoundedRect(shadow_rect, radius + 1.0, radius + 1.0)
+
+        glass_path = QPainterPath()
+        glass_path.addRoundedRect(rect, radius, radius)
+        painter.save()
+        painter.setClipPath(glass_path)
+        if not self._backdrop.isNull():
+            painter.setOpacity(0.14)
+            painter.drawPixmap(rect.toRect(), self._backdrop)
+            painter.setOpacity(1.0)
+        painter.restore()
+
+        liquid_wash = QRadialGradient(QPointF(rect.left() + rect.width() * 0.34, rect.top() + rect.height() * 0.16), rect.width() * 0.94)
+        liquid_wash.setColorAt(0.0, wash_core)
+        liquid_wash.setColorAt(0.48, wash_mid)
+        liquid_wash.setColorAt(1.0, wash_edge)
+        painter.setBrush(QBrush(liquid_wash))
+        painter.drawRoundedRect(rect, radius, radius)
+
+        sheen = QLinearGradient(rect.left() + 7.0, rect.top() + 1.0, rect.right() - 6.0, rect.top() + 2.5)
+        sheen.setColorAt(0.0, QColor(255, 255, 255, 0))
+        sheen.setColorAt(0.30, QColor(255, 255, 255, 32))
+        sheen.setColorAt(0.52, QColor(255, 255, 255, 8))
+        sheen.setColorAt(1.0, QColor(255, 255, 255, 0))
+        painter.setBrush(QBrush(sheen))
+        painter.drawRoundedRect(rect.adjusted(4.5, 1.8, -4.5, -self.height() * 0.60), radius - 2.6, radius - 2.6)
+
+        pen = QPen(border_color, 0.52)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(rect, radius, radius)
+
+        lines = self._text.splitlines() or [""]
+        text_rect = self.rect().adjusted(12, 4, -12, -4)
+        painter.setFont(QFont("Segoe UI", 8, QFont.Weight.DemiBold))
+        painter.setPen(text_color)
+        if len(lines) == 1:
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, lines[0])
+        else:
+            first_rect = QRect(text_rect.left(), text_rect.top(), text_rect.width(), 13)
+            painter.drawText(first_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, lines[0])
+            painter.setFont(QFont("Segoe UI", 7, QFont.Weight.Medium))
+            painter.setPen(muted_text)
+            rest_rect = QRect(text_rect.left(), text_rect.top() + 13, text_rect.width(), text_rect.height() - 12)
+            painter.drawText(rest_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, "\n".join(lines[1:]))
+
+
+def _show_top_bar_tooltip(anchor: QWidget, text: str, charging: bool, duration_ms: int = 900) -> None:
+    window = anchor.window()
+    tooltip = getattr(window, "_premium_top_bar_tooltip", None)
+    if not isinstance(tooltip, PremiumTopBarTooltip):
+        tooltip = PremiumTopBarTooltip(window)
+        setattr(window, "_premium_top_bar_tooltip", tooltip)
+    anchor.setToolTip("")
+    anchor.setAccessibleDescription(text)
+    tooltip.show_text(anchor, text, charging, duration_ms)
+
+
+def _hide_top_bar_tooltip(anchor: QWidget) -> None:
+    tooltip = getattr(anchor.window(), "_premium_top_bar_tooltip", None)
+    if isinstance(tooltip, PremiumTopBarTooltip):
+        tooltip._show_timer.stop()
+        tooltip.hide()
+
+
+def _premium_tooltip_text(anchor: QWidget, fallback: str) -> str:
+    return anchor.accessibleDescription() or fallback
+
 
 def show_lock() -> bool:
     """Show authentic Lock Screen dialog and return True if accepted."""
@@ -119,26 +304,30 @@ class WiFiLogoWidget(QWidget):
     def enterEvent(self, event: QEnterEvent):
         self._hovering = True
         self._animate_scale(getattr(self, '_scale', 1.0), 1.08)
-        from PySide6.QtWidgets import QToolTip
-        # Ambil nama WiFi dari fungsi get_Wifi_info
-        self.setToolTip(f"Wi-Fi : {self._wifi_name}")
-        QToolTip.showText(self.mapToGlobal(self.rect().bottomLeft()), self.toolTip(), self)
+        charging = bool(getattr(self.battery_widget, 'charging', False)) if self.battery_widget is not None else False
+        status = self._wifi_name if self._wifi_name else "Unknown"
+        _show_top_bar_tooltip(self, f"Wi-Fi : {status}", charging)
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent):
         self._hovering = False
         self._animate_scale(getattr(self, '_scale', 1.08), 1.0)
+        _hide_top_bar_tooltip(self)
         super().leaveEvent(event)
 
     def paintEvent(self, event: QPaintEvent):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         W, H = self.width(), self.height()
+        charging = False
+        if self.battery_widget and hasattr(self.battery_widget, 'charging'):
+            charging = getattr(self.battery_widget, 'charging', False)  # type: ignore[attr-defined]
         if getattr(self, '_hovering', False):
+            hover_color = QColor(80, 180, 255, 40) if charging else QColor(255, 255, 255, 22)
             glow = QRadialGradient(QPointF(W / 2, H / 2), min(W, H) * 0.50)
-            glow.setColorAt(0.0, QColor(80, 180, 255, 42))
-            glow.setColorAt(0.62, QColor(80, 180, 255, 16))
-            glow.setColorAt(1.0, QColor(80, 180, 255, 0))
+            glow.setColorAt(0.0, hover_color)
+            glow.setColorAt(0.62, QColor(hover_color.red(), hover_color.green(), hover_color.blue(), max(6, hover_color.alpha() // 3)))
+            glow.setColorAt(1.0, QColor(hover_color.red(), hover_color.green(), hover_color.blue(), 0))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(glow))
             painter.drawEllipse(QRectF(2.0, 2.0, W - 4.0, H - 4.0))
@@ -155,9 +344,6 @@ class WiFiLogoWidget(QWidget):
         arc_thickness = 1.0
         # Tentukan warna berdasarkan status WiFi dan charging
         status = self._wifi_name.strip().lower()
-        charging = False
-        if self.battery_widget and hasattr(self.battery_widget, 'charging'):
-            charging = getattr(self.battery_widget, 'charging', False)  # type: ignore[attr-defined]
         if status not in ("unknown", "not connected") and charging:
             # Connected and charging: blue
             arc_color = QColor(80, 180, 255, 255)
@@ -350,10 +536,9 @@ class BatteryLogoWidget(QWidget):
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._scale_anim.valueChanged.connect(self.update)
         self._scale_anim.start()
-        from PySide6.QtWidgets import QToolTip
-        # Tooltip dinamis
-        self.setToolTip(f"Status : {self.battery_percent}%")
-        QToolTip.showText(self.mapToGlobal(self.rect().bottomLeft()), self.toolTip(), self)
+        state = "Charging" if self.charging else "Battery"
+        tooltip_text = f"{state} : {self.battery_percent}%"
+        _show_top_bar_tooltip(self, tooltip_text, self.charging)
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent) -> None:
@@ -366,6 +551,7 @@ class BatteryLogoWidget(QWidget):
             self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
             self._scale_anim.valueChanged.connect(self.update)
             self._scale_anim.start()
+            _hide_top_bar_tooltip(self)
             super().leaveEvent(event)
         except KeyboardInterrupt:
             pass
@@ -386,6 +572,7 @@ class CustomLockIcon(QWidget):
         self._scale_anim.valueChanged.connect(self.update)
         self._scale_anim.start()
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        _show_top_bar_tooltip(self, _premium_tooltip_text(self, "Login"), getattr(self, 'charging', False))
         super().enterEvent(event)
     """Custom lock icon widget with iPhone-quality animations"""
     clicked = Signal()
@@ -393,7 +580,8 @@ class CustomLockIcon(QWidget):
     def __init__(self, color: QColor = QColor(255, 255, 255), parent: Optional[QWidget] = None, charging: bool = False):
         super().__init__(parent)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("Login")
+        self.setToolTip("")
+        self.setAccessibleDescription("Login")
         self.lock_color: QColor = color
         self.original_color: QColor = color
         self.charging: bool = charging
@@ -439,6 +627,7 @@ class CustomLockIcon(QWidget):
         self.update()
         self.animate_to_normal()
         self.unsetCursor()
+        _hide_top_bar_tooltip(self)
         super().leaveEvent(event)
     # Duplikasi paintEvent dihapus, hanya satu paintEvent yang digunakan
 
@@ -589,7 +778,8 @@ class ChevronExitButton(QWidget):
         super().__init__(parent)
         self.setFixedSize(48, 32)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("Exit to Windows")
+        self.setToolTip("")
+        self.setAccessibleDescription("Exit to Windows")
         self._hover = False
         self._scale = 1.0
         self._lift = 0.0
@@ -636,6 +826,8 @@ class ChevronExitButton(QWidget):
 
     def enterEvent(self, event: QEnterEvent) -> None:
         self._hover = True
+        tooltip_text = _premium_tooltip_text(self, "Exit to Windows")
+        _show_top_bar_tooltip(self, tooltip_text, self._charging)
         # Efek glow halus saat hover, mengikuti state charging.
         from PySide6.QtWidgets import QGraphicsDropShadowEffect
         shadow = QGraphicsDropShadowEffect(self)
@@ -665,6 +857,7 @@ class ChevronExitButton(QWidget):
     def leaveEvent(self, event: QEvent) -> None:
         self._hover = False
         self._pressing = False
+        _hide_top_bar_tooltip(self)
         # Kembalikan efek bayangan normal (abu-abu transparan)
         from PySide6.QtWidgets import QGraphicsDropShadowEffect
         shadow = QGraphicsDropShadowEffect(self)
@@ -1611,6 +1804,18 @@ class LockForm(AuthenticLockScreen):
         # ...existing code...
 
 class KeyCapWidget(QWidget):
+    TOOLTIP_DURATION_MS = 850
+    KEYBOARD_POLL_MS = 80
+
+    def _state_tooltip_text(self) -> str:
+        caps_status = "On" if self._capslock_on else "Off"
+        shift_status = "On" if self._shift_on else "Off"
+        return f"CapsLock : {caps_status}\nShift : {shift_status}"
+
+    def _show_state_tooltip(self) -> None:
+        tooltip_text = self._state_tooltip_text()
+        _show_top_bar_tooltip(self, tooltip_text, getattr(self, 'charging', False), self.TOOLTIP_DURATION_MS)
+
     def _animate_scale(self, start: float, end: float) -> None:
         from PySide6.QtCore import QPropertyAnimation, QEasingCurve
         if getattr(self, '_scale_anim', None):
@@ -1628,18 +1833,13 @@ class KeyCapWidget(QWidget):
     def enterEvent(self, event: QEnterEvent) -> None:
         self._hovering = True
         self._animate_scale(getattr(self, '_scale', 1.0), 1.08)
-        from PySide6.QtWidgets import QToolTip
-        # Tooltip dinamis: tampilkan status CapsLock dan Shift
-        caps_status = "On" if self._capslock_on else "Off"
-        shift_status = "On" if self._shift_on else "Off"
-        tooltip_text = f"CapsLock : {caps_status}\nShift : {shift_status}"
-        self.setToolTip(tooltip_text)
-        QToolTip.showText(self.mapToGlobal(self.rect().bottomLeft()), self.toolTip(), self)
+        self._show_state_tooltip()
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent) -> None:
         self._hovering = False
         self._animate_scale(getattr(self, '_scale', 1.08), 1.0)
+        _hide_top_bar_tooltip(self)
         super().leaveEvent(event)
 
     def get_scale(self) -> float:
@@ -1662,7 +1862,7 @@ class KeyCapWidget(QWidget):
         self._shift_on = False
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._poll_keyboard_state)
-        self._timer.start(200)
+        self._timer.start(self.KEYBOARD_POLL_MS)
         self._poll_keyboard_state()
         self.charging = False
         self._hovering = False
@@ -1698,14 +1898,9 @@ class KeyCapWidget(QWidget):
             self._shift_on = bool(shift)
             if changed:
                 self.update()
-                # Update tooltip realtime
-                caps_status = "On" if self._capslock_on else "Off"
-                shift_status = "On" if self._shift_on else "Off"
-                tooltip_text = f"CapsLock : {caps_status}\nShift : {shift_status}"
-                self.setToolTip(tooltip_text)
-                from PySide6.QtWidgets import QToolTip
-                QToolTip.hideText()
-                QToolTip.showText(self.mapToGlobal(self.rect().center()), tooltip_text, self)
+                self.setAccessibleDescription(self._state_tooltip_text())
+                if getattr(self, '_hovering', False):
+                    self._show_state_tooltip()
         except Exception:
             pass
 
@@ -1924,10 +2119,8 @@ class GearIconWidget(QWidget):
             self._hovering = True
             self.gearHovered.emit()
         self._animate_scale(getattr(self, '_scale', 1.0), 1.10)
-        # Tooltip dinamis seperti BatteryLogoWidget
-        self.setToolTip("Setting")
-        from PySide6.QtWidgets import QToolTip
-        QToolTip.showText(self.mapToGlobal(self.rect().bottomLeft()), self.toolTip(), self)
+        tooltip_text = "Settings"
+        _show_top_bar_tooltip(self, tooltip_text, getattr(self, 'charging', False))
         # Animasi rotasi saat hover
         self._rotation_anim = QPropertyAnimation(self, b"rotation")
         self._rotation_anim.setStartValue(getattr(self, '_rotation', 0.0))
@@ -1943,8 +2136,7 @@ class GearIconWidget(QWidget):
             self._hovering = False
             self.gearUnhovered.emit()
         self._animate_scale(getattr(self, '_scale', 1.10), 1.0)
-        # Hilangkan tooltip saat leave
-        self.setToolTip("")
+        _hide_top_bar_tooltip(self)
         # Stop animasi rotasi saat leave
         if hasattr(self, '_rotation_anim'):
             self._rotation_anim.stop()

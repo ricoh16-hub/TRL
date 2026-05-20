@@ -34,6 +34,11 @@ except ImportError:
     from src.ui.flow_auth import authenticate_credentials_step
 
 try:
+    from ui.lock import _hide_top_bar_tooltip, _show_top_bar_tooltip
+except ImportError:
+    from src.ui.lock import _hide_top_bar_tooltip, _show_top_bar_tooltip  # type: ignore
+
+try:
     from database.models import User
 except ImportError:
     from src.database.models import User
@@ -591,6 +596,22 @@ class CredentialsInputFocusFilter(QObject):
         return super().eventFilter(watched, event)
 
 
+class CredentialsPremiumTooltipFilter(QObject):
+    def __init__(self, text: str, charging_provider) -> None:
+        super().__init__()
+        self._text = text
+        self._charging_provider = charging_provider
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if isinstance(watched, QWidget):
+            if event.type() == QEvent.Type.Enter:
+                charging = bool(self._charging_provider())
+                _show_top_bar_tooltip(watched, self._text, charging, 1100)
+            elif event.type() in (QEvent.Type.Leave, QEvent.Type.Hide):
+                _hide_top_bar_tooltip(watched)
+        return super().eventFilter(watched, event)
+
+
 # Modern stroke-only eye icon matching the field icon language.
 def _draw_eye_icon(
     size: int = 24,
@@ -1102,10 +1123,10 @@ class CredentialsWarningDialog(QDialog):
             "panel_bg1": "transparent",
             "title_bar_alpha": "0.000",
             "separator_alpha": "0.18",
-            "separator_color": QColor(79, 183, 232, 58),
+            "separator_color": QColor(142, 231, 255, 58),
             "window_title_color": QColor(222, 232, 245, 210),
-            "headline_color": QColor(244, 248, 255, 236),
-            "message_color": QColor(214, 224, 238, 204),
+            "headline_color": QColor(221, 247, 255, 236),
+            "message_color": QColor(170, 220, 242, 204),
             "warning_icon_accent": QColor(120, 223, 255, 198),
             "warning_mark_color": QColor(221, 247, 255, 222),
             "headline_alpha": "0.94",
@@ -1170,10 +1191,10 @@ class CredentialsWarningDialog(QDialog):
             "panel_bg1": "rgba(36, 70, 106, 0.96)",
             "title_bar_alpha": "0.045",
             "separator_alpha": "0.18",
-            "separator_color": QColor(79, 183, 232, 58),
+            "separator_color": QColor(142, 231, 255, 58),
             "window_title_color": QColor(222, 232, 245, 210),
-            "headline_color": QColor(244, 248, 255, 236),
-            "message_color": QColor(214, 224, 238, 204),
+            "headline_color": QColor(221, 247, 255, 236),
+            "message_color": QColor(170, 220, 242, 204),
             "warning_icon_accent": QColor(120, 223, 255, 198),
             "warning_mark_color": QColor(221, 247, 255, 222),
             "headline_alpha": "0.94",
@@ -1455,8 +1476,9 @@ class CredentialsWarningDialog(QDialog):
         self._close_btn.setIconSize(QSize(self.CLOSE_ICON_SIZE, self.CLOSE_ICON_SIZE))
         self._close_btn.setFixedSize(self.CLOSE_BUTTON_SIZE, self.CLOSE_BUTTON_SIZE)
         self._close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._close_btn.setToolTip("Close")
+        self._close_btn.setToolTip("")
         self._close_btn.setAccessibleName("Close")
+        self._close_btn.setAccessibleDescription("Close")
         self._close_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._close_btn.clicked.connect(self.reject)
         self._close_btn.enterEvent = self._close_enter  # type: ignore[method-assign]
@@ -1564,11 +1586,15 @@ class CredentialsWarningDialog(QDialog):
     def _close_enter(self, event) -> None:
         self._set_close_hover(True)
         self._animate_close_icon_size(self.CLOSE_ICON_HOVER_SIZE)
+        if self._close_btn is not None:
+            _show_top_bar_tooltip(self._close_btn, "Close", self._charging, 900)
         event.accept()
 
     def _close_leave(self, event) -> None:
         self._set_close_hover(False)
         self._animate_close_icon_size(self.CLOSE_ICON_SIZE)
+        if self._close_btn is not None:
+            _hide_top_bar_tooltip(self._close_btn)
         event.accept()
 
     def _close_mouse_press(self, event) -> None:
@@ -1990,9 +2016,16 @@ def show_credentials_login(app: QApplication, pin_user: User, parent: Optional[Q
     username_input.setReadOnly(True)
     username_input.setProperty("identityLocked", True)
     username_input.setCursor(Qt.CursorShape.ArrowCursor)
-    username_input.setToolTip("Verified PIN identity")
+    username_input.setToolTip("")
     username_input.setAccessibleName("Verified username")
+    username_input.setAccessibleDescription("Verified PIN identity")
     username_input.installEventFilter(CredentialsInputFocusFilter(username_row))
+    username_tooltip_filter = CredentialsPremiumTooltipFilter(
+        "Verified PIN identity",
+        lambda: bool(_charging_cache.get("prev")),
+    )
+    username_input.installEventFilter(username_tooltip_filter)
+    username_input._premium_tooltip_filter = username_tooltip_filter  # type: ignore[attr-defined]
 
     username_layout.addWidget(username_icon)
     username_layout.addWidget(username_input)

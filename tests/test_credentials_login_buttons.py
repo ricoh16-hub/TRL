@@ -184,8 +184,9 @@ def test_credentials_warning_dialog_matches_card_width() -> None:
 
     close_btn = dialog.findChild(QWidget, "warningClose")
     assert close_btn is not None
-    assert close_btn.toolTip() == "Close"
+    assert close_btn.toolTip() == ""
     assert close_btn.accessibleName() == "Close"
+    assert close_btn.accessibleDescription() == "Close"
     assert close_btn.focusPolicy() == Qt.FocusPolicy.StrongFocus
 
 
