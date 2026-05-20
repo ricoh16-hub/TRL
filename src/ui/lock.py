@@ -444,7 +444,12 @@ class BatteryLogoWidget(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         if getattr(self, '_hovering', False):
-            glow_color = QColor(80, 180, 255, 38) if self.charging else QColor(255, 255, 255, 22)
+            if self.charging:
+                glow_color = QColor(80, 180, 255, 38)
+            elif self.battery_level <= 0.18:
+                glow_color = QColor(255, 205, 126, 28)
+            else:
+                glow_color = QColor(255, 255, 255, 22)
             glow = QRadialGradient(QPointF(self.width() / 2, self.height() / 2), min(self.width(), self.height()) * 0.55)
             glow.setColorAt(0.0, glow_color)
             glow.setColorAt(0.72, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(6, glow_color.alpha() // 3)))
@@ -456,76 +461,102 @@ class BatteryLogoWidget(QWidget):
         painter.translate(self.width() / 2, self.height() / 2 + 0.45)
         painter.scale(self._scale, self._scale)
         painter.translate(-self.width() / 2, -self.height() / 2)
-        # Harmonize margin: use fixed margin (4 px) like WiFiLogoWidget and KeyCapWidget
-        margin = 4
-        rect = self.rect().adjusted(margin, margin, -margin, -margin)
-        body_x = rect.left()
-        body_y = rect.top()
-        body_width = rect.width()
-        body_height = rect.height()
-        body_rect = QRect(body_x, body_y, body_width, body_height)
-        # Outline & tip color logic
-        # Outline color: biru saat charging, putih saat tidak
-        if self.charging:
-            outline_color = QColor(80, 180, 255)  # #50B4FF
-        else:
-            outline_color = QColor(255, 255, 255, 255)  # putih
-        # Outline
-        painter.setPen(QPen(outline_color, 0.45))
-        painter.setBrush(QColor(0, 0, 0, 0))
-        painter.drawRoundedRect(body_rect, 2.5, 2.5)
-        # Tip: persegi kecil, solid, tanpa border
-        tip_w = 1.5
-        tip_h = 6  # Tinggi kepala battery diubah menjadi 6 piksel
-        gap_px = 2
-        tip_x = body_x + body_width + gap_px
-        tip_y = body_y + (body_height - tip_h) // 2
-        tip_rect = QRect(int(tip_x), int(tip_y), int(tip_w), int(tip_h))
-        tip_pen = QPen(outline_color, 0.45)
-        tip_pen.setStyle(Qt.PenStyle.SolidLine)
-        tip_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(tip_pen)
-        painter.setBrush(QColor(0, 0, 0, 0))  # tanpa fill
-        painter.drawRect(tip_rect)
-        # Battery fill: solid, flat
-        fill_margin = 3
-        fill_height = 10  # Tinggi isi baterai tetap 10 piksel
-        fill_width = int((int(body_width) - 2 * int(fill_margin)) * float(self.battery_level))
-        # Posisikan fill_rect agar vertikalnya benar-benar di tengah body
-        fill_y = body_y + (body_height - fill_height) // 2
-        fill_rect = QRect(body_x + fill_margin, fill_y, fill_width, fill_height)
-        if self.charging:
-            # Gradasi biru aqua premium ke electric blue lembut dari kiri ke kanan
-            gradient = QLinearGradient(fill_rect.left(), fill_rect.top(), fill_rect.right(), fill_rect.bottom())
-            gradient.setColorAt(0.0, QColor(78, 217, 255))   # #4ED9FF (aqua premium)
-            gradient.setColorAt(1.0, QColor(90, 167, 255))  # #5AA7FF (electric blue lembut)
-            painter.setBrush(QBrush(gradient))
-            painter.drawRect(fill_rect)
-        else:
-            # Gradasi putih ke abu-abu muda dari atas ke bawah
-            gradient = QLinearGradient(fill_rect.left(), fill_rect.top(), fill_rect.left(), fill_rect.bottom())
-            gradient.setColorAt(0.0, QColor(255, 255, 255))
-            gradient.setColorAt(1.0, QColor(230, 230, 230))
-            painter.setBrush(QBrush(gradient))
-            painter.drawRect(fill_rect)
-        # Inner shadow ala Figma
-        shadow_rect = fill_rect.adjusted(1, 1, -1, -1)
-        shadow_gradient = QLinearGradient(shadow_rect.left(), shadow_rect.top(), shadow_rect.left(), shadow_rect.bottom())
-        shadow_gradient.setColorAt(0, QColor(0, 0, 0, 40))
-        shadow_gradient.setColorAt(1, QColor(0, 0, 0, 0))
-        painter.setBrush(QBrush(shadow_gradient))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRoundedRect(shadow_rect, 2, 2)
+        margin = 4.0
+        body_rect = QRectF(self.rect()).adjusted(margin, margin, -margin - 1.6, -margin)
+        radius = 3.0
+        level = max(0.0, min(1.0, float(self.battery_level)))
 
-        # Tambahkan simbol petir saat charging
+        low_battery = level <= 0.18 and not self.charging
+        low_charging = level <= 0.10 and self.charging
+
+        if low_charging:
+            outline_color = QColor(138, 218, 255, 224)
+            body_glass_top = QColor(124, 222, 255, 30)
+            body_glass_bottom = QColor(255, 201, 118, 10)
+            fill_top = QColor(150, 241, 255)
+            fill_mid = QColor(76, 202, 255)
+            fill_bottom = QColor(72, 144, 239)
+            tip_fill = QColor(150, 221, 250, 46)
+            track_bottom = QColor(255, 194, 104, 20)
+        elif self.charging:
+            outline_color = QColor(90, 205, 255, 230)
+            body_glass_top = QColor(102, 220, 255, 34)
+            body_glass_bottom = QColor(40, 128, 210, 14)
+            fill_top = QColor(148, 240, 255)
+            fill_mid = QColor(72, 199, 255)
+            fill_bottom = QColor(70, 140, 238)
+            tip_fill = QColor(82, 190, 244, 52)
+            track_bottom = QColor(0, 0, 0, 18)
+        elif low_battery:
+            outline_color = QColor(255, 214, 138, 218)
+            body_glass_top = QColor(255, 218, 150, 22)
+            body_glass_bottom = QColor(255, 172, 72, 8)
+            fill_top = QColor(255, 232, 178)
+            fill_mid = QColor(255, 202, 112)
+            fill_bottom = QColor(226, 151, 62)
+            tip_fill = QColor(255, 214, 138, 28)
+            track_bottom = QColor(0, 0, 0, 18)
+        else:
+            outline_color = QColor(255, 255, 255, 218)
+            body_glass_top = QColor(255, 255, 255, 24)
+            body_glass_bottom = QColor(214, 226, 240, 8)
+            fill_top = QColor(255, 255, 255)
+            fill_mid = QColor(240, 246, 252)
+            fill_bottom = QColor(204, 216, 229)
+            tip_fill = QColor(255, 255, 255, 28)
+            track_bottom = QColor(0, 0, 0, 18)
+
+        body_wash = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.left(), body_rect.bottom())
+        body_wash.setColorAt(0.0, body_glass_top)
+        body_wash.setColorAt(1.0, body_glass_bottom)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(body_wash))
+        painter.drawRoundedRect(body_rect, radius, radius)
+
+        border = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.left(), body_rect.bottom())
+        border.setColorAt(0.0, QColor(outline_color.red(), outline_color.green(), outline_color.blue(), min(255, outline_color.alpha() + 20)))
+        border.setColorAt(1.0, QColor(outline_color.red(), outline_color.green(), outline_color.blue(), max(42, outline_color.alpha() // 2)))
+        border_pen = QPen(QBrush(border), 0.68)
+        border_pen.setCosmetic(True)
+        painter.setPen(border_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(body_rect, radius, radius)
+
+        tip_rect = QRectF(body_rect.right() + 1.9, body_rect.center().y() - 3.2, 1.7, 6.4)
+        painter.setPen(border_pen)
+        painter.setBrush(QBrush(tip_fill))
+        painter.drawRoundedRect(tip_rect, 0.7, 0.7)
+
+        track_rect = body_rect.adjusted(3.0, 3.9, -3.0, -3.9)
+        track_wash = QLinearGradient(track_rect.left(), track_rect.top(), track_rect.left(), track_rect.bottom())
+        track_wash.setColorAt(0.0, QColor(255, 255, 255, 18))
+        track_wash.setColorAt(1.0, track_bottom)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(track_wash))
+        painter.drawRoundedRect(track_rect, 1.9, 1.9)
+
+        fill_width = max(0.0, track_rect.width() * level)
+        if fill_width > 0.6:
+            fill_rect = QRectF(track_rect.left(), track_rect.top(), fill_width, track_rect.height())
+            fill_gradient = QLinearGradient(fill_rect.left(), fill_rect.top(), fill_rect.left(), fill_rect.bottom())
+            fill_gradient.setColorAt(0.0, fill_top)
+            fill_gradient.setColorAt(0.42, fill_mid)
+            fill_gradient.setColorAt(1.0, fill_bottom)
+            painter.setBrush(QBrush(fill_gradient))
+            painter.drawRoundedRect(fill_rect, 1.8, 1.8)
+
+            sheen = QLinearGradient(fill_rect.left(), fill_rect.top(), fill_rect.left(), fill_rect.top() + fill_rect.height() * 0.55)
+            sheen.setColorAt(0.0, QColor(255, 255, 255, 62 if self.charging else 46))
+            sheen.setColorAt(1.0, QColor(255, 255, 255, 0))
+            painter.setBrush(QBrush(sheen))
+            painter.drawRoundedRect(fill_rect.adjusted(0.7, 0.6, -0.7, -fill_rect.height() * 0.48), 1.2, 1.2)
+
         if self.charging:
-            # Simbol petir presisi (berdasarkan SVG Material Design)
-            # Path: M11 15H6l7-14v8h5l-7 14z
-            # Skala dan pusatkan ke fill_rect
-            svg_w = 24
-            scale = min(fill_rect.width(), fill_rect.height()) / svg_w * 1.25
-            offset_x = fill_rect.center().x() - (12 * scale)
-            offset_y = fill_rect.center().y() - (12 * scale)
+            svg_w = 24.0
+            bolt_scale = min(track_rect.width(), track_rect.height()) / svg_w * 1.22
+            center = track_rect.center()
+            offset_x = center.x() - (12.0 * bolt_scale)
+            offset_y = center.y() - (12.0 * bolt_scale)
             points = [
                 QPointF(11, 15),
                 QPointF(6, 15),
@@ -534,12 +565,11 @@ class BatteryLogoWidget(QWidget):
                 QPointF(18, 9),
                 QPointF(11, 23),
             ]
-            # Transform ke posisi dan skala yang sesuai
-            points = [QPointF(p.x() * scale + offset_x, p.y() * scale + offset_y) for p in points]
+            points = [QPointF(p.x() * bolt_scale + offset_x, p.y() * bolt_scale + offset_y) for p in points]
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(255, 255, 255))
+            painter.setBrush(QColor(255, 255, 255, 238))
             painter.drawPolygon(points)
-        # No restore needed; no save was called
+
     def enterEvent(self, event: QEnterEvent) -> None:
         self._hovering = True
         self._scale_anim = QPropertyAnimation(self, b"scale")
@@ -549,7 +579,14 @@ class BatteryLogoWidget(QWidget):
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._scale_anim.valueChanged.connect(self.update)
         self._scale_anim.start()
-        state = "Charging" if self.charging else "Battery"
+        if self.charging and self.battery_percent >= 99:
+            state = "Fully charged"
+        elif self.charging:
+            state = "Charging"
+        elif self.battery_level <= 0.18:
+            state = "Battery low"
+        else:
+            state = "Battery"
         tooltip_text = f"{state} : {self.battery_percent}%"
         _show_top_bar_tooltip(self, tooltip_text, self.charging)
         super().enterEvent(event)
