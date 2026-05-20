@@ -2,7 +2,7 @@ from importlib import import_module
 from typing import Callable, Optional, Union, cast
 from database.models import User
 from PySide6.QtWidgets import QWidget, QDialog, QVBoxLayout, QGridLayout, QLabel, QGraphicsDropShadowEffect, QApplication, QMessageBox
-from PySide6.QtCore import Qt, Signal, QRectF, QEasingCurve, QPropertyAnimation, Property, QEvent, QPointF, QSize
+from PySide6.QtCore import Qt, Signal, QRectF, QEasingCurve, QPropertyAnimation, Property, QEvent, QPointF, QSize, QTimer
 from PySide6.QtGui import QPainter, QBrush, QPen, QColor, QRadialGradient, QMouseEvent, QPaintEvent, QEnterEvent, QKeyEvent, QCloseEvent, QPainterPath
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QLinearGradient
@@ -727,6 +727,8 @@ class BackButton(QWidget):
 
 class VerticalStretchLabel(QWidget):
     """Label dengan teks yang di-stretch vertikal tanpa mengubah lebar horizontal"""
+    TOOLTIP_DURATION_MS = 850
+
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self._text = ""
@@ -738,6 +740,16 @@ class VerticalStretchLabel(QWidget):
         self.setMinimumHeight(18)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("")
+        self.setAccessibleDescription(self._state_tooltip_text())
+
+    def _state_tooltip_text(self) -> str:
+        time_text = self._text or "--.--"
+        return f"Time : {time_text}"
+
+    def _show_state_tooltip(self) -> None:
+        tooltip_text = self._state_tooltip_text()
+        _show_top_bar_tooltip(self, tooltip_text, self._charging, self.TOOLTIP_DURATION_MS)
 
     def get_scale(self) -> float:
         return self._scale
@@ -779,15 +791,20 @@ class VerticalStretchLabel(QWidget):
     def enterEvent(self, event: QEnterEvent) -> None:
         self._hovering = True
         self._animate_scale(self._scale, 1.06, 180)
+        self._show_state_tooltip()
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent) -> None:
         self._hovering = False
         self._animate_scale(self._scale, 1.0, 180)
+        _hide_top_bar_tooltip(self)
         super().leaveEvent(event)
         
     def setText(self, text: str):
         self._text = text
+        self.setAccessibleDescription(self._state_tooltip_text())
+        if self._hovering:
+            self._show_state_tooltip()
         self.update()
     
     def text(self) -> str:
@@ -796,6 +813,8 @@ class VerticalStretchLabel(QWidget):
         
     def set_charging(self, charging: bool):
         self._charging = charging
+        if self._hovering:
+            self._show_state_tooltip()
         self.update()
         
     def paintEvent(self, event: QPaintEvent):
@@ -1237,15 +1256,37 @@ class CustomUnlockIcon(QWidget):
         self.lock_color = color
         self.original_color = color
         self.setFixedSize(64, 64)
+        self.setToolTip("")
+        self.setAccessibleDescription("Login")
+        self.battery_widget = None
         self._shackle_anim = None
         self._shackle_angle = 180  # degrees, open
         self._on_shackle_closed = None
         self._shackle_open = True
         self.charging = charging
         self._hovering = False
+        self._charging_timer = QTimer(self)
+        self._charging_timer.timeout.connect(self._update_charging_status)
+        self._charging_timer.start(200)
+
+    def set_battery_widget(self, battery_widget: Optional[QWidget]) -> None:
+        self.battery_widget = battery_widget
+        self._update_charging_status()
+
+    def _update_charging_status(self) -> None:
+        charging = False
+        if self.battery_widget is not None:
+            charging = bool(getattr(self.battery_widget, 'charging', False))
+        if charging != self.charging:
+            self.charging = charging
+            if self._hovering:
+                _show_top_bar_tooltip(self, _premium_tooltip_text(self, "Login"), self.charging)
+            self.update()
 
     def set_charging(self, charging: bool):
         self.charging = charging
+        if self._hovering:
+            _show_top_bar_tooltip(self, _premium_tooltip_text(self, "Login"), self.charging)
         self.update()
 
     def enterEvent(self, event: QEnterEvent):
@@ -1267,6 +1308,7 @@ class CustomUnlockIcon(QWidget):
         self._scale_anim.valueChanged.connect(self.update)
         self._scale_anim.start()
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        _show_top_bar_tooltip(self, _premium_tooltip_text(self, "Login"), self.charging)
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent):
@@ -1274,6 +1316,7 @@ class CustomUnlockIcon(QWidget):
         self.update()
         self.animate_to_normal()
         self.unsetCursor()
+        _hide_top_bar_tooltip(self)
         super().leaveEvent(event)
 
     def mousePressEvent(self, event: QMouseEvent):
@@ -2173,6 +2216,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     # Unlock Icon (CustomUnlockIcon/gembok terbuka) - POSISI MANUAL, identik dengan lock.py
     unlock_icon = CustomUnlockIcon(QColor(255, 255, 255))
     unlock_icon.setParent(dialog)
+    unlock_icon.set_battery_widget(battery_logo)
     lock_x = (dialog.width() - unlock_icon.width()) // 2  # posisi tengah
     lock_y = int(-4 + 4 + 0.6 + top_bar_y_offset)  # tetap di dalam batas translucent window
     unlock_icon.move(lock_x, lock_y)
