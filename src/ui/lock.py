@@ -225,6 +225,8 @@ def show_lock() -> bool:
 
 # --- WiFiLogoWidget (restored from backup/src/ui/lock.py) ---
 class WiFiLogoWidget(QWidget):
+    DISCONNECTED_NAMES = {"", "unknown", "not connected", "tidak diketahui"}
+
     def __init__(self, parent: Optional[QWidget] = None, battery_widget: Optional[QWidget] = None):
         self.battery_widget: Optional[QWidget] = battery_widget
         self._wifi_name = "Tidak diketahui"  # Inisialisasi lebih awal agar selalu ada
@@ -244,6 +246,9 @@ class WiFiLogoWidget(QWidget):
         self._wifi_timer = QTimer(self)
         self._wifi_timer.timeout.connect(self.update_wifi_status)
         self._wifi_timer.start(500)  # refresh setiap 0.5 detik (ideal: responsif & efisien)
+
+    def _is_connected(self) -> bool:
+        return self._wifi_name.strip().lower() not in self.DISCONNECTED_NAMES
 
     def update_wifi_status(self):
         try:
@@ -342,32 +347,41 @@ class WiFiLogoWidget(QWidget):
         vertical_offset = 1
         base_y = icon_rect.top() + icon_H * 0.62 + vertical_offset
         arc_thickness = 1.0
-        # Tentukan warna berdasarkan status WiFi dan charging
-        status = self._wifi_name.strip().lower()
-        if status not in ("unknown", "not connected") and charging:
-            # Connected and charging: blue
-            arc_color = QColor(80, 180, 255, 255)
-            dot_color = QColor(80, 180, 255, 255)
-        else:
-            # Not connected or not charging: white
-            arc_color = QColor(255, 255, 255, 255)
-            dot_color = QColor(255, 255, 255, 255)
+        connected = self._is_connected()
+        base_color = QColor(80, 180, 255, 255) if charging else QColor(255, 255, 255, 255)
         arc_span = 125
         arc_radii = [icon_W * 0.22]  # lengkungan kecil
         arc_gap = 3
         arc_radii.append(arc_radii[0] + arc_gap)      # lengkungan sedang
         arc_radii.append(arc_radii[1] + arc_gap)      # lengkungan besar
         arc_radii.append(arc_radii[2] + arc_gap)      # lengkungan paling besar (tambahan)
-        for radius in arc_radii:
+
+        if connected:
+            arc_specs = [(radius, arc_span, 255, 0.0) for radius in arc_radii]
+            dot_alpha = 255
+        else:
+            arc_specs = [
+                (arc_radii[0], 118, 170, 0.0),
+                (arc_radii[1], 104, 104, 0.0),
+                (arc_radii[2], 76, 48, 0.7),
+                (arc_radii[3], 58, 30, 1.1),
+            ]
+            dot_alpha = 150
+
+        for radius, span, alpha, y_offset in arc_specs:
+            arc_color = QColor(base_color)
+            arc_color.setAlpha(alpha)
             painter.setPen(QPen(arc_color, arc_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawArc(
-                int(center_x - radius), int(base_y - radius),
+                int(center_x - radius), int(base_y - radius + y_offset),
                 int(2 * radius), int(2 * radius),
-                (90 - arc_span // 2) * 16, arc_span * 16
+                int(90 - span / 2) * 16, int(span * 16)
             )
         dot_radius = 1.5
         arc_bottom_y = base_y + arc_radii[0]
         dot_y = arc_bottom_y
+        dot_color = QColor(base_color)
+        dot_color.setAlpha(dot_alpha)
         painter.setBrush(dot_color)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(int(center_x - dot_radius), int(dot_y - dot_radius), int(2 * dot_radius), int(2 * dot_radius))
