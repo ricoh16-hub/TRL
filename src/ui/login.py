@@ -1,13 +1,27 @@
 from importlib import import_module
 from typing import Callable, Optional, Union, cast
 from database.models import User
-from PySide6.QtWidgets import QWidget, QDialog, QVBoxLayout, QGridLayout, QLabel, QGraphicsDropShadowEffect, QApplication, QMessageBox
+from PySide6.QtWidgets import QWidget, QDialog, QVBoxLayout, QGridLayout, QLabel, QApplication, QMessageBox
 from PySide6.QtCore import Qt, Signal, QRectF, QEasingCurve, QPropertyAnimation, Property, QEvent, QPointF, QSize, QTimer
 from PySide6.QtGui import QPainter, QBrush, QPen, QColor, QRadialGradient, QMouseEvent, QPaintEvent, QEnterEvent, QKeyEvent, QCloseEvent, QPainterPath
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QLinearGradient
 # Import widgets from lock.py
-from ui.lock import BatteryLogoWidget, KeyCapWidget, GearIconWidget, WiFiLogoWidget, _hide_top_bar_tooltip, _paint_premium_padlock, _premium_tooltip_text, _show_top_bar_tooltip, show_lock
+from ui.lock import (
+    TOP_BAR_CENTER_ICON_SIZE,
+    TOP_BAR_ICON_HOVER_SCALE,
+    BatteryLogoWidget,
+    GearIconWidget,
+    KeyCapWidget,
+    WiFiLogoWidget,
+    _hide_top_bar_tooltip,
+    _paint_premium_padlock,
+    _premium_tooltip_text,
+    _show_top_bar_tooltip,
+    calculate_top_bar_layout,
+    top_bar_center_x,
+    show_lock,
+)
 
 try:
     from ui.credentials_login import _show_credentials_warning
@@ -1194,10 +1208,6 @@ class CustomUnlockIcon(QWidget):
         self.setToolTip("")
         self.setAccessibleDescription("Login")
         self.battery_widget = None
-        self._shackle_anim = None
-        self._shackle_angle = 180  # degrees, open
-        self._on_shackle_closed = None
-        self._shackle_open = True
         self.charging = charging
         self._hovering = False
         self._charging_timer = QTimer(self)
@@ -1237,7 +1247,7 @@ class CustomUnlockIcon(QWidget):
         
         self._scale_anim = QPropertyAnimation(self, b"scale")
         self._scale_anim.setStartValue(getattr(self, '_scale', 1.0))
-        self._scale_anim.setEndValue(1.08)
+        self._scale_anim.setEndValue(TOP_BAR_ICON_HOVER_SCALE)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._scale_anim.valueChanged.connect(self.update)
@@ -1260,39 +1270,6 @@ class CustomUnlockIcon(QWidget):
             self.clicked.emit()
         super().mousePressEvent(event)
 
-    def animate_shackle_close(self):
-        # Animate shackle arc from open (180 deg) to closed (160 deg)
-        from PySide6.QtCore import QPropertyAnimation
-        # Cleanup old animation
-        old_anim = getattr(self, '_shackle_anim', None)
-        if old_anim is not None:
-            try:
-                old_anim.stop()
-                old_anim.valueChanged.disconnect()
-            except (RuntimeError, TypeError):
-                pass
-        
-        self._shackle_anim = QPropertyAnimation(self, b"shackle_angle")
-        self._shackle_anim.setStartValue(180)
-        self._shackle_anim.setDuration(320)
-        self._shackle_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self._shackle_anim.valueChanged.connect(self.update)
-        def finish():
-            self._shackle_open = False
-            self.update()
-            if self._on_shackle_closed:
-                self._on_shackle_closed()
-        self._shackle_anim.finished.connect(finish)
-        self._shackle_anim.start()
-
-    def get_shackle_angle(self):
-        return getattr(self, '_shackle_angle', 180)
-
-    def set_shackle_angle(self, value: float):
-        self._shackle_angle = value
-        self.update()
-
-
     def mouseDoubleClickEvent(self, event: QMouseEvent):
         self.animate_to_normal()
         self.clicked.emit()
@@ -1309,7 +1286,7 @@ class CustomUnlockIcon(QWidget):
                 pass
         
         self._scale_anim = QPropertyAnimation(self, b"scale")
-        self._scale_anim.setStartValue(getattr(self, '_scale', 1.08))
+        self._scale_anim.setStartValue(getattr(self, '_scale', TOP_BAR_ICON_HOVER_SCALE))
         self._scale_anim.setEndValue(1.0)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -1322,89 +1299,6 @@ QDialog {
     border: none;
 }
 """
-
-class UnlockIconWidget(QWidget):
-    def get_scale(self) -> float:
-        return getattr(self, '_scale', 1.0)
-
-    def set_scale(self, value: float) -> None:
-        self._scale = value
-        self.update()
-
-    scale = Property(float, get_scale, set_scale)
-
-    def __init__(self, parent: Optional[QWidget] = None):
-        super().__init__(parent)
-        self.setFixedSize(int(63.5), int(63.5))
-        effect = QGraphicsDropShadowEffect()
-        effect.setBlurRadius(15)
-        effect.setColor(QColor(0, 0, 0, 80))
-        effect.setOffset(0, 4)
-        self.setGraphicsEffect(effect)
-        self.hovered = False
-
-    def paintEvent(self, event: QPaintEvent):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        # Glassmorphism gradient
-        center = QPointF(self.width() / 2, self.height() / 2)
-        gradient = QRadialGradient(center, self.width() / 2, center)
-        gradient.setColorAt(0, QColor(255, 255, 255, 180))
-        gradient.setColorAt(1, QColor(100, 100, 180, 80))
-        painter.setBrush(QBrush(gradient))
-        painter.setPen(Qt.PenStyle.NoPen)
-        # Body gembok
-        W, H = self.width(), self.height()
-        margin_x, margin_y = 8, 5
-        padlock_w = W - 2 * margin_x
-        body_width = int(padlock_w * 0.32)
-        body_height = int((H - 2 * margin_y) * 0.20)
-        body_x = margin_x + (padlock_w - body_width) // 2
-        body_y = margin_y + (H - 2 * margin_y) - body_height - 4
-        painter.setPen(QColor(80, 80, 180, 200))
-        painter.drawRoundedRect(int(body_x), int(body_y), int(body_width), int(body_height), 3, 3)
-        # Shackle terbuka
-        shackle_width = int(body_width * 0.6)
-        shackle_height = int(body_height * 0.85)
-        shackle_x = body_x + (body_width - shackle_width) // 2
-        shackle_y = body_y - shackle_height + 2
-        shackle_rect = QRectF(shackle_x, shackle_y, shackle_width, shackle_height)
-        # Arc shackle (hanya 3/4 lingkaran, ujung kanan terbuka)
-        painter.setPen(QColor(80, 80, 180, 200))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawArc(shackle_rect, 30 * 16, 210 * 16)  # arc dari kiri ke atas, kanan terbuka
-        # Garis kaki kiri shackle ke body
-        painter.drawLine(
-            int(shackle_x + 2),
-            int(body_y),
-            int(shackle_x + 2),
-            int(shackle_y + int(shackle_height // 2))
-        )
-        # Ujung kanan shackle dibiarkan terbuka (tidak ada garis ke body)
-        # Glow saat hover
-        if self.hovered:
-            painter.setBrush(QColor(180, 220, 255, 60))
-            painter.drawEllipse(5, 5, 55, 55)
-
-    def mousePressEvent(self, event: QMouseEvent):
-        if event.button() == Qt.MouseButton.LeftButton:
-            # Aksi: buka form lock dan tutup login
-            parent = self.parent()
-            if hasattr(parent, 'open_lock_form'):
-                parent.open_lock_form()  # type: ignore[attr-defined]
-
-    def enterEvent(self, event: QEvent):
-        self.hovered = True
-        self.update()
-        parent = self.parentWidget()
-        charging = bool(getattr(parent, "_background_charging", False)) if parent is not None else False
-        _show_top_bar_tooltip(self, _premium_tooltip_text(self, "Login"), charging)
-
-    def leaveEvent(self, event: QEvent):
-        self.hovered = False
-        self.update()
-        _hide_top_bar_tooltip(self)
 
 class HomeButton(QWidget):
     clicked = Signal()
@@ -2076,33 +1970,32 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     # --- Position lock.py widgets exactly as in lock.py ---
     # Calculate positions based on lock.py logic
     # Reference: lock.py AuthenticLockScreen __init__
-    lock_x = (dialog.width() - 64) // 2  # 64 = lock_icon width
-    top_bar_y_offset = 0
-    top_bar_visual_bottom = 55 + top_bar_y_offset
-    # Battery logo position (kanan atas, menjorok ke atas)
-    wifi_logo_width = 20
-    wifi_logo_margin_kanan = 4
-    battery_logo_margin_kiri = 4
-    increased_gap = 20
-    wifi_x = lock_x + 64 + 3
-    battery_x = wifi_x + wifi_logo_width - wifi_logo_margin_kanan + increased_gap - battery_logo_margin_kiri
+    lock_x = top_bar_center_x(dialog.width(), TOP_BAR_CENTER_ICON_SIZE)
     battery_logo = BatteryLogoWidget(dialog)
     battery_logo.setParent(dialog)
-    battery_y = top_bar_visual_bottom - battery_logo.height()
-    battery_logo.move(battery_x + 5, battery_y)
-    battery_logo.show()
     # KeyCapWidget position (sinkron dengan battery_logo)
     keycap = KeyCapWidget(dialog, text="A", battery_widget=battery_logo)
-    keycap_x = lock_x - keycap.width() + 3
-    keycap_y = top_bar_visual_bottom - keycap.height()
-    keycap.move(keycap_x, int(round(keycap_y)))
-    keycap.show()
     # Gear widget di kiri keycap, jarak harmonis 20px
     gear_widget = GearIconWidget(dialog)
     gear_widget.set_battery_widget(battery_logo)
-    gear_x = keycap_x - gear_widget.width() - 8
-    gear_y = int(round(keycap_y + (keycap.height() - gear_widget.height()) / 2))
-    gear_widget.move(gear_x, gear_y)
+    wifi_logo = WiFiLogoWidget(dialog, battery_widget=battery_logo)
+
+    top_bar_layout = calculate_top_bar_layout(
+        form_width=dialog.width(),
+        center_icon_width=TOP_BAR_CENTER_ICON_SIZE,
+        keycap_width=keycap.width(),
+        keycap_height=keycap.height(),
+        battery_height=battery_logo.height(),
+        wifi_height=wifi_logo.height(),
+        gear_width=gear_widget.width(),
+        gear_height=gear_widget.height(),
+        gear_visual_size=gear_widget.getGearSize(),
+    )
+    battery_logo.move(top_bar_layout["battery_x"], top_bar_layout["battery_y"])
+    battery_logo.show()
+    keycap.move(top_bar_layout["keycap_x"], top_bar_layout["keycap_y"])
+    keycap.show()
+    gear_widget.move(top_bar_layout["gear_x"], top_bar_layout["gear_y"])
     gear_widget.hide()  # Logo gear dinonaktifkan - dipastikan tersembunyi
     
     # Label jam di sebelah kiri gear widget (custom widget dengan vertical stretch)
@@ -2133,17 +2026,23 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
         label_clock.setFixedWidth(text_width + 4)
         
         # Jarak label jam ke keycap digeser sedikit ke kiri
-        clock_x = keycap_x - label_clock.width() - 3.5
-        clock_y = int(round(top_bar_visual_bottom - label_clock.height()))
-        label_clock.move(int(clock_x), int(clock_y))
+        clock_layout = calculate_top_bar_layout(
+            form_width=dialog.width(),
+            center_icon_width=TOP_BAR_CENTER_ICON_SIZE,
+            keycap_width=keycap.width(),
+            keycap_height=keycap.height(),
+            battery_height=battery_logo.height(),
+            wifi_height=wifi_logo.height(),
+            clock_width=label_clock.width(),
+            clock_height=label_clock.height(),
+        )
+        label_clock.move(clock_layout["clock_x"], clock_layout["clock_y"])
     
     position_clock_label()
     label_clock.show()
     
     # WiFi logo widget di sebelah kanan gembok
-    wifi_logo = WiFiLogoWidget(dialog, battery_widget=battery_logo)
-    wifi_y = top_bar_visual_bottom - wifi_logo.height()
-    wifi_logo.move(int(wifi_x - 4.35), int(round(wifi_y)))
+    wifi_logo.move(top_bar_layout["wifi_x"], top_bar_layout["wifi_y"])
     wifi_logo.show()
 
     # Jangan tambahkan unlock_icon ke layout, posisikan manual setelah layout di-set
@@ -2152,9 +2051,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     unlock_icon = CustomUnlockIcon(QColor(255, 255, 255))
     unlock_icon.setParent(dialog)
     unlock_icon.set_battery_widget(battery_logo)
-    lock_x = (dialog.width() - unlock_icon.width()) // 2  # posisi tengah
-    lock_y = int(-4 + 4 + 0.6 + top_bar_y_offset)  # tetap di dalam batas translucent window
-    unlock_icon.move(lock_x, lock_y)
+    unlock_icon.move(top_bar_center_x(dialog.width(), unlock_icon.width()), top_bar_layout["center_y"])
     unlock_icon.show()
     dialog.unlock_icon = unlock_icon
 

@@ -19,8 +19,65 @@ GLASS_STYLE = """
 QDialog {
     background: transparent;
     border: none;
-    }
+}
 """
+
+TOP_BAR_VISUAL_BOTTOM = 55
+TOP_BAR_CENTER_ICON_SIZE = 64
+TOP_BAR_LOCK_TOP_Y = 0
+TOP_BAR_LOCK_TO_WIFI_GAP = 3
+TOP_BAR_WIFI_X_OFFSET = -4.35
+TOP_BAR_BATTERY_X_OFFSET = 5
+TOP_BAR_BATTERY_FROM_WIFI_X = 32
+TOP_BAR_KEYCAP_RIGHT_OVERLAP = 3
+TOP_BAR_GEAR_GAP = 8
+TOP_BAR_CLOCK_GAP = 3.5
+TOP_BAR_ICON_HOVER_SCALE = 1.055
+
+
+def top_bar_center_x(form_width: int, center_icon_width: int = TOP_BAR_CENTER_ICON_SIZE) -> int:
+    return int((form_width - center_icon_width) // 2)
+
+
+def calculate_top_bar_layout(
+    *,
+    form_width: int,
+    center_icon_width: int = TOP_BAR_CENTER_ICON_SIZE,
+    keycap_width: int,
+    keycap_height: int,
+    battery_height: int,
+    wifi_height: int,
+    gear_width: int | None = None,
+    gear_height: int | None = None,
+    gear_visual_size: float | None = None,
+    clock_width: int | None = None,
+    clock_height: int | None = None,
+) -> dict[str, int]:
+    center_x = top_bar_center_x(form_width, center_icon_width)
+    wifi_anchor_x = center_x + center_icon_width + TOP_BAR_LOCK_TO_WIFI_GAP
+    battery_anchor_x = wifi_anchor_x + TOP_BAR_BATTERY_FROM_WIFI_X
+    keycap_x = center_x - keycap_width + TOP_BAR_KEYCAP_RIGHT_OVERLAP
+
+    layout = {
+        "center_x": center_x,
+        "center_y": TOP_BAR_LOCK_TOP_Y,
+        "keycap_x": int(keycap_x),
+        "keycap_y": int(round(TOP_BAR_VISUAL_BOTTOM - keycap_height)),
+        "wifi_x": int(wifi_anchor_x + TOP_BAR_WIFI_X_OFFSET),
+        "wifi_y": int(round(TOP_BAR_VISUAL_BOTTOM - wifi_height)),
+        "battery_x": int(battery_anchor_x + TOP_BAR_BATTERY_X_OFFSET),
+        "battery_y": int(round(TOP_BAR_VISUAL_BOTTOM - battery_height)),
+    }
+
+    if gear_width is not None and gear_height is not None and gear_visual_size is not None:
+        layout["gear_x"] = int(keycap_x - gear_width - TOP_BAR_GEAR_GAP)
+        layout["gear_y"] = int(round(TOP_BAR_VISUAL_BOTTOM - ((gear_height + gear_visual_size) / 2)))
+
+    if clock_width is not None and clock_height is not None:
+        layout["clock_x"] = int(keycap_x - clock_width - TOP_BAR_CLOCK_GAP)
+        layout["clock_y"] = int(round(TOP_BAR_VISUAL_BOTTOM - clock_height))
+
+    return layout
 
 QSS_LABEL_STYLE = """
 QLabel[charging="true"] {
@@ -302,7 +359,7 @@ class WiFiLogoWidget(QWidget):
 
     def enterEvent(self, event: QEnterEvent):
         self._hovering = True
-        self._animate_scale(getattr(self, '_scale', 1.0), 1.08)
+        self._animate_scale(getattr(self, '_scale', 1.0), TOP_BAR_ICON_HOVER_SCALE)
         charging = bool(getattr(self.battery_widget, 'charging', False)) if self.battery_widget is not None else False
         status = self._wifi_name if self._wifi_name else "Unknown"
         _show_top_bar_tooltip(self, f"Wi-Fi : {status}", charging)
@@ -310,7 +367,7 @@ class WiFiLogoWidget(QWidget):
 
     def leaveEvent(self, event: QEvent):
         self._hovering = False
-        self._animate_scale(getattr(self, '_scale', 1.08), 1.0)
+        self._animate_scale(getattr(self, '_scale', TOP_BAR_ICON_HOVER_SCALE), 1.0)
         _hide_top_bar_tooltip(self)
         super().leaveEvent(event)
 
@@ -574,7 +631,7 @@ class BatteryLogoWidget(QWidget):
         self._hovering = True
         self._scale_anim = QPropertyAnimation(self, b"scale")
         self._scale_anim.setStartValue(getattr(self, '_scale', 1.0))
-        self._scale_anim.setEndValue(1.08)
+        self._scale_anim.setEndValue(TOP_BAR_ICON_HOVER_SCALE)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._scale_anim.valueChanged.connect(self.update)
@@ -595,7 +652,7 @@ class BatteryLogoWidget(QWidget):
         try:
             self._hovering = False
             self._scale_anim = QPropertyAnimation(self, b"scale")
-            self._scale_anim.setStartValue(getattr(self, '_scale', 1.08))
+            self._scale_anim.setStartValue(getattr(self, '_scale', TOP_BAR_ICON_HOVER_SCALE))
             self._scale_anim.setEndValue(1.0)
             self._scale_anim.setDuration(220)
             self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -625,7 +682,7 @@ def _paint_premium_padlock(
     center_x = bounds.center().x()
 
     if hovering:
-        glow_color = QColor(80, 180, 255, 34) if charging else QColor(255, 255, 255, 19)
+        glow_color = QColor(80, 180, 255, 34) if charging else QColor(255, 255, 255, 18)
         glow = QRadialGradient(QPointF(center_x, bounds.top() + height * 0.66), width * 0.40)
         glow.setColorAt(0.0, glow_color)
         glow.setColorAt(0.70, QColor(glow_color.red(), glow_color.green(), glow_color.blue(), max(5, glow_color.alpha() // 3)))
@@ -634,88 +691,123 @@ def _paint_premium_padlock(
         painter.setBrush(QBrush(glow))
         painter.drawEllipse(QRectF(center_x - 22.5, bounds.top() + height * 0.34, 45.0, 36.0))
 
-    body_rect = QRectF(center_x - 11.0, bounds.top() + 36.1, 22.0, 18.8)
+    body_rect = QRectF(center_x - 12.3, bounds.top() + 35.6, 24.6, 19.8)
+
+    aura_color = QColor(80, 180, 255, 10) if charging else QColor(255, 255, 255, 6)
+    aura = QRadialGradient(QPointF(center_x, body_rect.center().y() + 1.4), width * 0.30)
+    aura.setColorAt(0.0, aura_color)
+    aura.setColorAt(0.62, QColor(aura_color.red(), aura_color.green(), aura_color.blue(), max(2, aura_color.alpha() // 3)))
+    aura.setColorAt(1.0, QColor(aura_color.red(), aura_color.green(), aura_color.blue(), 0))
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QBrush(aura))
+    painter.drawEllipse(QRectF(center_x - 18.0, body_rect.top() - 5.0, 36.0, 33.0))
 
     if charging:
-        body_top = QColor(126, 234, 255)
-        body_mid = QColor(72, 199, 255)
-        body_bottom = QColor(58, 135, 232)
-        shackle_color = QColor(148, 236, 255, 238)
-        edge_color = QColor(184, 246, 255, 76)
-        keyhole_dark = QColor(3, 26, 50, 208)
+        body_top = QColor(119, 218, 252, 242)
+        body_mid = QColor(72, 164, 239, 238)
+        body_bottom = QColor(48, 124, 212, 232)
+        shackle_top = QColor(178, 235, 250, 232)
+        shackle_bottom = QColor(88, 174, 242, 220)
+        edge_color = QColor(196, 243, 255, 82)
+        keyhole_dark = QColor(2, 22, 49, 220)
+        shackle_depth_color = QColor(4, 29, 60, 78)
+        open_leg_depth_color = QColor(4, 29, 60, 46)
     else:
         base = QColor(lock_color)
-        body_top = QColor(247, 251, 255, 236)
-        body_mid = QColor(max(214, base.red() - 10), max(222, base.green() - 10), max(232, base.blue() - 10), 226)
-        body_bottom = QColor(187, 201, 217, 220)
-        shackle_color = QColor(238, 244, 252, 224)
+        body_top = QColor(240, 246, 253, 234)
+        body_mid = QColor(max(210, base.red() - 20), max(222, base.green() - 20), max(236, base.blue() - 20), 224)
+        body_bottom = QColor(158, 178, 202, 216)
+        shackle_top = QColor(240, 248, 255, 220)
+        shackle_bottom = QColor(192, 211, 232, 204)
         edge_color = QColor(255, 255, 255, 48)
-        keyhole_dark = QColor(16, 24, 36, 214)
+        keyhole_dark = QColor(13, 22, 34, 218)
+        shackle_depth_color = QColor(9, 18, 30, 54)
+        open_leg_depth_color = QColor(9, 18, 30, 34)
 
     shackle_path = QPainterPath()
+    open_leg_path = QPainterPath()
     if unlocked:
-        left_x = body_rect.left() + 6.0
-        shoulder_y = body_rect.top() - 7.7
-        crown_y = body_rect.top() - 14.0
-        end_x = body_rect.right() + 5.4
-        end_y = body_rect.top() - 10.7
-        shackle_path.moveTo(left_x, body_rect.top() + 0.4)
-        shackle_path.lineTo(left_x, shoulder_y)
-        shackle_path.cubicTo(
-            QPointF(left_x - 0.5, crown_y - 2.1),
-            QPointF(end_x - 8.4, crown_y - 3.3),
-            QPointF(end_x - 1.5, end_y),
-        )
-        end_cap = QPainterPath()
-        end_cap.addEllipse(QRectF(end_x - 2.35, end_y - 0.85, 1.9, 1.9))
-    else:
-        left_x = body_rect.left() + 6.0
-        right_x = body_rect.right() - 6.0
-        crown_y = body_rect.top() - 14.0
-        shoulder_y = body_rect.top() - 7.7
-        foot_y = body_rect.top() + 0.8
+        left_x = body_rect.left() + 6.7
+        right_x = body_rect.right() - 6.7
+        shoulder_y = body_rect.top() - 8.4
+        crown_y = body_rect.top() - 16.0
+        foot_y = body_rect.top() + 1.0
+        open_foot_y = body_rect.top() - 6.0
         shackle_path.moveTo(left_x, foot_y)
         shackle_path.lineTo(left_x, shoulder_y)
         shackle_path.cubicTo(
-            QPointF(left_x - 0.2, crown_y - 2.1),
-            QPointF(right_x + 0.2, crown_y - 2.1),
+            QPointF(left_x - 0.35, crown_y - 2.9),
+            QPointF(right_x + 0.35, crown_y - 2.9),
+            QPointF(right_x, shoulder_y),
+        )
+        open_leg_path.moveTo(right_x, shoulder_y)
+        open_leg_path.lineTo(right_x, open_foot_y)
+    else:
+        left_x = body_rect.left() + 6.7
+        right_x = body_rect.right() - 6.7
+        crown_y = body_rect.top() - 16.0
+        shoulder_y = body_rect.top() - 8.4
+        foot_y = body_rect.top() + 1.0
+        shackle_path.moveTo(left_x, foot_y)
+        shackle_path.lineTo(left_x, shoulder_y)
+        shackle_path.cubicTo(
+            QPointF(left_x - 0.35, crown_y - 2.9),
+            QPointF(right_x + 0.35, crown_y - 2.9),
             QPointF(right_x, shoulder_y),
         )
         shackle_path.lineTo(right_x, foot_y)
 
-    shackle_shadow = QPen(QColor(0, 0, 0, 50 if charging else 42), 1.35, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    shackle_shadow = QPen(QColor(0, 0, 0, 58 if charging else 48), 4.4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
     shackle_shadow.setCosmetic(True)
     painter.save()
-    painter.translate(0.0, 0.75)
+    painter.translate(0.0, 1.05)
     painter.setBrush(Qt.BrushStyle.NoBrush)
     painter.setPen(shackle_shadow)
     painter.drawPath(shackle_path)
+    if unlocked:
+        open_leg_shadow = QPen(QColor(0, 0, 0, 34 if charging else 28), 3.55, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        open_leg_shadow.setCosmetic(True)
+        painter.setPen(open_leg_shadow)
+        painter.drawPath(open_leg_path)
     painter.restore()
 
-    shackle_pen = QPen(shackle_color, 1.22, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    shackle_depth = QPen(shackle_depth_color, 3.75, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    shackle_depth.setCosmetic(True)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.setPen(shackle_depth)
+    painter.drawPath(shackle_path)
+    if unlocked:
+        open_leg_depth = QPen(open_leg_depth_color, 3.35, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        open_leg_depth.setCosmetic(True)
+        painter.setPen(open_leg_depth)
+        painter.drawPath(open_leg_path)
+
+    shackle_gradient = QLinearGradient(body_rect.left(), body_rect.top() - 18.0, body_rect.left(), body_rect.top() + 2.0)
+    shackle_gradient.setColorAt(0.0, shackle_top)
+    shackle_gradient.setColorAt(0.56, shackle_top)
+    shackle_gradient.setColorAt(1.0, shackle_bottom)
+    shackle_pen = QPen(QBrush(shackle_gradient), 2.9, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
     shackle_pen.setCosmetic(True)
     painter.setBrush(Qt.BrushStyle.NoBrush)
     painter.setPen(shackle_pen)
     painter.drawPath(shackle_path)
+    if unlocked:
+        painter.setPen(shackle_pen)
+        painter.drawPath(open_leg_path)
 
-    shackle_highlight = QPen(QColor(255, 255, 255, 66 if charging else 42), 0.46, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    shackle_highlight = QPen(QColor(255, 255, 255, 88 if charging else 62), 0.95, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
     shackle_highlight.setCosmetic(True)
     painter.save()
-    painter.translate(-0.18, -0.28)
+    painter.translate(-0.28, -0.42)
     painter.setPen(shackle_highlight)
     painter.drawPath(shackle_path)
-    painter.restore()
     if unlocked:
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(shackle_color))
-        painter.drawPath(end_cap)
-        painter.setBrush(QBrush(QColor(255, 255, 255, 70 if charging else 44)))
-        painter.drawEllipse(end_cap.boundingRect().adjusted(0.42, 0.34, -0.58, -0.72))
-
+        painter.drawPath(open_leg_path)
+    painter.restore()
     body_shadow = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.left(), body_rect.bottom() + 2.0)
     body_shadow.setColorAt(0.0, QColor(0, 0, 0, 0))
     body_shadow.setColorAt(0.68, QColor(0, 0, 0, 24 if charging else 18))
-    body_shadow.setColorAt(1.0, QColor(0, 0, 0, 58 if charging else 46))
+    body_shadow.setColorAt(1.0, QColor(0, 0, 0, 58 if charging else 44))
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(QBrush(body_shadow))
     painter.drawRoundedRect(body_rect.adjusted(0.45, 1.05, -0.45, 1.35), 3.4, 3.4)
@@ -728,21 +820,48 @@ def _paint_premium_padlock(
     painter.setBrush(QBrush(body_gradient))
     painter.drawRoundedRect(body_rect, 3.4, 3.4)
 
+    body_inner_glow = QRadialGradient(
+        QPointF(body_rect.left() + body_rect.width() * 0.34, body_rect.top() + body_rect.height() * 0.22),
+        body_rect.width() * 0.86,
+    )
+    body_inner_glow.setColorAt(0.0, QColor(255, 255, 255, 34 if charging else 26))
+    body_inner_glow.setColorAt(0.54, QColor(255, 255, 255, 9 if charging else 7))
+    body_inner_glow.setColorAt(1.0, QColor(255, 255, 255, 0))
+    painter.setBrush(QBrush(body_inner_glow))
+    painter.drawRoundedRect(body_rect.adjusted(0.7, 0.7, -0.7, -0.7), 2.9, 2.9)
+
+    body_lower_depth = QLinearGradient(body_rect.left(), body_rect.center().y(), body_rect.left(), body_rect.bottom())
+    if charging:
+        body_lower_depth.setColorAt(0.0, QColor(32, 120, 218, 0))
+        body_lower_depth.setColorAt(1.0, QColor(14, 64, 148, 38))
+    else:
+        body_lower_depth.setColorAt(0.0, QColor(0, 0, 0, 0))
+        body_lower_depth.setColorAt(1.0, QColor(18, 27, 38, 30))
+    painter.setBrush(QBrush(body_lower_depth))
+    painter.drawRoundedRect(body_rect.adjusted(0.8, body_rect.height() * 0.42, -0.8, -0.8), 2.5, 2.5)
+
     border = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.left(), body_rect.bottom())
     border.setColorAt(0.0, edge_color)
-    border.setColorAt(1.0, QColor(0, 0, 0, 54))
+    border.setColorAt(0.44, QColor(255, 255, 255, 20 if charging else 16))
+    border.setColorAt(1.0, QColor(0, 0, 0, 52 if charging else 42))
     border_pen = QPen(QBrush(border), 0.72)
     border_pen.setCosmetic(True)
     painter.setBrush(Qt.BrushStyle.NoBrush)
     painter.setPen(border_pen)
     painter.drawRoundedRect(body_rect, 3.4, 3.4)
 
-    top_lip = QPen(QColor(255, 255, 255, 74 if charging else 52), 0.62)
+    top_lip = QPen(QColor(255, 255, 255, 74 if charging else 54), 0.62)
     top_lip.setCosmetic(True)
     painter.setPen(top_lip)
     painter.drawLine(QPointF(body_rect.left() + 3.7, body_rect.top() + 1.35), QPointF(body_rect.right() - 3.7, body_rect.top() + 1.35))
 
-    bottom_lip = QPen(QColor(0, 0, 0, 42 if charging else 32), 0.62)
+    side_rim = QPen(QColor(255, 255, 255, 22 if charging else 16), 0.42)
+    side_rim.setCosmetic(True)
+    painter.setPen(side_rim)
+    painter.drawLine(QPointF(body_rect.left() + 1.15, body_rect.top() + 4.4), QPointF(body_rect.left() + 1.15, body_rect.bottom() - 4.0))
+    painter.drawLine(QPointF(body_rect.right() - 1.15, body_rect.top() + 4.4), QPointF(body_rect.right() - 1.15, body_rect.bottom() - 4.0))
+
+    bottom_lip = QPen(QColor(0, 0, 0, 40 if charging else 30), 0.62)
     bottom_lip.setCosmetic(True)
     painter.setPen(bottom_lip)
     painter.drawLine(QPointF(body_rect.left() + 4.1, body_rect.bottom() - 1.2), QPointF(body_rect.right() - 4.1, body_rect.bottom() - 1.2))
@@ -754,12 +873,13 @@ def _paint_premium_padlock(
     painter.drawRoundedRect(QRectF(body_rect.left() + 5.4, body_rect.top() - 0.35, 2.7, 2.0), 0.8, 0.8)
     painter.drawRoundedRect(QRectF(body_rect.right() - 8.1, body_rect.top() - 0.35, 2.7, 2.0), 0.8, 0.8)
     painter.setBrush(QBrush(socket_highlight))
-    painter.drawRoundedRect(QRectF(body_rect.left() + 5.95, body_rect.top() + 0.05, 1.6, 0.65), 0.32, 0.32)
     if not unlocked:
+        painter.drawRoundedRect(QRectF(body_rect.left() + 5.95, body_rect.top() + 0.05, 1.6, 0.65), 0.32, 0.32)
         painter.drawRoundedRect(QRectF(body_rect.right() - 7.55, body_rect.top() + 0.05, 1.6, 0.65), 0.32, 0.32)
     else:
+        painter.drawRoundedRect(QRectF(body_rect.left() + 5.95, body_rect.top() + 0.05, 1.6, 0.65), 0.32, 0.32)
         painter.setBrush(QBrush(QColor(0, 0, 0, 54 if charging else 38)))
-        painter.drawRoundedRect(QRectF(body_rect.right() - 7.62, body_rect.top() + 0.18, 1.7, 0.58), 0.3, 0.3)
+        painter.drawRoundedRect(QRectF(body_rect.right() - 7.72, body_rect.top() + 0.18, 1.9, 0.58), 0.3, 0.3)
 
     sheen = QLinearGradient(body_rect.left(), body_rect.top(), body_rect.left(), body_rect.top() + body_rect.height() * 0.55)
     sheen.setColorAt(0.0, QColor(255, 255, 255, 66 if charging else 48))
@@ -772,11 +892,14 @@ def _paint_premium_padlock(
     key_center = QPointF(body_rect.center().x(), body_rect.top() + body_rect.height() * 0.48)
     keyhole.addEllipse(QRectF(key_center.x() - 2.05, key_center.y() - 2.25, 4.1, 4.1))
     keyhole.addRoundedRect(QRectF(key_center.x() - 1.0, key_center.y() + 0.7, 2.0, 4.5), 0.65, 0.65)
-    painter.setBrush(QBrush(keyhole_dark))
+    keyhole_gradient = QLinearGradient(key_center.x(), key_center.y() - 2.5, key_center.x(), key_center.y() + 5.4)
+    keyhole_gradient.setColorAt(0.0, QColor(max(0, keyhole_dark.red() + 8), max(0, keyhole_dark.green() + 12), max(0, keyhole_dark.blue() + 18), min(255, keyhole_dark.alpha() + 4)))
+    keyhole_gradient.setColorAt(1.0, keyhole_dark)
+    painter.setBrush(QBrush(keyhole_gradient))
     painter.setPen(Qt.PenStyle.NoPen)
     painter.drawPath(keyhole)
 
-    key_sheen = QColor(255, 255, 255, 42 if charging else 34)
+    key_sheen = QColor(255, 255, 255, 46 if charging else 36)
     painter.setBrush(QBrush(key_sheen))
     painter.drawEllipse(QRectF(key_center.x() - 0.65, key_center.y() - 1.0, 1.3, 1.3))
 
@@ -785,7 +908,7 @@ class CustomLockIcon(QWidget):
         self._hovering = True
         self._scale_anim = QPropertyAnimation(self, b"scale")
         self._scale_anim.setStartValue(getattr(self, '_scale', 1.0))
-        self._scale_anim.setEndValue(1.08)
+        self._scale_anim.setEndValue(TOP_BAR_ICON_HOVER_SCALE)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._scale_anim.valueChanged.connect(self.update)
@@ -865,7 +988,7 @@ class CustomLockIcon(QWidget):
 
     def animate_to_normal(self):
         self._scale_anim = QPropertyAnimation(self, b"scale")
-        self._scale_anim.setStartValue(getattr(self, '_scale', 1.08))
+        self._scale_anim.setStartValue(getattr(self, '_scale', TOP_BAR_ICON_HOVER_SCALE))
         self._scale_anim.setEndValue(1.0)
         self._scale_anim.setDuration(220)
         self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -1601,14 +1724,13 @@ class AuthenticLockScreen(QDialog):
         from .login import CustomUnlockIcon
         self.lock_icon = CustomLockIcon(QColor(255, 255, 255), parent=self)
         self.unlock_icon = CustomUnlockIcon(QColor(255, 255, 255), parent=self)
-        self.lock_x = (self.width() - self.lock_icon.width()) // 2
-        lock_y = -4
+        self.lock_x = top_bar_center_x(self.width(), self.lock_icon.width())
         self.lock_icon.setParent(self)
-        self.lock_icon.move(self.lock_x, int(lock_y + 4 + 0.6))
+        self.lock_icon.move(self.lock_x, TOP_BAR_LOCK_TOP_Y)
         self.lock_icon.show()
         # Place unlock icon at same position, but hidden by default
         self.unlock_icon.setParent(self)
-        self.unlock_icon.move(self.lock_x, int(lock_y + 4 + 0.6))
+        self.unlock_icon.move(self.lock_x, TOP_BAR_LOCK_TOP_Y)
         self.unlock_icon.hide()
 
         # --- Dynamic color update for lock icon ---
@@ -1653,28 +1775,28 @@ class AuthenticLockScreen(QDialog):
         self.battery_logo = BatteryLogoWidget(self)
         # --- Explicitly set battery widget reference in lock icon for charging sync ---
         self.lock_icon.battery_widget = self.battery_logo
-        top_bar_visual_bottom = 55
-        # Geser battery agar tepi kiri battery tepat 3 px dari tepi kanan WiFi
-        wifi_x = self.lock_x + self.lock_icon.width() + 3
-        wifi_logo_width = 20  # default WiFiLogoWidget width
-        wifi_logo_margin_kanan = 4
-        battery_logo_margin_kiri = 4
-        increased_gap = 20
-        battery_x = wifi_x + wifi_logo_width - wifi_logo_margin_kanan + increased_gap - battery_logo_margin_kiri
 
         # KeyCapWidget sinkron dengan battery_logo
         self.keycap = KeyCapWidget(self, text="A", battery_widget=self.battery_logo)
-        keycap_x = self.lock_x - self.keycap.width() + 3
-        keycap_y = top_bar_visual_bottom - self.keycap.height()
-        self.keycap.move(keycap_x, int(round(keycap_y)))
-        self.keycap.show()
         # Gear widget di kiri keycap, jarak harmonis 20px
         self.gear_widget = GearIconWidget(self)
         self.gear_widget.set_battery_widget(self.battery_logo)
-        gear_x = keycap_x - self.gear_widget.width() - 8
-        gear_visual_size = self.gear_widget.getGearSize()
-        gear_y = int(round(top_bar_visual_bottom - ((self.gear_widget.height() + gear_visual_size) / 2)))
-        self.gear_widget.move(gear_x, gear_y)
+        self.wifi_logo = WiFiLogoWidget(self, battery_widget=self.battery_logo)
+
+        top_bar_layout = calculate_top_bar_layout(
+            form_width=self.width(),
+            center_icon_width=self.lock_icon.width(),
+            keycap_width=self.keycap.width(),
+            keycap_height=self.keycap.height(),
+            battery_height=self.battery_logo.height(),
+            wifi_height=self.wifi_logo.height(),
+            gear_width=self.gear_widget.width(),
+            gear_height=self.gear_widget.height(),
+            gear_visual_size=self.gear_widget.getGearSize(),
+        )
+        self.keycap.move(top_bar_layout["keycap_x"], top_bar_layout["keycap_y"])
+        self.keycap.show()
+        self.gear_widget.move(top_bar_layout["gear_x"], top_bar_layout["gear_y"])
         self.gear_widget.show()
 
         # Declare missing attributes for lint compliance
@@ -1683,16 +1805,12 @@ class AuthenticLockScreen(QDialog):
         # Restore battery logo to visible top position
         # Calculate battery logo position just above red line
         # Use garis1_y from paintEvent and battery_logo.height() for placement
-        battery_y = top_bar_visual_bottom - self.battery_logo.height()
         self.battery_logo.setParent(self)
-        self.battery_logo.move(battery_x + 5, battery_y)  # geser kanan 2px lagi
+        self.battery_logo.move(top_bar_layout["battery_x"], top_bar_layout["battery_y"])
         self.battery_logo.show()
 
         # WiFi logo widget baru di sebelah kanan gembok, jarak 30px
-        wifi_x = self.lock_x + self.lock_icon.width() + 3
-        self.wifi_logo = WiFiLogoWidget(self, battery_widget=self.battery_logo)
-        wifi_y = top_bar_visual_bottom - self.wifi_logo.height()
-        self.wifi_logo.move(int(wifi_x - 4.35), int(round(wifi_y)))
+        self.wifi_logo.move(top_bar_layout["wifi_x"], top_bar_layout["wifi_y"])
         self.wifi_logo.show()
 
         # Hitung dan print jarak dari bawah widget logo WiFi ke garis merah
@@ -1988,13 +2106,13 @@ class KeyCapWidget(QWidget):
 
     def enterEvent(self, event: QEnterEvent) -> None:
         self._hovering = True
-        self._animate_scale(getattr(self, '_scale', 1.0), 1.08)
+        self._animate_scale(getattr(self, '_scale', 1.0), TOP_BAR_ICON_HOVER_SCALE)
         self._show_state_tooltip()
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent) -> None:
         self._hovering = False
-        self._animate_scale(getattr(self, '_scale', 1.08), 1.0)
+        self._animate_scale(getattr(self, '_scale', TOP_BAR_ICON_HOVER_SCALE), 1.0)
         _hide_top_bar_tooltip(self)
         super().leaveEvent(event)
 
@@ -2371,7 +2489,7 @@ class GearIconWidget(QWidget):
         if not self._hovering:
             self._hovering = True
             self.gearHovered.emit()
-        self._animate_scale(getattr(self, '_scale', 1.0), 1.10)
+        self._animate_scale(getattr(self, '_scale', 1.0), TOP_BAR_ICON_HOVER_SCALE)
         tooltip_text = "Settings"
         _show_top_bar_tooltip(self, tooltip_text, getattr(self, 'charging', False))
         # Animasi rotasi saat hover
@@ -2388,7 +2506,7 @@ class GearIconWidget(QWidget):
         if self._hovering:
             self._hovering = False
             self.gearUnhovered.emit()
-        self._animate_scale(getattr(self, '_scale', 1.10), 1.0)
+        self._animate_scale(getattr(self, '_scale', TOP_BAR_ICON_HOVER_SCALE), 1.0)
         _hide_top_bar_tooltip(self)
         # Stop animasi rotasi saat leave
         if hasattr(self, '_rotation_anim'):
