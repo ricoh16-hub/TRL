@@ -3,8 +3,22 @@ import secrets
 import string
 from typing import Optional, TypedDict, cast
 
-from PySide6.QtCore import Property, QEvent, QPropertyAnimation, QEasingCurve, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QEnterEvent, QKeyEvent, QMouseEvent
+from PySide6.QtCore import Property, QEvent, QPointF, QRectF, QPropertyAnimation, QEasingCurve, Qt, QTimer, Signal
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QEnterEvent,
+    QFont,
+    QFontMetrics,
+    QKeyEvent,
+    QLinearGradient,
+    QMouseEvent,
+    QPaintEvent,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QRadialGradient,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -53,6 +67,8 @@ PAGE_BG = "#EFF3F8"
 CARD_BG = "#FFFFFF"
 TEXT_DARK = "#22324A"
 TEXT_SOFT = "#70829A"
+DASH_TEXT = "#F4F8FF"
+DASH_MUTED = "rgba(230, 237, 246, 0.72)"
 
 TEMP_PASSWORD_LENGTH = 12
 CHARGING_ACCENT = "#50B4FF"
@@ -101,20 +117,220 @@ def _charging_theme_palette(charging: bool) -> dict[str, str]:
             "accent": CHARGING_ACCENT,
             "hover": "#3AA8F5",
             "pressed": "#2A96E0",
+            "panel_text": "#ECFCFF",
+            "panel_muted": "rgba(230, 248, 255, 0.74)",
+            "panel_border": "rgba(103, 224, 255, 0.44)",
+            "surface_bg": "rgba(21, 40, 57, 0.68)",
+            "surface_hover": "rgba(80, 180, 255, 0.13)",
+            "surface_selected": "rgba(80, 180, 255, 0.22)",
+            "table_bg": "rgba(16, 31, 48, 0.78)",
+            "table_alt": "rgba(31, 56, 75, 0.72)",
+            "table_header": "rgba(33, 68, 94, 0.86)",
             "badge_bg": "rgba(80, 180, 255, 0.14)",
             "badge_border": "rgba(80, 180, 255, 0.34)",
             "badge_text": CHARGING_ACCENT,
             "badge_label": "Charging Mode",
         }
     return {
-        "accent": NAVY_TOP,
-        "hover": NAVY_SELECTED,
-        "pressed": "#0e2847",
-        "badge_bg": "rgba(22, 58, 105, 0.08)",
-        "badge_border": "rgba(22, 58, 105, 0.18)",
-        "badge_text": NAVY_TOP,
+        "accent": "#FFFFFF",
+        "hover": "#DDE6F2",
+        "pressed": "#AEBBCC",
+        "panel_text": "#F4F8FF",
+        "panel_muted": "rgba(230, 237, 246, 0.72)",
+        "panel_border": "rgba(255, 255, 255, 0.26)",
+        "surface_bg": "rgba(24, 32, 43, 0.68)",
+        "surface_hover": "rgba(255, 255, 255, 0.09)",
+        "surface_selected": "rgba(255, 255, 255, 0.16)",
+        "table_bg": "rgba(23, 31, 42, 0.78)",
+        "table_alt": "rgba(38, 47, 59, 0.72)",
+        "table_header": "rgba(43, 52, 65, 0.86)",
+        "badge_bg": "rgba(255, 255, 255, 0.10)",
+        "badge_border": "rgba(255, 255, 255, 0.24)",
+        "badge_text": "#F4F8FF",
         "badge_label": "Standard Mode",
     }
+
+
+def _paint_login_reference_surface(
+    painter: QPainter,
+    event: QPaintEvent,
+    width: int,
+    height: int,
+    corner_radius: float,
+    charging: bool,
+    *,
+    focus_y: float = 42.0,
+    focus_radius: float = 178.0,
+    fill_transparent: bool = True,
+) -> None:
+    """Paint the same layered glass surface language used by LoginDialog in login.py."""
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    if fill_transparent:
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.fillRect(event.rect(), Qt.GlobalColor.transparent)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+
+    border_inset = 1.0
+    rect = QRectF(border_inset, border_inset, width - (border_inset * 2.0), height - (border_inset * 2.0))
+    radius = max(0.0, corner_radius - border_inset)
+
+    if charging:
+        top_color = QColor(18, 30, 43)
+        mid_color = QColor(31, 47, 64)
+        bottom_color = QColor(20, 36, 55)
+        accent_top = QColor(103, 224, 255, 34)
+        accent_bottom = QColor(55, 138, 238, 18)
+        border_color = QColor(103, 224, 255, 64)
+        inner_highlight = QColor(232, 250, 255, 34)
+        lower_shadow = QColor(4, 16, 30, 44)
+        focus_color = QColor(103, 224, 255, 30)
+        inner_border_color = QColor(232, 250, 255, 28)
+        lower_accent_color = QColor(55, 138, 238, 16)
+        edge_shadow_color = QColor(2, 12, 24, 26)
+        border_top_color = QColor(232, 250, 255, 54)
+        border_bottom_color = QColor(55, 138, 238, 26)
+    else:
+        top_color = QColor(26, 32, 41)
+        mid_color = QColor(41, 49, 60)
+        bottom_color = QColor(31, 39, 50)
+        accent_top = QColor(255, 255, 255, 18)
+        accent_bottom = QColor(205, 216, 228, 10)
+        border_color = QColor(255, 255, 255, 45)
+        inner_highlight = QColor(255, 255, 255, 27)
+        lower_shadow = QColor(0, 0, 0, 42)
+        focus_color = QColor(255, 255, 255, 20)
+        inner_border_color = QColor(255, 255, 255, 24)
+        lower_accent_color = QColor(205, 216, 228, 9)
+        edge_shadow_color = QColor(0, 0, 0, 22)
+        border_top_color = QColor(255, 255, 255, 44)
+        border_bottom_color = QColor(205, 216, 228, 20)
+
+    background = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+    background.setColorAt(0.0, top_color)
+    background.setColorAt(0.48, mid_color)
+    background.setColorAt(1.0, bottom_color)
+
+    path = QPainterPath()
+    path.addRoundedRect(rect, radius, radius)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QBrush(background))
+    painter.drawPath(path)
+
+    painter.setClipPath(path)
+    accent = QLinearGradient(rect.left(), rect.top(), rect.right(), rect.bottom())
+    accent.setColorAt(0.0, accent_top)
+    accent.setColorAt(0.58, QColor(accent_top.red(), accent_top.green(), accent_top.blue(), max(4, accent_top.alpha() // 3)))
+    accent.setColorAt(1.0, accent_bottom)
+    painter.setBrush(QBrush(accent))
+    painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
+    focus_glow = QRadialGradient(QPointF(rect.center().x(), rect.top() + focus_y), focus_radius)
+    focus_glow.setColorAt(0.0, focus_color)
+    focus_glow.setColorAt(0.42, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), max(3, focus_color.alpha() // 3)))
+    focus_glow.setColorAt(1.0, QColor(focus_color.red(), focus_color.green(), focus_color.blue(), 0))
+    painter.setBrush(QBrush(focus_glow))
+    painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
+    top_highlight = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.top() + 18.0)
+    top_highlight.setColorAt(0.0, inner_highlight)
+    top_highlight.setColorAt(1.0, QColor(inner_highlight.red(), inner_highlight.green(), inner_highlight.blue(), 0))
+    painter.setBrush(QBrush(top_highlight))
+    painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+    lower_accent = QRadialGradient(QPointF(rect.center().x(), rect.bottom() - 4.0), 118.0)
+    lower_accent.setColorAt(0.0, lower_accent_color)
+    lower_accent.setColorAt(0.52, QColor(lower_accent_color.red(), lower_accent_color.green(), lower_accent_color.blue(), max(2, lower_accent_color.alpha() // 3)))
+    lower_accent.setColorAt(1.0, QColor(lower_accent_color.red(), lower_accent_color.green(), lower_accent_color.blue(), 0))
+    painter.setBrush(QBrush(lower_accent))
+    painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+    edge_shading = QLinearGradient(rect.left(), rect.center().y(), rect.right(), rect.center().y())
+    edge_shading.setColorAt(0.0, edge_shadow_color)
+    edge_shading.setColorAt(0.18, QColor(edge_shadow_color.red(), edge_shadow_color.green(), edge_shadow_color.blue(), 0))
+    edge_shading.setColorAt(0.82, QColor(edge_shadow_color.red(), edge_shadow_color.green(), edge_shadow_color.blue(), 0))
+    edge_shading.setColorAt(1.0, edge_shadow_color)
+    painter.setBrush(QBrush(edge_shading))
+    painter.drawRoundedRect(rect.adjusted(1.1, 1.1, -1.1, -1.1), radius - 1.1, radius - 1.1)
+
+    bottom_depth = QLinearGradient(rect.left(), rect.bottom() - 30.0, rect.left(), rect.bottom())
+    bottom_depth.setColorAt(0.0, QColor(lower_shadow.red(), lower_shadow.green(), lower_shadow.blue(), 0))
+    bottom_depth.setColorAt(1.0, lower_shadow)
+    painter.setBrush(QBrush(bottom_depth))
+    painter.drawRoundedRect(rect.adjusted(1.2, 1.2, -1.2, -1.2), radius - 1.2, radius - 1.2)
+
+    painter.setClipping(False)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    inner_pen = QPen(inner_border_color, 0.65)
+    inner_pen.setCosmetic(True)
+    painter.setPen(inner_pen)
+    painter.drawRoundedRect(rect.adjusted(1.05, 1.05, -1.05, -1.05), radius - 1.05, radius - 1.05)
+    border_gradient = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+    border_gradient.setColorAt(0.0, border_top_color)
+    border_gradient.setColorAt(0.46, border_color)
+    border_gradient.setColorAt(1.0, border_bottom_color)
+    border_pen = QPen(QBrush(border_gradient), 1.0)
+    border_pen.setCosmetic(True)
+    painter.setPen(border_pen)
+    painter.drawRoundedRect(rect, radius, radius)
+
+
+class LoginGlassPanel(QFrame):
+    def __init__(self, radius: float = 18.0, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._charging = False
+        self._radius = radius
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        _paint_login_reference_surface(
+            painter,
+            event,
+            self.width(),
+            self.height(),
+            self._radius,
+            self._charging,
+            focus_y=max(28.0, min(86.0, self.height() * 0.36)),
+            focus_radius=max(120.0, self.width() * 0.28),
+        )
+        painter.end()
+
+
+class DashboardBackground(QWidget):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._charging = False
+        self.setAutoFillBackground(False)
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        _paint_login_reference_surface(
+            painter,
+            event,
+            self.width(),
+            self.height(),
+            5.0,
+            self._charging,
+            focus_y=96.0,
+            focus_radius=max(260.0, self.width() * 0.34),
+        )
+        painter.end()
 
 
 class InfoCard(QFrame):
@@ -172,6 +388,7 @@ class AnimatedNavItem(QLabel):
         super().__init__(text)
         self._active = active
         self._item_key = item_key or text
+        self._charging = False
         self._hover_progress = 0.0
         self._press_progress = 0.0
         self._hover_anim = QPropertyAnimation(self, b"hoverProgress")
@@ -193,18 +410,21 @@ class AnimatedNavItem(QLabel):
 
     def _apply_style(self) -> None:
         depth = (self._hover_progress * 8.0) - (self._press_progress * 5.0)
+        palette = _charging_theme_palette(self._charging)
+        text_color = palette["panel_text"]
+        border_color = palette["accent"]
         if self._active:
             pad = 18 + int(depth)
             self.setStyleSheet(
-                f"background: {NAVY_SELECTED}; color: white; font-size: 14px; font-weight: 800;"
-                f"border-left: 4px solid #FFFFFF; padding-left: {pad}px;"
+                f"background: {palette['surface_selected']}; color: {text_color}; font-size: 14px; font-weight: 800;"
+                f"border-left: 4px solid {border_color}; padding-left: {pad}px;"
             )
             return
 
         alpha = int((70 * self._hover_progress) + (35 * self._press_progress))
         pad = 22 + int(depth)
         self.setStyleSheet(
-            "color: white; font-size: 14px; font-weight: 600;"
+            f"color: {text_color}; font-size: 14px; font-weight: 600;"
             f"background: rgba(255, 255, 255, {alpha});"
             f"padding-left: {pad}px;"
         )
@@ -255,6 +475,13 @@ class AnimatedNavItem(QLabel):
         self._active = active
         self._apply_style()
 
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self._apply_style()
+
 
 class AnimatedHoverCard(QFrame):
     def __init__(self) -> None:
@@ -302,9 +529,11 @@ class AnimatedHoverCard(QFrame):
 class AnimatedInfoCard(AnimatedHoverCard):
     def __init__(self, icon: str, title: str, value: str, value_color: str) -> None:
         super().__init__()
-        self.setStyleSheet(
-            f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
-        )
+        self._charging = False
+        self._value_color = value_color
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
         self.setMinimumHeight(120)
 
         layout = QVBoxLayout(self)
@@ -312,37 +541,97 @@ class AnimatedInfoCard(AnimatedHoverCard):
         layout.setSpacing(8)
 
         top = QHBoxLayout()
-        icon_label = QLabel(icon)
-        icon_label.setStyleSheet("font-size: 28px;")
-        title_label = QLabel(title)
-        title_label.setStyleSheet(f"color: {TEXT_DARK}; font-size: 13px; font-weight: 700;")
-        top.addWidget(icon_label)
-        top.addWidget(title_label)
+        self._icon_label = QLabel(icon)
+        self._icon_label.setStyleSheet("font-size: 28px; background: transparent;")
+        self._title_label = QLabel(title)
+        top.addWidget(self._icon_label)
+        top.addWidget(self._title_label)
         top.addStretch()
 
-        value_label = QLabel(value)
-        value_label.setStyleSheet(f"color: {value_color}; font-size: 24px; font-weight: 800;")
+        self._value_label = QLabel(value)
 
         layout.addLayout(top)
-        layout.addWidget(value_label)
+        layout.addWidget(self._value_label)
         layout.addStretch()
+        self._apply_text_style()
+
+    def _apply_text_style(self) -> None:
+        palette = _charging_theme_palette(self._charging)
+        self._title_label.setStyleSheet(
+            f"color: {palette['panel_muted']}; font-size: 13px; font-weight: 700; background: transparent;"
+        )
+        value_color = palette["accent"] if self._value_color in {"#1D4ED8"} else self._value_color
+        self._value_label.setStyleSheet(
+            f"color: {value_color}; font-size: 24px; font-weight: 800; background: transparent;"
+        )
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self._apply_text_style()
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        _paint_login_reference_surface(
+            painter,
+            event,
+            self.width(),
+            self.height(),
+            16.0,
+            self._charging,
+            focus_y=34.0,
+            focus_radius=max(130.0, self.width() * 0.52),
+        )
+        painter.end()
 
 
 class AnimatedSectionCard(AnimatedHoverCard):
     def __init__(self, title: str) -> None:
         super().__init__()
-        self.setStyleSheet(
-            f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
-        )
+        self._charging = False
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(12)
 
-        title_label = QLabel(title)
-        title_label.setStyleSheet(f"color: {TEXT_DARK}; font-size: 14px; font-weight: 800;")
-        layout.addWidget(title_label)
+        self._title_label = QLabel(title)
+        layout.addWidget(self._title_label)
         self.body_layout = layout
+        self._apply_text_style()
+
+    def _apply_text_style(self) -> None:
+        palette = _charging_theme_palette(self._charging)
+        self._title_label.setStyleSheet(
+            f"color: {palette['panel_text']}; font-size: 14px; font-weight: 800; background: transparent;"
+        )
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self._apply_text_style()
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        _paint_login_reference_surface(
+            painter,
+            event,
+            self.width(),
+            self.height(),
+            16.0,
+            self._charging,
+            focus_y=42.0,
+            focus_radius=max(150.0, self.width() * 0.42),
+        )
+        painter.end()
 
 
 class AnimatedActionButton(QPushButton):
@@ -350,6 +639,7 @@ class AnimatedActionButton(QPushButton):
         super().__init__(text)
         self._hover_progress = 0.0
         self._press_progress = 0.0
+        self._charging = False
 
         self._hover_anim = QPropertyAnimation(self, b"hoverProgress")
         self._hover_anim.setDuration(150)
@@ -365,23 +655,18 @@ class AnimatedActionButton(QPushButton):
         self._shadow.setColor(QColor(120, 35, 25, 120))
         self.setGraphicsEffect(self._shadow)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setStyleSheet("background: transparent; border: none;")
         self._apply_style()
 
     def _apply_style(self) -> None:
-        darken = int((28 * self._hover_progress) + (52 * self._press_progress))
-        r = max(140, 217 - darken)
-        g = max(40, 74 - darken)
-        b = max(30, 56 - darken)
-        self.setStyleSheet(
-            f"QPushButton {{ background: rgb({r}, {g}, {b}); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; }}"
-        )
-
         blur = 16 + (8 * self._hover_progress)
         offset = 3 + (2 * self._hover_progress)
         alpha = 120 + int(45 * self._hover_progress)
+        shadow_color = QColor(80, 180, 255, alpha) if self._charging else QColor(0, 0, 0, max(42, alpha // 2))
         self._shadow.setBlurRadius(blur)
         self._shadow.setOffset(0, offset)
-        self._shadow.setColor(QColor(120, 35, 25, alpha))
+        self._shadow.setColor(shadow_color)
+        self.update()
 
     def _animate_hover(self, target: float) -> None:
         self._hover_anim.stop()
@@ -429,6 +714,108 @@ class AnimatedActionButton(QPushButton):
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         self._animate_press(0.0)
         super().mouseReleaseEvent(event)
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self._apply_style()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+
+        lift = 0.8 if self._press_progress > 0.01 else 0.0
+        rect = QRectF(2.0, 2.0 + lift, self.width() - 4.0, self.height() - 4.0)
+        radius = min(14.0, rect.height() * 0.34)
+        hovered = self._hover_progress > 0.01
+
+        if self._charging:
+            center_color = QColor(34, 72, 96, 218)
+            mid_color = QColor(16, 49, 74, 224)
+            edge_color = QColor(5, 27, 49, 235)
+            bevel_top = QColor(188, 244, 255, 58)
+            bevel_bottom = QColor(1, 13, 28, 112)
+            border_top = QColor(188, 244, 255, 82)
+            border_bottom = QColor(40, 124, 210, 42)
+            halo_color = QColor(80, 180, 255, 18)
+            text_top = QColor(236, 252, 255)
+            text_bottom = QColor(91, 198, 255)
+        else:
+            center_color = QColor(65, 74, 88, 218)
+            mid_color = QColor(39, 48, 61, 224)
+            edge_color = QColor(17, 26, 39, 235)
+            bevel_top = QColor(255, 255, 255, 48)
+            bevel_bottom = QColor(0, 0, 0, 108)
+            border_top = QColor(255, 255, 255, 68)
+            border_bottom = QColor(182, 194, 210, 28)
+            halo_color = QColor(255, 255, 255, 12)
+            text_top = QColor(255, 255, 255)
+            text_bottom = QColor(211, 222, 236)
+
+        if hovered:
+            center_color.setAlpha(min(255, center_color.alpha() + 16))
+            mid_color.setAlpha(min(255, mid_color.alpha() + 18))
+            border_top.setAlpha(min(255, border_top.alpha() + 18))
+            halo_color.setAlpha(min(255, halo_color.alpha() + 10))
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        halo = QRadialGradient(rect.center(), max(rect.width(), rect.height()) * 0.74)
+        halo.setColorAt(0.0, halo_color)
+        halo.setColorAt(0.84, QColor(halo_color.red(), halo_color.green(), halo_color.blue(), max(2, halo_color.alpha() // 3)))
+        halo.setColorAt(1.0, QColor(halo_color.red(), halo_color.green(), halo_color.blue(), 0))
+        painter.setBrush(QBrush(halo))
+        painter.drawRoundedRect(rect.adjusted(-1.0, -1.0, 1.0, 1.0), radius + 1.0, radius + 1.0)
+
+        base = QRadialGradient(rect.center() + QPointF(-rect.width() * 0.16, -rect.height() * 0.25), rect.width() * 0.78)
+        base.setColorAt(0.0, center_color)
+        base.setColorAt(0.58, mid_color)
+        base.setColorAt(1.0, edge_color)
+        painter.setBrush(QBrush(base))
+        painter.drawRoundedRect(rect, radius, radius)
+
+        bevel = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        bevel.setColorAt(0.0, bevel_top)
+        bevel.setColorAt(0.34, QColor(bevel_top.red(), bevel_top.green(), bevel_top.blue(), 0))
+        bevel.setColorAt(0.72, QColor(bevel_bottom.red(), bevel_bottom.green(), bevel_bottom.blue(), 0))
+        bevel.setColorAt(1.0, bevel_bottom)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QBrush(bevel), 1.1))
+        painter.drawRoundedRect(rect.adjusted(1.0, 1.0, -1.0, -1.0), radius - 1.0, radius - 1.0)
+
+        border = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        border.setColorAt(0.0, border_top)
+        border.setColorAt(1.0, border_bottom)
+        border_pen = QPen(QBrush(border), 0.9)
+        border_pen.setCosmetic(True)
+        painter.setPen(border_pen)
+        painter.drawRoundedRect(rect, radius, radius)
+
+        font = QFont("Segoe UI")
+        font.setPointSizeF(9.6)
+        font.setWeight(QFont.Weight.Bold)
+        painter.setFont(font)
+        metrics = QFontMetrics(font)
+        text = self.text()
+        text_rect = self.rect().adjusted(8, 0, -8, 0)
+        x = text_rect.left() + (text_rect.width() - metrics.horizontalAdvance(text)) / 2
+        y = text_rect.top() + (text_rect.height() + metrics.ascent() - metrics.descent()) / 2 + lift
+        text_path = QPainterPath()
+        text_path.addText(QPointF(x, y), font, text)
+        bounds = text_path.boundingRect()
+        shadow_path = QPainterPath(text_path)
+        shadow_path.translate(0.0, 1.1)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 118 if self._charging else 96)))
+        painter.drawPath(shadow_path)
+        text_grad = QLinearGradient(bounds.left(), bounds.top(), bounds.left(), bounds.bottom())
+        text_grad.setColorAt(0.0, text_top)
+        text_grad.setColorAt(1.0, text_bottom)
+        painter.setBrush(QBrush(text_grad))
+        painter.drawPath(text_path)
+        painter.end()
 
 
 class ChangePasswordDialog(QDialog):
@@ -882,7 +1269,22 @@ class DashboardForm(QMainWindow):
     def __init__(self, user: Optional[User] = None, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._user = user
+        self._charging: Optional[bool] = None
         self._nav_items: dict[str, AnimatedNavItem] = {}
+        self._glass_panels: list[LoginGlassPanel] = []
+        self._info_cards: list[AnimatedInfoCard] = []
+        self._section_cards: list[AnimatedSectionCard] = []
+        self._action_buttons: list[AnimatedActionButton] = []
+        self._dashboard_text_labels: list[QLabel] = []
+        self._dashboard_badges: list[QLabel] = []
+        self._chart_area: Optional[QFrame] = None
+        self._footer_label: Optional[QLabel] = None
+        self._page_title_label: Optional[QLabel] = None
+        self._add_user_btn: Optional[QPushButton] = None
+        self._header_title: Optional[QLabel] = None
+        self._header_brand: Optional[QLabel] = None
+        self._header_user_info: Optional[QLabel] = None
+        self._header_mode_badge: Optional[QLabel] = None
         self._users_table: Optional[QTableWidget] = None
         self._search_username: Optional[QLineEdit] = None
         self._role_filter: Optional[QComboBox] = None
@@ -891,8 +1293,9 @@ class DashboardForm(QMainWindow):
         self.resize(1360, 820)
         self.setMinimumSize(960, 600)
 
-        root = QWidget(self)
-        root.setStyleSheet(f"background: {PAGE_BG};")
+        root = DashboardBackground(self)
+        self._root_background = root
+        root.setStyleSheet("background: transparent;")
         root_layout = QVBoxLayout(root)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
@@ -911,6 +1314,10 @@ class DashboardForm(QMainWindow):
         root_layout.addWidget(self._build_footer())
 
         self.setCentralWidget(root)
+        self._charging_timer = QTimer(self)
+        self._charging_timer.timeout.connect(self._update_charging_theme)
+        self._charging_timer.start(200)
+        self._update_charging_theme()
 
     def current_user_id(self) -> int:
         return int(getattr(self._user, "id", 0) or 0)
@@ -929,20 +1336,19 @@ class DashboardForm(QMainWindow):
         return self._content_stack
 
     def _build_header(self) -> QWidget:
-        header = QFrame()
+        header = LoginGlassPanel(5.0)
+        self._glass_panels.append(header)
         header.setFixedHeight(88)
-        header.setStyleSheet(f"background: {NAVY_TOP};")
+        header.setStyleSheet("background: transparent;")
 
         layout = QHBoxLayout(header)
         layout.setContentsMargins(22, 10, 22, 10)
         layout.setSpacing(16)
 
-        brand = QLabel("🌴  SISTEM KEBUN SAWIT")
-        brand.setStyleSheet("color: white; font-size: 16px; font-weight: 800;")
+        self._header_brand = QLabel("🌴  SISTEM KEBUN SAWIT")
 
-        title = QLabel("Dashboard Utama")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: white; font-size: 22px; font-weight: 800;")
+        self._header_title = QLabel("Dashboard Utama")
+        self._header_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         username = self._user.username if self._user is not None else "User"
         raw_role = str(getattr(self._user, "role", "Operator") or "Operator") if self._user is not None else "Operator"
@@ -951,31 +1357,38 @@ class DashboardForm(QMainWindow):
         except ValueError:
             role = raw_role
         date_text = date.today().strftime("%d %B %Y")
-        user_info = QLabel(f"User: {username}  |  Level: {role}\nTanggal: {date_text}")
-        user_info.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        user_info.setStyleSheet("color: white; font-size: 12px; font-weight: 600;")
+        self._header_user_info = QLabel(f"User: {username}  |  Level: {role}\nTanggal: {date_text}")
+        self._header_user_info.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        self._header_mode_badge = QLabel("Standard Mode")
+        self._header_mode_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._header_mode_badge.setFixedSize(118, 32)
 
         change_password_btn = AnimatedActionButton("Ganti Password")
         change_password_btn.setFixedSize(140, 40)
         change_password_btn.clicked.connect(self._open_change_password_dialog)
+        self._action_buttons.append(change_password_btn)
 
         logout_btn = AnimatedActionButton("Logout")
         logout_btn.setFixedSize(108, 40)
         logout_btn.clicked.connect(self.close)
+        self._action_buttons.append(logout_btn)
 
-        layout.addWidget(brand)
+        layout.addWidget(self._header_brand)
         layout.addStretch(1)
-        layout.addWidget(title)
+        layout.addWidget(self._header_title)
         layout.addStretch(1)
-        layout.addWidget(user_info)
+        layout.addWidget(self._header_user_info)
+        layout.addWidget(self._header_mode_badge)
         layout.addWidget(change_password_btn)
         layout.addWidget(logout_btn)
         return header
 
     def _build_sidebar(self) -> QWidget:
-        sidebar = QFrame()
+        sidebar = LoginGlassPanel(5.0)
+        self._glass_panels.append(sidebar)
         sidebar.setFixedWidth(265)
-        sidebar.setStyleSheet(f"background: {NAVY_SIDE};")
+        sidebar.setStyleSheet("background: transparent;")
 
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(0, 18, 0, 18)
@@ -1023,9 +1436,8 @@ class DashboardForm(QMainWindow):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(12)
 
-        title = QLabel("User Management")
-        title.setStyleSheet(f"color: {TEXT_DARK}; font-size: 38px; font-weight: 800;")
-        layout.addWidget(title)
+        self._page_title_label = QLabel("User Management")
+        layout.addWidget(self._page_title_label)
 
         controls = QHBoxLayout()
         controls.setSpacing(12)
@@ -1033,39 +1445,28 @@ class DashboardForm(QMainWindow):
         self._search_username = QLineEdit()
         self._search_username.setPlaceholderText("Search username...")
         self._search_username.setFixedHeight(36)
-        self._search_username.setStyleSheet(
-            "QLineEdit { background: white; border: 1px solid #D7E0EA; border-radius: 8px; padding: 0 12px; font-size: 14px; }"
-        )
         self._search_username.textChanged.connect(self._apply_user_filters)
 
         filter_label = QLabel("Role Filter")
-        filter_label.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 14px; font-weight: 700;")
+        self._dashboard_text_labels.append(filter_label)
 
         self._role_filter = QComboBox()
         self._role_filter.addItem("All")
         self._role_filter.setFixedHeight(36)
         self._role_filter.setMinimumWidth(180)
-        self._role_filter.setStyleSheet(
-            "QComboBox { background: white; border: 1px solid #D7E0EA; border-radius: 8px; padding: 0 10px; font-size: 14px; }"
-        )
         self._role_filter.currentTextChanged.connect(self._apply_user_filters)
 
-        add_user_btn = QPushButton("+ Add User")
-        add_user_btn.setFixedHeight(36)
-        add_user_btn.setMinimumWidth(140)
-        add_user_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_user_btn.setStyleSheet(
-            "QPushButton { background: #2559A6; color: white; border: none; border-radius: 8px; padding: 0 16px; font-size: 14px; font-weight: 700; }"
-            "QPushButton:hover { background: #1E4681; }"
-            "QPushButton:pressed { background: #163A58; }"
-        )
-        add_user_btn.clicked.connect(self._open_add_user_dialog)
+        self._add_user_btn = QPushButton("+ Add User")
+        self._add_user_btn.setFixedHeight(36)
+        self._add_user_btn.setMinimumWidth(140)
+        self._add_user_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._add_user_btn.clicked.connect(self._open_add_user_dialog)
 
         controls.addWidget(self._search_username, 2)
         controls.addStretch(1)
         controls.addWidget(filter_label)
         controls.addWidget(self._role_filter)
-        controls.addWidget(add_user_btn)
+        controls.addWidget(self._add_user_btn)
         layout.addLayout(controls)
 
         self._users_table = QTableWidget()
@@ -2032,10 +2433,15 @@ class DashboardForm(QMainWindow):
         top_cards = QGridLayout()
         top_cards.setHorizontalSpacing(16)
         top_cards.setVerticalSpacing(16)
-        top_cards.addWidget(AnimatedInfoCard("🏭", "Total Produksi", "52,300 Kg", "#1D4ED8"), 0, 0)
-        top_cards.addWidget(AnimatedInfoCard("✅", "Kehadiran Hari Ini", "85 Hadir", "#5BAE44"), 0, 1)
-        top_cards.addWidget(AnimatedInfoCard("⚙", "Status Pekerjaan", "5 Tugas Berjalan", "#5BAE44"), 0, 2)
-        top_cards.addWidget(AnimatedInfoCard("🔔", "Notifikasi", "2 Pesan Baru", "#D94A38"), 0, 3)
+        overview_cards = [
+            AnimatedInfoCard("🏭", "Total Produksi", "52,300 Kg", "#1D4ED8"),
+            AnimatedInfoCard("✅", "Kehadiran Hari Ini", "85 Hadir", "#5BAE44"),
+            AnimatedInfoCard("⚙", "Status Pekerjaan", "5 Tugas Berjalan", "#5BAE44"),
+            AnimatedInfoCard("🔔", "Notifikasi", "2 Pesan Baru", "#D94A38"),
+        ]
+        self._info_cards.extend(overview_cards)
+        for index, card in enumerate(overview_cards):
+            top_cards.addWidget(card, 0, index)
         layout.addLayout(top_cards)
 
         main_grid = QGridLayout()
@@ -2043,13 +2449,16 @@ class DashboardForm(QMainWindow):
         main_grid.setVerticalSpacing(16)
 
         production = AnimatedSectionCard("Grafik Produksi")
+        self._section_cards.append(production)
         production.body_layout.addWidget(self._make_chart_placeholder())
         production.body_layout.addStretch(1)
 
         attendance = AnimatedSectionCard("Absensi Karyawan")
+        self._section_cards.append(attendance)
         attendance.body_layout.addWidget(self._make_attendance_placeholder())
 
         tasks = AnimatedSectionCard("Pekerjaan Hari Ini")
+        self._section_cards.append(tasks)
         for task_text, badge_text, badge_color in [
             ("Perawatan Blok A1", "Sedang Berlangsung", "#D7E8F8"),
             ("Panen Blok C3", "Dalam Proses", "#F7D7D6"),
@@ -2058,13 +2467,14 @@ class DashboardForm(QMainWindow):
             tasks.body_layout.addWidget(self._make_task_row(task_text, badge_text, badge_color))
 
         notifications = AnimatedSectionCard("Notifikasi")
+        self._section_cards.append(notifications)
         for line in [
             "Pesan: Laporan harian sudah diupdate.",
             "Reminder: Rapat evaluasi jam 14.00.",
         ]:
             label = QLabel(line)
             label.setWordWrap(True)
-            label.setStyleSheet(f"color: {TEXT_DARK}; font-size: 13px; padding: 6px 0;")
+            self._dashboard_text_labels.append(label)
             notifications.body_layout.addWidget(label)
 
         right_column = QWidget()
@@ -2085,8 +2495,8 @@ class DashboardForm(QMainWindow):
 
     def _make_chart_placeholder(self) -> QWidget:
         area = QFrame()
+        self._chart_area = area
         area.setMinimumHeight(300)
-        area.setStyleSheet("QFrame { background: #F8FBFF; border: 1px solid #E1EAF3; border-radius: 10px; }")
 
         layout = QVBoxLayout(area)
         layout.setContentsMargins(18, 18, 18, 18)
@@ -2109,7 +2519,7 @@ class DashboardForm(QMainWindow):
             bar.setStyleSheet("QFrame { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5BA4F0, stop:1 #1C67C7); border-radius: 6px; }")
             month_label = QLabel(month)
             month_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            month_label.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 11px;")
+            self._dashboard_text_labels.append(month_label)
             col.addWidget(bar, alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
             col.addWidget(month_label)
             bar_row.addLayout(col)
@@ -2117,7 +2527,7 @@ class DashboardForm(QMainWindow):
         bars.addStretch(1)
 
         trend = QLabel("Produksi bulanan meningkat stabil.")
-        trend.setStyleSheet("color: #5BAE44; font-size: 13px; font-weight: 700;")
+        self._dashboard_text_labels.append(trend)
 
         layout.addStretch(1)
         layout.addLayout(bars)
@@ -2145,7 +2555,7 @@ class DashboardForm(QMainWindow):
             dot.setFixedSize(16, 16)
             dot.setStyleSheet(f"background: {color}; border-radius: 4px;")
             label = QLabel(text)
-            label.setStyleSheet(f"color: {TEXT_DARK}; font-size: 13px; font-weight: 700;")
+            self._dashboard_text_labels.append(label)
             row.addWidget(dot)
             row.addWidget(label)
             row.addStretch(1)
@@ -2163,12 +2573,11 @@ class DashboardForm(QMainWindow):
         layout.setSpacing(10)
 
         task = QLabel(f"✔ {task_text}")
-        task.setStyleSheet(f"color: {TEXT_DARK}; font-size: 13px; font-weight: 700;")
+        self._dashboard_text_labels.append(task)
 
         badge = QLabel(badge_text)
-        badge.setStyleSheet(
-            f"background: {badge_color}; color: {TEXT_DARK}; border-radius: 6px; padding: 5px 10px; font-size: 12px; font-weight: 700;"
-        )
+        badge.setProperty("badgeColor", badge_color)
+        self._dashboard_badges.append(badge)
 
         layout.addWidget(task)
         layout.addStretch(1)
@@ -2176,17 +2585,135 @@ class DashboardForm(QMainWindow):
         return row
 
     def _build_footer(self) -> QWidget:
-        footer = QFrame()
+        footer = LoginGlassPanel(5.0)
+        self._glass_panels.append(footer)
         footer.setFixedHeight(42)
-        footer.setStyleSheet("background: #F4F7FB; border-top: 1px solid #DCE4EE;")
+        footer.setStyleSheet("background: transparent;")
 
         layout = QHBoxLayout(footer)
         layout.setContentsMargins(14, 0, 14, 0)
-        label = QLabel("© 2026 Sistem Kebun  |  Versi 1.0")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setStyleSheet(f"color: {TEXT_DARK}; font-size: 13px; font-weight: 700;")
-        layout.addWidget(label)
+        self._footer_label = QLabel("© 2026 Sistem Kebun  |  Versi 1.0")
+        self._footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._footer_label)
         return footer
+
+    def _update_charging_theme(self) -> None:
+        charging = _resolve_charging_state(_get_battery_info())
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self._apply_dashboard_theme(charging)
+
+    def _apply_dashboard_theme(self, charging: bool) -> None:
+        palette = _charging_theme_palette(charging)
+        self._root_background.set_charging(charging)
+        for panel in self._glass_panels:
+            panel.set_charging(charging)
+        for item in self._nav_items.values():
+            item.set_charging(charging)
+        for card in self._info_cards:
+            card.set_charging(charging)
+        for card in self._section_cards:
+            card.set_charging(charging)
+        for button in self._action_buttons:
+            button.set_charging(charging)
+
+        header_css = f"color: {palette['panel_text']}; background: transparent;"
+        if self._header_brand is not None:
+            self._header_brand.setStyleSheet(header_css + "font-size: 16px; font-weight: 850;")
+        if self._header_title is not None:
+            self._header_title.setStyleSheet(header_css + "font-size: 22px; font-weight: 850;")
+        if self._header_user_info is not None:
+            self._header_user_info.setStyleSheet(
+                f"color: {palette['panel_muted']}; background: transparent; font-size: 12px; font-weight: 650;"
+            )
+        if self._header_mode_badge is not None:
+            self._header_mode_badge.setText(palette["badge_label"])
+            self._header_mode_badge.setStyleSheet(
+                "QLabel {"
+                f" background: {palette['badge_bg']}; color: {palette['badge_text']};"
+                f" border: 1px solid {palette['badge_border']};"
+                " border-radius: 11px; font-size: 11px; font-weight: 850;"
+                "}"
+            )
+        if self._page_title_label is not None:
+            self._page_title_label.setStyleSheet(
+                f"color: {palette['panel_text']}; font-size: 38px; font-weight: 850; background: transparent;"
+            )
+        if self._footer_label is not None:
+            self._footer_label.setStyleSheet(
+                f"color: {palette['panel_muted']}; font-size: 13px; font-weight: 750; background: transparent;"
+            )
+        if self._chart_area is not None:
+            self._chart_area.setStyleSheet(
+                "QFrame {"
+                f" background: {palette['surface_bg']};"
+                f" border: 1px solid {palette['panel_border']};"
+                " border-radius: 12px;"
+                "}"
+            )
+
+        for label in self._dashboard_text_labels:
+            is_trend = "Produksi bulanan" in label.text()
+            label.setStyleSheet(
+                (
+                    "color: #7CE38A; font-size: 13px; font-weight: 800; background: transparent;"
+                    if is_trend
+                    else f"color: {palette['panel_text']}; font-size: 13px; font-weight: 700; background: transparent;"
+                )
+            )
+
+        for badge in self._dashboard_badges:
+            source_color = str(badge.property("badgeColor") or palette["surface_selected"])
+            badge_bg = "rgba(80, 180, 255, 0.18)" if charging else "rgba(255, 255, 255, 0.13)"
+            badge_border = palette["panel_border"]
+            if source_color in {"#F7D7D6", "#F6EEBD"}:
+                badge_bg = "rgba(255, 255, 255, 0.16)" if not charging else "rgba(126, 232, 255, 0.13)"
+            badge.setStyleSheet(
+                f"background: {badge_bg}; color: {palette['panel_text']}; border: 1px solid {badge_border};"
+                " border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 800;"
+            )
+
+        field_style = (
+            "QLineEdit, QComboBox {"
+            f" background: {palette['surface_bg']};"
+            f" color: {palette['panel_text']};"
+            f" border: 1px solid {palette['panel_border']};"
+            " border-radius: 9px; padding: 0 12px; font-size: 14px; font-weight: 650;"
+            "}"
+            "QLineEdit::placeholder { color: rgba(230, 237, 246, 0.46); }"
+            "QComboBox::drop-down { border: none; width: 24px; }"
+        )
+        if self._search_username is not None:
+            self._search_username.setStyleSheet(field_style)
+        if self._role_filter is not None:
+            self._role_filter.setStyleSheet(field_style)
+        if self._add_user_btn is not None:
+            self._add_user_btn.setStyleSheet(
+                "QPushButton {"
+                f" background: {palette['surface_selected']}; color: {palette['panel_text']};"
+                f" border: 1px solid {palette['panel_border']};"
+                " border-radius: 9px; padding: 0 16px; font-size: 14px; font-weight: 800;"
+                "}"
+                f"QPushButton:hover {{ background: {palette['surface_hover']}; }}"
+                f"QPushButton:pressed {{ background: {palette['surface_selected']}; }}"
+            )
+        if self._users_table is not None:
+            self._users_table.setStyleSheet(
+                "QTableWidget {"
+                f" background: {palette['table_bg']}; alternate-background-color: {palette['table_alt']};"
+                f" color: {palette['panel_text']}; border: 1px solid {palette['panel_border']};"
+                " border-radius: 12px; font-size: 14px; outline: none;"
+                "}"
+                "QHeaderView::section {"
+                f" background: {palette['table_header']}; color: {palette['panel_muted']};"
+                " font-size: 11px; font-weight: 800; border: none; border-bottom: 1px solid rgba(255,255,255,0.18); padding: 10px 14px;"
+                "}"
+                "QTableWidget::item { padding: 10px 12px; border: none; }"
+                f"QTableWidget::item:hover {{ background: {palette['surface_hover']}; }}"
+                f"QTableWidget::item:selected {{ background: {palette['surface_selected']}; color: {palette['panel_text']}; }}"
+            )
+            self._sync_user_table_widget_states()
 
 
 def show_dashboard(app: QApplication, user: Optional[User] = None) -> DashboardForm:

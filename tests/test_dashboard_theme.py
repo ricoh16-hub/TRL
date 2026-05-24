@@ -1,7 +1,5 @@
 from src.ui.dashboard import (
     CHARGING_ACCENT,
-    NAVY_SELECTED,
-    NAVY_TOP,
     _charging_theme_palette,
     _resolve_charging_state,
 )
@@ -29,7 +27,7 @@ def test_charging_theme_palette_for_charging_mode() -> None:
 def test_charging_theme_palette_for_standard_mode() -> None:
     palette = _charging_theme_palette(False)
 
-    assert palette["accent"] == NAVY_TOP
-    assert palette["hover"] == NAVY_SELECTED
-    assert palette["pressed"] == "#0e2847"
+    assert palette["accent"] == "#FFFFFF"
+    assert palette["hover"] == "#DDE6F2"
+    assert palette["pressed"] == "#AEBBCC"
     assert palette["badge_label"] == "Standard Mode"
