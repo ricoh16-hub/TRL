@@ -15,6 +15,11 @@ def test_resolve_charging_state_reads_boolean_flag() -> None:
     assert _resolve_charging_state({"charging": False}) is False
 
 
+def test_resolve_charging_state_reads_integer_flag() -> None:
+    assert _resolve_charging_state({"charging": 1}) is True
+    assert _resolve_charging_state({"charging": 0}) is False
+
+
 def test_charging_theme_palette_for_charging_mode() -> None:
     palette = _charging_theme_palette(True)
 

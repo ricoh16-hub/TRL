@@ -3,6 +3,7 @@ import secrets
 import string
 from typing import Optional, TypedDict, cast
 
+from sqlalchemy import text
 from PySide6.QtCore import Property, QEvent, QPointF, QRectF, QPropertyAnimation, QEasingCurve, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
@@ -108,7 +109,14 @@ def _get_battery_info() -> Optional[dict[str, object]]:
 
 
 def _resolve_charging_state(info: Optional[dict[str, object]]) -> bool:
-    return bool(info.get("charging")) if info else False
+    if not info:
+        return False
+    charging = info.get("charging")
+    if isinstance(charging, bool):
+        return charging
+    if isinstance(charging, int):
+        return bool(charging)
+    return False
 
 
 def _charging_theme_palette(charging: bool) -> dict[str, str]:
@@ -1277,6 +1285,7 @@ class DashboardForm(QMainWindow):
         self._action_buttons: list[AnimatedActionButton] = []
         self._dashboard_text_labels: list[QLabel] = []
         self._dashboard_badges: list[QLabel] = []
+        self._page_title_labels: list[QLabel] = []
         self._chart_area: Optional[QFrame] = None
         self._footer_label: Optional[QLabel] = None
         self._page_title_label: Optional[QLabel] = None
@@ -1329,8 +1338,10 @@ class DashboardForm(QMainWindow):
     def _build_content_stack(self) -> QWidget:
         self._content_stack = QStackedWidget()
         self._dashboard_overview_page = self._build_content()
+        self._hris_manpower_page = self._build_hris_manpower_page()
         self._management_user_page = self._build_management_users_page()
         self._content_stack.addWidget(self._dashboard_overview_page)
+        self._content_stack.addWidget(self._hris_manpower_page)
         self._content_stack.addWidget(self._management_user_page)
         self._content_stack.setCurrentWidget(self._dashboard_overview_page)
         return self._content_stack
@@ -1397,7 +1408,7 @@ class DashboardForm(QMainWindow):
         menu_items = [
             ("dashboard", "Dashboard"),
             ("data_master", "Data Master"),
-            ("data_karyawan", "Data Karyawan"),
+            ("data_karyawan", "HRIS & Manpower"),
             ("data_divisi", "Data Divisi"),
             ("data_blok", "Data Blok"),
             ("transaksi", "Transaksi"),
@@ -1427,8 +1438,137 @@ class DashboardForm(QMainWindow):
             self._content_stack.setCurrentWidget(self._management_user_page)
             self._load_users_table()
             return
+        if item_key == "data_karyawan":
+            self._content_stack.setCurrentWidget(self._hris_manpower_page)
+            return
 
         self._content_stack.setCurrentWidget(self._dashboard_overview_page)
+
+    def _read_hris_summary(self) -> dict[str, str]:
+        summary = {
+            "employees": "0",
+            "groups": "5",
+            "job_families": "12",
+            "permissions": "17",
+        }
+        session = Session()
+        try:
+            rows = session.execute(
+                text(
+                    """
+                    SELECT 'employees' AS key, COUNT(*)::text AS value FROM hr_employees
+                    UNION ALL
+                    SELECT 'groups', COUNT(*)::text FROM hr_employee_groups
+                    UNION ALL
+                    SELECT 'job_families', COUNT(*)::text FROM hr_job_families
+                    UNION ALL
+                    SELECT 'permissions', COUNT(*)::text FROM permissions WHERE permission_name LIKE 'hr.%'
+                    """
+                )
+            ).mappings()
+            for row in rows:
+                summary[str(row["key"])] = str(row["value"])
+        except Exception:
+            pass
+        finally:
+            session.close()
+        return summary
+
+    def _build_hris_manpower_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(16)
+
+        title = QLabel("GBR Plantation HRIS & Manpower Control")
+        self._page_title_labels.append(title)
+        layout.addWidget(title)
+
+        subtitle = QLabel("Human Resource Department, manpower category, legal employment, payroll scheme, and work-output control.")
+        subtitle.setWordWrap(True)
+        self._dashboard_text_labels.append(subtitle)
+        layout.addWidget(subtitle)
+
+        summary = self._read_hris_summary()
+        metric_grid = QGridLayout()
+        metric_grid.setHorizontalSpacing(16)
+        metric_grid.setVerticalSpacing(16)
+        cards = [
+            AnimatedInfoCard("STF", "Karyawan Terdaftar", summary["employees"], "#50B4FF"),
+            AnimatedInfoCard("GRP", "Kategori Manpower", summary["groups"], "#5BAE44"),
+            AnimatedInfoCard("JOB", "Job Family", summary["job_families"], "#F0C84B"),
+            AnimatedInfoCard("ACL", "HR Permissions", summary["permissions"], "#D94A38"),
+        ]
+        self._info_cards.extend(cards)
+        for index, card in enumerate(cards):
+            metric_grid.addWidget(card, 0, index)
+        layout.addLayout(metric_grid)
+
+        main_grid = QGridLayout()
+        main_grid.setHorizontalSpacing(16)
+        main_grid.setVerticalSpacing(16)
+
+        category_card = AnimatedSectionCard("Manpower Category")
+        self._section_cards.append(category_card)
+        for code, label in [
+            ("STF", "Staff: pimpinan, asisten, KTU, HRGA, controller"),
+            ("BLN", "Karyawan bulanan non staff: mandor, krani, operator, driver"),
+            ("PHT/SKU", "Karyawan tetap non staff: SKU, PHT, tenaga tetap lapangan"),
+            ("PHL/KHL", "Karyawan harian lepas: tenaga HK, KHL, alias historis BHL"),
+            ("BRG", "Borongan: tenaga output atau grup kerja"),
+        ]:
+            category_card.body_layout.addWidget(self._make_hris_row(code, label))
+        category_card.body_layout.addStretch(1)
+
+        dimension_card = AnimatedSectionCard("Control Dimensions")
+        self._section_cards.append(dimension_card)
+        for code, label in [
+            ("GROUP", "Kategori manpower dipisah dari status legal."),
+            ("LEGAL", "PKWTT, PKWT, probation, KHL, dan borongan disimpan historis."),
+            ("PAY", "Bulanan, HK, kg panen, dan output tidak dicampur dengan kategori."),
+            ("JOB", "Panen, rawat, traksi, kantor, gudang, dan bibitan menjadi job family."),
+        ]:
+            dimension_card.body_layout.addWidget(self._make_hris_row(code, label))
+        dimension_card.body_layout.addStretch(1)
+
+        access_card = AnimatedSectionCard("Access Governance")
+        self._section_cards.append(access_card)
+        for code, label in [
+            ("Superior", "Akses penuh HRD dan manpower control."),
+            ("Administrator", "Kelola operasional HRD tanpa delete dan payroll manage penuh."),
+            ("Auditor", "Akses view-only untuk kontrol dan pemeriksaan."),
+            ("Operator", "Belum diberi HR permission sampai scope kerja ditentukan."),
+        ]:
+            access_card.body_layout.addWidget(self._make_hris_row(code, label))
+        access_card.body_layout.addStretch(1)
+
+        main_grid.addWidget(category_card, 0, 0)
+        main_grid.addWidget(dimension_card, 0, 1)
+        main_grid.addWidget(access_card, 1, 0, 1, 2)
+        main_grid.setColumnStretch(0, 1)
+        main_grid.setColumnStretch(1, 1)
+        layout.addLayout(main_grid, 1)
+        return page
+
+    def _make_hris_row(self, code: str, text_value: str) -> QWidget:
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(10)
+
+        code_label = QLabel(code)
+        code_label.setFixedWidth(86)
+        code_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        code_label.setProperty("badgeColor", "#D7E8F8")
+        self._dashboard_badges.append(code_label)
+
+        description = QLabel(text_value)
+        description.setWordWrap(True)
+        self._dashboard_text_labels.append(description)
+
+        row_layout.addWidget(code_label)
+        row_layout.addWidget(description, 1)
+        return row
 
     def _build_management_users_page(self) -> QWidget:
         page = QWidget()
@@ -1437,6 +1577,7 @@ class DashboardForm(QMainWindow):
         layout.setSpacing(12)
 
         self._page_title_label = QLabel("User Management")
+        self._page_title_labels.append(self._page_title_label)
         layout.addWidget(self._page_title_label)
 
         controls = QHBoxLayout()
@@ -1612,26 +1753,81 @@ class DashboardForm(QMainWindow):
         is_active: bool,
         selected: bool,
     ) -> None:
+        charging = bool(self._charging)
         if is_active:
-            if selected:
-                pill.setStyleSheet("background: #DDEFE5; border: 1px solid #B7CCBE; border-radius: 12px;")
-                dot.setStyleSheet("QLabel { background: #1F8F55; border-radius: 4px; border: none; }")
+            if charging:
+                pill_bg = "rgba(72, 187, 120, 0.20)" if not selected else "rgba(72, 187, 120, 0.28)"
+                pill_border = "rgba(126, 232, 255, 0.28)" if not selected else "rgba(126, 232, 255, 0.42)"
+                dot_color = "#48E08A"
+                text_color = "#DFFFEA"
+            elif selected:
+                pill_bg = "#DDEFE5"
+                pill_border = "#B7CCBE"
+                dot_color = "#1F8F55"
+                text_color = "#1F6B45"
             else:
-                pill.setStyleSheet("background: #E8F4EE; border: 1px solid #C9D8CE; border-radius: 12px;")
-                dot.setStyleSheet("QLabel { background: #22A15F; border-radius: 4px; border: none; }")
-            lbl.setStyleSheet(
-                "QLabel { color: #1F6B45; font-size: 12px; font-weight: 700; background: transparent; border: none; }"
-            )
+                pill_bg = "#E8F4EE"
+                pill_border = "#C9D8CE"
+                dot_color = "#22A15F"
+                text_color = "#1F6B45"
         else:
-            if selected:
-                pill.setStyleSheet("background: #F3E2E2; border: 1px solid #CFB8B8; border-radius: 12px;")
-                dot.setStyleSheet("QLabel { background: #C74747; border-radius: 4px; border: none; }")
+            if charging:
+                pill_bg = "rgba(255, 106, 106, 0.18)" if not selected else "rgba(255, 106, 106, 0.26)"
+                pill_border = "rgba(126, 232, 255, 0.22)" if not selected else "rgba(126, 232, 255, 0.38)"
+                dot_color = "#FF7B7B"
+                text_color = "#FFE3E3"
+            elif selected:
+                pill_bg = "#F3E2E2"
+                pill_border = "#CFB8B8"
+                dot_color = "#C74747"
+                text_color = "#8D2F2F"
             else:
-                pill.setStyleSheet("background: #F8ECEC; border: 1px solid #DCCACA; border-radius: 12px;")
-                dot.setStyleSheet("QLabel { background: #D65353; border-radius: 4px; border: none; }")
-            lbl.setStyleSheet(
-                "QLabel { color: #8D2F2F; font-size: 12px; font-weight: 700; background: transparent; border: none; }"
+                pill_bg = "#F8ECEC"
+                pill_border = "#DCCACA"
+                dot_color = "#D65353"
+                text_color = "#8D2F2F"
+
+        pill.setStyleSheet(f"background: {pill_bg}; border: 1px solid {pill_border}; border-radius: 12px;")
+        dot.setStyleSheet(f"QLabel {{ background: {dot_color}; border-radius: 4px; border: none; }}")
+        lbl.setStyleSheet(
+            f"QLabel {{ color: {text_color}; font-size: 12px; font-weight: 700; background: transparent; border: none; }}"
+        )
+
+    def _apply_table_action_button_style(self, button: QPushButton, role: str) -> None:
+        charging = bool(self._charging)
+        if role == "primary":
+            if charging:
+                button.setStyleSheet(
+                    "QPushButton { background: rgba(80, 180, 255, 0.25); color: #ECFCFF; "
+                    "border: 1px solid rgba(126, 232, 255, 0.45); border-radius: 6px; "
+                    "font-size: 12px; font-weight: 700; }"
+                    "QPushButton:hover { background: rgba(80, 180, 255, 0.34); }"
+                    "QPushButton:pressed { background: rgba(80, 180, 255, 0.18); }"
+                    "QPushButton:disabled { background: rgba(255, 255, 255, 0.09); color: rgba(236, 252, 255, 0.44); }"
+                )
+                return
+            button.setStyleSheet(
+                "QPushButton { background: #2563EB; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; }"
+                "QPushButton:hover { background: #1D55D8; }"
+                "QPushButton:pressed { background: #1749C0; }"
+                "QPushButton:disabled { background: #BFCDE2; color: #6A7F9E; }"
             )
+            return
+
+        if charging:
+            button.setStyleSheet(
+                "QPushButton { background: rgba(236, 252, 255, 0.08); color: #ECFCFF; "
+                "border: 1px solid rgba(126, 232, 255, 0.32); border-radius: 6px; "
+                "font-size: 13px; font-weight: 800; padding: 0; }"
+                "QPushButton:hover { background: rgba(80, 180, 255, 0.18); border-color: rgba(126, 232, 255, 0.52); }"
+                "QPushButton:pressed { background: rgba(80, 180, 255, 0.12); }"
+            )
+            return
+        button.setStyleSheet(
+            "QPushButton { background: #FFFFFF; color: #3F5875; border: 1px solid #CDDAEA; border-radius: 6px; font-size: 13px; font-weight: 800; padding: 0; }"
+            "QPushButton:hover { background: #EEF3FA; color: #22364D; border-color: #B8CAE0; }"
+            "QPushButton:pressed { background: #E2EBF5; }"
+        )
 
     def _sync_user_table_widget_states(self) -> None:
         if self._users_table is None:
@@ -1655,7 +1851,12 @@ class DashboardForm(QMainWindow):
 
             actions_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 8))
             if actions_container is not None:
-                pass
+                edit_btn = actions_container.findChild(QPushButton, "userActionEditButton")
+                more_btn = actions_container.findChild(QPushButton, "userActionMoreButton")
+                if edit_btn is not None:
+                    self._apply_table_action_button_style(edit_btn, "primary")
+                if more_btn is not None:
+                    self._apply_table_action_button_style(more_btn, "secondary")
 
     def _row_data_from_table(self, row: int) -> Optional[tuple[int, str, str, str, str, str]]:
         if self._users_table is None:
@@ -1706,12 +1907,20 @@ class DashboardForm(QMainWindow):
         username: str,
     ) -> None:
         menu = QMenu(self)
-        menu.setStyleSheet(
-            "QMenu { background: white; border: 1px solid #D0DAE7; border-radius: 8px; padding: 4px; font-size: 13px; }"
-            "QMenu::item { padding: 7px 20px; border-radius: 5px; color: #2D405C; }"
-            "QMenu::item:selected { background: #E7F1FF; color: #1F3F66; }"
-            "QMenu::separator { height: 1px; background: #E7EDF4; margin: 3px 8px; }"
-        )
+        if bool(self._charging):
+            menu.setStyleSheet(
+                "QMenu { background: #14283A; border: 1px solid rgba(126, 232, 255, 0.34); border-radius: 8px; padding: 4px; font-size: 13px; }"
+                "QMenu::item { padding: 7px 20px; border-radius: 5px; color: #ECFCFF; }"
+                "QMenu::item:selected { background: rgba(80, 180, 255, 0.20); color: #FFFFFF; }"
+                "QMenu::separator { height: 1px; background: rgba(126, 232, 255, 0.18); margin: 3px 8px; }"
+            )
+        else:
+            menu.setStyleSheet(
+                "QMenu { background: white; border: 1px solid #D0DAE7; border-radius: 8px; padding: 4px; font-size: 13px; }"
+                "QMenu::item { padding: 7px 20px; border-radius: 5px; color: #2D405C; }"
+                "QMenu::item:selected { background: #E7F1FF; color: #1F3F66; }"
+                "QMenu::separator { height: 1px; background: #E7EDF4; margin: 3px 8px; }"
+            )
         edit_action = menu.addAction("Edit User")
         can_manage_actions = self._can_current_user_manage_user_actions()
         if not can_manage_actions:
@@ -1918,14 +2127,10 @@ class DashboardForm(QMainWindow):
             actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             edit_btn = QPushButton("Edit")
+            edit_btn.setObjectName("userActionEditButton")
             edit_btn.setFixedSize(102, 28)
             edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            edit_btn.setStyleSheet(
-                "QPushButton { background: #2563EB; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; }"
-                "QPushButton:hover { background: #1D55D8; }"
-                "QPushButton:pressed { background: #1749C0; }"
-                "QPushButton:disabled { background: #BFCDE2; color: #6A7F9E; }"
-            )
+            self._apply_table_action_button_style(edit_btn, "primary")
             edit_btn.clicked.connect(
                 lambda _checked=False, user_id=row_id, role_value=row_role, status_value=row_status, password_value=row_password, pin_value=row_pin: self._edit_user(
                     user_id,
@@ -1939,13 +2144,10 @@ class DashboardForm(QMainWindow):
                 edit_btn.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
 
             more_btn = QPushButton("...")
+            more_btn.setObjectName("userActionMoreButton")
             more_btn.setFixedSize(38, 28)
             more_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            more_btn.setStyleSheet(
-                "QPushButton { background: #FFFFFF; color: #3F5875; border: 1px solid #CDDAEA; border-radius: 6px; font-size: 13px; font-weight: 800; padding: 0; }"
-                "QPushButton:hover { background: #EEF3FA; color: #22364D; border-color: #B8CAE0; }"
-                "QPushButton:pressed { background: #E2EBF5; }"
-            )
+            self._apply_table_action_button_style(more_btn, "secondary")
             more_btn.clicked.connect(
                 lambda _checked=False, button=more_btn, user_id=row_id, role_value=row_role, status_value=row_status, password_value=row_password, pin_value=row_pin, username=row_username: self._show_user_actions_menu(
                     button.mapToGlobal(button.rect().bottomLeft()),
@@ -2638,6 +2840,10 @@ class DashboardForm(QMainWindow):
             )
         if self._page_title_label is not None:
             self._page_title_label.setStyleSheet(
+                f"color: {palette['panel_text']}; font-size: 38px; font-weight: 850; background: transparent;"
+            )
+        for title_label in self._page_title_labels:
+            title_label.setStyleSheet(
                 f"color: {palette['panel_text']}; font-size: 38px; font-weight: 850; background: transparent;"
             )
         if self._footer_label is not None:
