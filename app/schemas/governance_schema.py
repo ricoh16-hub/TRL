@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DataQualityIssueResponse(BaseModel):
@@ -33,4 +34,13 @@ class DataQualitySummaryResponse(BaseModel):
     by_code: dict[str, int]
 
 
-__all__ = ["DataQualityIssueResponse", "DataQualitySummaryResponse"]
+class DataQualityIssueUpdateRequest(BaseModel):
+    status: Literal["OPEN", "RESOLVED", "IGNORED"] | None = None
+    recommendation: str | None = Field(default=None, max_length=2000)
+
+
+__all__ = [
+    "DataQualityIssueResponse",
+    "DataQualityIssueUpdateRequest",
+    "DataQualitySummaryResponse",
+]

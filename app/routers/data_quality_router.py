@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.permissions import require_permission
 from app.database.connection import get_db
+from app.models.auth import User
 from app.models.employee import Employee
 from app.models.governance import DataQualityIssue
-from app.schemas.governance_schema import DataQualityIssueResponse, DataQualitySummaryResponse
+from app.schemas.governance_schema import (
+    DataQualityIssueResponse,
+    DataQualityIssueUpdateRequest,
+    DataQualitySummaryResponse,
+)
 
 router = APIRouter(
     prefix="/data-quality",
@@ -19,6 +25,8 @@ router = APIRouter(
 )
 
 DbSession = Annotated[Session, Depends(get_db)]
+IssueId = Annotated[int, Path(gt=0)]
+DataQualityUpdater = Annotated[User, Depends(require_permission("data_quality", "update"))]
 
 
 def _issue_response(issue: DataQualityIssue) -> DataQualityIssueResponse:
@@ -115,6 +123,31 @@ def get_data_quality_summary(
         by_severity={str(key): int(value) for key, value in severity_rows},
         by_code={str(key): int(value) for key, value in code_rows},
     )
+
+
+@router.patch("/issues/{issue_id}", response_model=DataQualityIssueResponse)
+def update_data_quality_issue(
+    issue_id: IssueId,
+    payload: DataQualityIssueUpdateRequest,
+    db: DbSession,
+    _current_user: DataQualityUpdater,
+) -> DataQualityIssueResponse:
+    issue = db.get(DataQualityIssue, issue_id)
+    if issue is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Data quality issue {issue_id} tidak ditemukan.",
+        )
+
+    if payload.status is not None:
+        issue.status = payload.status
+        issue.resolved_at = datetime.now(UTC) if payload.status == "RESOLVED" else None
+    if payload.recommendation is not None:
+        issue.recommendation = payload.recommendation
+
+    db.commit()
+    db.refresh(issue)
+    return _issue_response(issue)
 
 
 __all__ = ["router"]
