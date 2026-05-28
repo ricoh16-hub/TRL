@@ -72,3 +72,10 @@ def test_reference_endpoint_requires_auth_smoke(client: TestClient) -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Bearer token wajib dikirim."
+
+
+def test_data_quality_endpoint_requires_auth_smoke(client: TestClient) -> None:
+    response = client.get("/data-quality/issues")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Bearer token wajib dikirim."

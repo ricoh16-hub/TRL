@@ -39,6 +39,7 @@ EMPLOYEE_PERMISSIONS: tuple[tuple[str, str, str], ...] = (
     ("employee", "change_status", "Mengubah status kerja karyawan."),
     ("employee", "delete", "Menonaktifkan karyawan melalui soft delete."),
     ("employee", "export", "Ekspor data karyawan."),
+    ("data_quality", "view", "Melihat issue kualitas data HRIS."),
     ("data_quality", "update", "Mengubah workflow issue kualitas data HRIS."),
     ("data_quality", "export", "Ekspor issue kualitas data HRIS."),
     ("attendance", "view", "Melihat absensi, HK, dan ringkasan kehadiran."),
@@ -58,7 +59,7 @@ HR_ADMIN_PERMISSION_KEYS = tuple(
 HR_VIEWER_PERMISSION_KEYS = tuple(
     key
     for key in SUPER_ADMIN_PERMISSION_KEYS
-    if key.endswith(":view") or key == "employee:export"
+    if key.endswith(":view") or key in {"employee:export", "data_quality:export"}
 )
 
 ROLE_DEFINITIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (

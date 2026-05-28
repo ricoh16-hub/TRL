@@ -30,6 +30,7 @@ def test_seed_permission_matrix_covers_manpower_operations() -> None:
         "employee:change_status",
         "employee:delete",
         "employee:export",
+        "data_quality:view",
         "attendance:view",
         "attendance:manage",
         "work_output:view",
@@ -39,7 +40,7 @@ def test_seed_permission_matrix_covers_manpower_operations() -> None:
     assert expected.issubset(set(SUPER_ADMIN_PERMISSION_KEYS))
     assert "employee:delete" not in set(HR_ADMIN_PERMISSION_KEYS)
     assert {"attendance:manage", "work_output:manage"}.issubset(set(HR_ADMIN_PERMISSION_KEYS))
-    assert {"attendance:view", "work_output:view", "employee:export"}.issubset(
+    assert {"attendance:view", "work_output:view", "employee:export", "data_quality:view"}.issubset(
         set(HR_VIEWER_PERMISSION_KEYS)
     )
     assert "attendance:manage" not in set(HR_VIEWER_PERMISSION_KEYS)
