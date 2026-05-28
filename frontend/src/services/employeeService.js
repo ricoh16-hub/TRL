@@ -63,3 +63,20 @@ export const referenceService = {
   divisions: () => request("/references/divisions"),
   positions: () => request("/references/positions"),
 };
+
+export const dataQualityService = {
+  summary(params) {
+    return request("/data-quality/summary", { params });
+  },
+
+  issues(params) {
+    return request("/data-quality/issues", { params });
+  },
+
+  updateIssue(issueId, payload) {
+    return request(`/data-quality/issues/${issueId}`, {
+      method: "PATCH",
+      body: payload,
+    });
+  },
+};

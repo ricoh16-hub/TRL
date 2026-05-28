@@ -3,6 +3,7 @@ import { icon } from "./icons.js";
 const items = [
   { href: "#/employees", label: "Daftar Karyawan", icon: "users" },
   { href: "#/employees/new", label: "Input Karyawan", icon: "plus" },
+  { href: "#/data-quality", label: "Data Quality", icon: "shield" },
 ];
 
 export function renderSidebar(currentHash) {
@@ -19,7 +20,8 @@ export function renderSidebar(currentHash) {
         .map((item) => {
           const active =
             currentHash === item.href ||
-            (item.href === "#/employees" && currentHash.startsWith("#/employees/"));
+            (item.href === "#/employees" && currentHash.startsWith("#/employees/")) ||
+            (item.href === "#/data-quality" && currentHash.startsWith("#/data-quality"));
           return `
             <a class="${active ? "active" : ""}" href="${item.href}">
               ${icon(item.icon)}

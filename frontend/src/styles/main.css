@@ -713,6 +713,31 @@ textarea:focus {
   color: var(--muted);
 }
 
+.data-quality-table td {
+  vertical-align: top;
+}
+
+.issue-cell {
+  display: grid;
+  gap: 6px;
+}
+
+.issue-cell span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.data-quality-table td > small,
+.data-quality-table td > strong {
+  display: block;
+}
+
+.data-quality-table td > small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

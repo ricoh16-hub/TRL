@@ -7,6 +7,7 @@ import {
   renderEmployeeMutationPage,
   renderEmployeeStatusPage,
 } from "../modules/employee/employeePages.js";
+import { renderDataQualityPage } from "../modules/dataQuality/dataQualityPages.js";
 import { setRouteTitle } from "./state.js";
 
 function parseHash() {
@@ -22,6 +23,12 @@ export async function renderRoute() {
   const view = document.getElementById("view");
   const segments = parseHash();
   const [moduleName, id, action] = segments;
+
+  if (moduleName === "data-quality") {
+    setRouteTitle("Data Quality");
+    await renderDataQualityPage(view);
+    return;
+  }
 
   if (moduleName !== "employees") {
     navigate("/employees");
