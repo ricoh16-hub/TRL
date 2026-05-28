@@ -10,7 +10,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
-from app.database.connection import SessionLocal
 from app.models.auth import Permission, Role, RolePermission, User, UserRole
 from app.models.movement import DEFAULT_MOVEMENT_TYPES
 from app.models.reference import (
@@ -405,6 +404,8 @@ def print_stats(stats: SeedStats) -> None:
 
 
 def main() -> None:
+    from app.database.connection import SessionLocal
+
     parser = ArgumentParser(description="Seed master data for PT GBR HRIS.")
     parser.add_argument(
         "--dry-run",
