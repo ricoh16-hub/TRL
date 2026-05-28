@@ -3,6 +3,7 @@
 # Tooling pengembangan yang dipin agar hasil lint/test konsisten antar mesin.
 colorama==0.4.6
 coverage==7.13.5
+httpx==0.28.1
 iniconfig==2.3.0
 packaging==26.0
 pluggy==1.6.0
