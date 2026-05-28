@@ -1,4 +1,5 @@
 from datetime import date, datetime
+import logging
 import secrets
 import string
 from typing import Optional, TypedDict, cast
@@ -37,6 +38,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -59,7 +61,47 @@ try:
 except ImportError:
     from src.auth.passwords import verify_password, verify_pin_code  # type: ignore[no-redef]
 
+try:
+    from ui.hris_dashboard_data import (
+        DEFAULT_REPORTS_DIR,
+        HrisQualityIssueRow,
+        current_user_has_permission,
+        export_hris_quality_issues,
+        hris_summary_int,
+        is_hris_auth_schema as _is_hris_auth_schema,
+        map_hris_role_to_dashboard_role as _map_hris_role_to_dashboard_role,
+        read_hris_employee_detail,
+        read_hris_employee_id_for_issue,
+        read_hris_group_breakdown,
+        read_hris_quality_issues,
+        read_hris_summary,
+        role_names_from_value as _role_names_from_value,
+        table_columns as _table_columns,
+        table_exists as _table_exists,
+        update_hris_quality_issue_statuses,
+    )
+except ImportError:
+    from src.ui.hris_dashboard_data import (  # type: ignore[no-redef]
+        DEFAULT_REPORTS_DIR,
+        HrisQualityIssueRow,
+        current_user_has_permission,
+        export_hris_quality_issues,
+        hris_summary_int,
+        is_hris_auth_schema as _is_hris_auth_schema,
+        map_hris_role_to_dashboard_role as _map_hris_role_to_dashboard_role,
+        read_hris_employee_detail,
+        read_hris_employee_id_for_issue,
+        read_hris_group_breakdown,
+        read_hris_quality_issues,
+        read_hris_summary,
+        role_names_from_value as _role_names_from_value,
+        table_columns as _table_columns,
+        table_exists as _table_exists,
+        update_hris_quality_issue_statuses,
+    )
+
 _active_dashboard: Optional["DashboardForm"] = None
+logger = logging.getLogger(__name__)
 
 NAVY_TOP = "#163A69"
 NAVY_SIDE = "#1C467A"
@@ -73,6 +115,8 @@ DASH_MUTED = "rgba(230, 237, 246, 0.72)"
 
 TEMP_PASSWORD_LENGTH = 12
 CHARGING_ACCENT = "#50B4FF"
+CHARGING_MODE_LABEL = "Kondisi Charging"
+NOT_CHARGING_MODE_LABEL = "Kondisi Tidak Charging"
 
 
 class UserRow(TypedDict):
@@ -87,6 +131,10 @@ class UserRow(TypedDict):
     pin_value: str
     created_at: str
     updated_at: str
+
+
+def _credential_status_label(is_configured: object) -> str:
+    return "Configured" if bool(is_configured) else "Not set"
 
 
 def _apply_card_shadow(widget: QWidget) -> None:
@@ -128,16 +176,16 @@ def _charging_theme_palette(charging: bool) -> dict[str, str]:
             "panel_text": "#ECFCFF",
             "panel_muted": "rgba(230, 248, 255, 0.74)",
             "panel_border": "rgba(103, 224, 255, 0.44)",
-            "surface_bg": "rgba(21, 40, 57, 0.68)",
+            "surface_bg": "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(28, 55, 76, 0.78), stop:1 rgba(10, 31, 52, 0.70))",
             "surface_hover": "rgba(80, 180, 255, 0.13)",
             "surface_selected": "rgba(80, 180, 255, 0.22)",
-            "table_bg": "rgba(16, 31, 48, 0.78)",
+            "table_bg": "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(20, 44, 65, 0.82), stop:1 rgba(10, 25, 42, 0.78))",
             "table_alt": "rgba(31, 56, 75, 0.72)",
             "table_header": "rgba(33, 68, 94, 0.86)",
             "badge_bg": "rgba(80, 180, 255, 0.14)",
             "badge_border": "rgba(80, 180, 255, 0.34)",
             "badge_text": CHARGING_ACCENT,
-            "badge_label": "Charging Mode",
+            "badge_label": CHARGING_MODE_LABEL,
         }
     return {
         "accent": "#FFFFFF",
@@ -146,16 +194,16 @@ def _charging_theme_palette(charging: bool) -> dict[str, str]:
         "panel_text": "#F4F8FF",
         "panel_muted": "rgba(230, 237, 246, 0.72)",
         "panel_border": "rgba(255, 255, 255, 0.26)",
-        "surface_bg": "rgba(24, 32, 43, 0.68)",
+        "surface_bg": "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(38, 47, 59, 0.76), stop:1 rgba(19, 28, 40, 0.70))",
         "surface_hover": "rgba(255, 255, 255, 0.09)",
         "surface_selected": "rgba(255, 255, 255, 0.16)",
-        "table_bg": "rgba(23, 31, 42, 0.78)",
+        "table_bg": "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(32, 41, 53, 0.82), stop:1 rgba(17, 25, 36, 0.78))",
         "table_alt": "rgba(38, 47, 59, 0.72)",
         "table_header": "rgba(43, 52, 65, 0.86)",
         "badge_bg": "rgba(255, 255, 255, 0.10)",
         "badge_border": "rgba(255, 255, 255, 0.24)",
         "badge_text": "#F4F8FF",
-        "badge_label": "Standard Mode",
+        "badge_label": NOT_CHARGING_MODE_LABEL,
     }
 
 
@@ -317,6 +365,8 @@ class DashboardBackground(QWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._charging = False
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAutoFillBackground(False)
 
     def set_charging(self, charging: bool) -> None:
@@ -337,6 +387,77 @@ class DashboardBackground(QWidget):
             self._charging,
             focus_y=96.0,
             focus_radius=max(260.0, self.width() * 0.34),
+        )
+        painter.end()
+
+
+def _read_charging_state_from_context(parent: Optional[QWidget], fallback: bool = False) -> bool:
+    widget = parent
+    while widget is not None:
+        value = getattr(widget, "_charging", None)
+        if isinstance(value, bool):
+            return value
+        widget = widget.parentWidget()
+
+    info = _get_battery_info()
+    if info is None:
+        return fallback
+    return _resolve_charging_state(info)
+
+
+def _dashboard_dialog_stylesheet(charging: bool) -> str:
+    palette = _charging_theme_palette(charging)
+    focus_border = "rgba(103, 224, 255, 0.54)" if charging else "rgba(255, 255, 255, 0.42)"
+    return (
+        "QDialog { background: transparent; }"
+        f"QLabel {{ color: {palette['panel_text']}; background: transparent; }}"
+        "QLineEdit, QComboBox {"
+        f" background: {palette['surface_bg']};"
+        f" color: {palette['panel_text']};"
+        f" border: 1px solid {palette['panel_border']};"
+        " border-radius: 9px; padding: 0 11px; font-size: 13px; font-weight: 650;"
+        " selection-background-color: rgba(80, 180, 255, 0.35);"
+        "}"
+        f"QLineEdit:focus, QComboBox:focus {{ border: 1px solid {focus_border}; }}"
+        "QLineEdit::placeholder { color: rgba(230, 237, 246, 0.46); }"
+        "QComboBox::drop-down { border: none; width: 24px; }"
+        "QDialogButtonBox QPushButton {"
+        f" background: {palette['surface_selected']}; color: {palette['panel_text']};"
+        f" border: 1px solid {palette['panel_border']};"
+        " border-radius: 8px; padding: 7px 18px; font-size: 13px; font-weight: 800;"
+        "}"
+        f"QDialogButtonBox QPushButton:hover {{ background: {palette['surface_hover']}; }}"
+        f"QDialogButtonBox QPushButton:pressed {{ background: {palette['surface_selected']}; }}"
+    )
+
+
+class DashboardGlassDialog(QDialog):
+    def __init__(self, parent: Optional[QWidget] = None, radius: float = 18.0) -> None:
+        super().__init__(parent)
+        self._charging: Optional[bool] = None
+        self._background_radius = radius
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        _paint_login_reference_surface(
+            painter,
+            event,
+            self.width(),
+            self.height(),
+            self._background_radius,
+            bool(self._charging),
+            focus_y=max(36.0, min(92.0, self.height() * 0.24)),
+            focus_radius=max(150.0, self.width() * 0.48),
         )
         painter.end()
 
@@ -826,37 +947,43 @@ class AnimatedActionButton(QPushButton):
         painter.end()
 
 
-class ChangePasswordDialog(QDialog):
+class ChangePasswordDialog(DashboardGlassDialog):
     """Dialog untuk mengganti password dan PIN user sendiri"""
 
     def __init__(self, username: str, parent: Optional[QWidget] = None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, radius=18.0)
         self.setWindowTitle("Ganti Password")
         self.setModal(True)
         self.resize(420, 280)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(14)
         form = QFormLayout()
+        form.setSpacing(10)
 
-        title = QLabel(f"Ganti Password dan PIN\nUser: {username}")
-        title.setStyleSheet(f"color: {TEXT_DARK}; font-size: 14px; font-weight: 700;")
-        layout.addWidget(title)
+        self._title = QLabel(f"Ganti Password dan PIN\nUser: {username}")
+        layout.addWidget(self._title)
 
         self._old_password_input = QLineEdit()
         self._old_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._old_password_input.setFixedHeight(36)
         self._old_password_input.setPlaceholderText("Masukkan password lama")
 
         self._new_password_input = QLineEdit()
         self._new_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._new_password_input.setFixedHeight(36)
         self._new_password_input.setPlaceholderText("Masukkan password baru")
 
         self._old_pin_input = QLineEdit()
         self._old_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._old_pin_input.setFixedHeight(36)
         self._old_pin_input.setPlaceholderText("Masukkan PIN lama (6 digit)")
         self._old_pin_input.setMaxLength(6)
 
         self._new_pin_input = QLineEdit()
         self._new_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._new_pin_input.setFixedHeight(36)
         self._new_pin_input.setPlaceholderText("Masukkan PIN baru (6 digit)")
         self._new_pin_input.setMaxLength(6)
 
@@ -870,6 +997,23 @@ class ChangePasswordDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        self._buttons = buttons
+
+        self._charging_timer = QTimer(self)
+        self._charging_timer.timeout.connect(self._update_charging_theme)
+        self._charging_timer.start(500)
+        self._update_charging_theme()
+
+    def _update_charging_theme(self) -> None:
+        charging = _read_charging_state_from_context(self.parentWidget(), bool(self._charging))
+        if self._charging == charging and self.styleSheet():
+            return
+        self.set_charging(charging)
+        palette = _charging_theme_palette(charging)
+        self.setStyleSheet(_dashboard_dialog_stylesheet(charging))
+        self._title.setStyleSheet(
+            f"color: {palette['panel_text']}; font-size: 15px; font-weight: 850; background: transparent;"
+        )
 
     def data(self) -> dict[str, str]:
         return {
@@ -880,7 +1024,7 @@ class ChangePasswordDialog(QDialog):
         }
 
 
-class UserEditDialog(QDialog):
+class UserEditDialog(DashboardGlassDialog):
     def __init__(
         self,
         username: str,
@@ -891,13 +1035,16 @@ class UserEditDialog(QDialog):
         current_pin: str = "",
         parent: Optional[QWidget] = None,
     ) -> None:
-        super().__init__(parent)
+        super().__init__(parent, radius=18.0)
         self.setWindowTitle("Edit User")
         self.setModal(True)
         self.resize(520, 660)
-        self._charging: Optional[bool] = None
-
-        self.setStyleSheet(f"QDialog {{ background: {PAGE_BG}; }}")
+        self._edit_glass_panels: list[LoginGlassPanel] = []
+        self._edit_row_labels: list[QLabel] = []
+        self._edit_hint_labels: list[QLabel] = []
+        self._edit_fields: list[QLineEdit] = []
+        self._edit_combos: list[QComboBox] = []
+        self._edit_theme_applied = False
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(24, 20, 24, 20)
@@ -917,23 +1064,17 @@ class UserEditDialog(QDialog):
         header_block.setContentsMargins(0, 0, 0, 0)
         header_block.setSpacing(4)
 
-        header_label = QLabel("Edit User")
-        header_label.setStyleSheet(
-            f"color: {TEXT_DARK}; font-size: 18px; font-weight: 900;"
+        self._header_label = QLabel("Edit User")
+        self._header_subtitle = QLabel(
+            "Manage profile details, access status, and credential reset in one panel."
         )
-        header_subtitle = QLabel(
-            "Manage profile details, existing credentials, and access updates in one panel."
-        )
-        header_subtitle.setWordWrap(True)
-        header_subtitle.setStyleSheet(
-            f"color: {TEXT_SOFT}; font-size: 12px; font-weight: 500;"
-        )
-        header_block.addWidget(header_label)
-        header_block.addWidget(header_subtitle)
+        self._header_subtitle.setWordWrap(True)
+        header_block.addWidget(self._header_label)
+        header_block.addWidget(self._header_subtitle)
 
-        self._theme_badge = QLabel("Standard Mode")
+        self._theme_badge = QLabel(NOT_CHARGING_MODE_LABEL)
         self._theme_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._theme_badge.setMinimumWidth(118)
+        self._theme_badge.setMinimumWidth(158)
         self._theme_badge.setFixedHeight(30)
 
         header_row.addLayout(header_block, 1)
@@ -941,10 +1082,9 @@ class UserEditDialog(QDialog):
         main_layout.addLayout(header_row)
 
         # --- Section: User Information ---
-        info_card = QFrame()
-        info_card.setStyleSheet(
-              f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
-        )
+        info_card = LoginGlassPanel(12.0)
+        self._edit_glass_panels.append(info_card)
+        info_card.setStyleSheet("background: transparent;")
         _apply_card_shadow(info_card)
         info_inner = QVBoxLayout(info_card)
         info_inner.setContentsMargins(20, 14, 20, 14)
@@ -965,6 +1105,7 @@ class UserEditDialog(QDialog):
         self._role_combo.addItems(list(CANONICAL_ROLES))
         self._role_combo.setFixedHeight(36)
         self._role_combo.setStyleSheet(self._combo_style())
+        self._edit_combos.append(self._role_combo)
         try:
             normalized_role = normalize_role_name(role)
         except ValueError:
@@ -974,6 +1115,7 @@ class UserEditDialog(QDialog):
         self._status_combo.addItems(["Active", "Inactive"])
         self._status_combo.setFixedHeight(36)
         self._status_combo.setStyleSheet(self._combo_style())
+        self._edit_combos.append(self._status_combo)
         normalized_status = status.strip().lower()
         self._status_combo.setCurrentText(
             "Active" if normalized_status in {"aktif", "active"} else "Inactive"
@@ -985,17 +1127,16 @@ class UserEditDialog(QDialog):
         info_inner.addLayout(info_form)
         main_layout.addWidget(info_card)
 
-        # --- Section: Current Credentials ---
-        old_card = QFrame()
-        old_card.setStyleSheet(
-              f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
-        )
+        # --- Section: Credential Reset ---
+        old_card = LoginGlassPanel(12.0)
+        self._edit_glass_panels.append(old_card)
+        old_card.setStyleSheet("background: transparent;")
         _apply_card_shadow(old_card)
         old_inner = QVBoxLayout(old_card)
         old_inner.setContentsMargins(20, 14, 20, 14)
         old_inner.setSpacing(10)
 
-        self._old_title = QLabel("Current Credentials")
+        self._old_title = QLabel("Credential Reset")
         self._old_title.setStyleSheet(
             f"color: {NAVY_TOP}; font-size: 12px; font-weight: 800;"
             " border: none; background: transparent;"
@@ -1005,30 +1146,25 @@ class UserEditDialog(QDialog):
         old_form = QFormLayout()
         old_form.setSpacing(8)
         self._old_password_input = self._make_field()
-        self._old_password_input.setEchoMode(QLineEdit.EchoMode.Normal)
-        self._old_password_input.setPlaceholderText("Enter current password to change it")
-        if current_password:
-            self._old_password_input.setText(current_password)
+        self._old_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._old_password_input.setPlaceholderText("Optional current password verification")
         self._old_pin_input = self._make_field()
-        self._old_pin_input.setEchoMode(QLineEdit.EchoMode.Normal)
-        self._old_pin_input.setPlaceholderText("Current PIN (6 digits)")
+        self._old_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._old_pin_input.setPlaceholderText("Optional current PIN verification")
         self._old_pin_input.setMaxLength(6)
-        if current_pin:
-            self._old_pin_input.setText(current_pin)
-        old_form.addRow(self._row_label("Current Password"), self._old_password_input)
-        old_form.addRow(self._row_label("Current PIN"), self._old_pin_input)
+        old_form.addRow(self._row_label("Verify Password"), self._old_password_input)
+        old_form.addRow(self._row_label("Verify PIN"), self._old_pin_input)
         old_inner.addLayout(old_form)
-        old_hint = QLabel("Shown as-is to speed up verification and credential rotation.")
+        old_hint = QLabel("Stored credentials are never displayed. Use verification only when needed.")
         old_hint.setWordWrap(True)
-        old_hint.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 11px;")
+        self._edit_hint_labels.append(old_hint)
         old_inner.addWidget(old_hint)
         main_layout.addWidget(old_card)
 
         # --- Section: New Credentials ---
-        new_card = QFrame()
-        new_card.setStyleSheet(
-              f"QFrame {{ background: {CARD_BG}; border-radius: 12px; border: 1px solid #DEE6F0; }}"
-        )
+        new_card = LoginGlassPanel(12.0)
+        self._edit_glass_panels.append(new_card)
+        new_card.setStyleSheet("background: transparent;")
         _apply_card_shadow(new_card)
         new_inner = QVBoxLayout(new_card)
         new_inner.setContentsMargins(20, 14, 20, 14)
@@ -1055,7 +1191,7 @@ class UserEditDialog(QDialog):
         new_inner.addLayout(new_form)
         new_hint = QLabel("Leave new fields blank if no credential update is needed.")
         new_hint.setWordWrap(True)
-        new_hint.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 11px;")
+        self._edit_hint_labels.append(new_hint)
         new_inner.addWidget(new_hint)
         main_layout.addWidget(new_card)
 
@@ -1069,26 +1205,11 @@ class UserEditDialog(QDialog):
         self._btn_cancel = QPushButton("Cancel")
         self._btn_cancel.setFixedHeight(40)
         self._btn_cancel.setMinimumWidth(100)
-        self._btn_cancel.setStyleSheet(f"""
-            QPushButton {{
-                background: {PAGE_BG};
-                color: {TEXT_DARK};
-                border: 1.5px solid #DEE6F0;
-                border-radius: 8px;
-                font-size: 13px;
-                font-weight: 700;
-                padding: 0 20px;
-            }}
-            QPushButton:hover {{ background: #DEE6F0; }}
-        """)
         self._btn_cancel.clicked.connect(self.reject)
 
         self._btn_save = QPushButton("Save Changes")
         self._btn_save.setFixedHeight(40)
         self._btn_save.setMinimumWidth(140)
-        self._btn_save.setStyleSheet(
-            self._save_btn_style(NAVY_TOP, NAVY_SELECTED, "#0e2847")
-        )
         self._btn_save.clicked.connect(self.accept)
 
         btn_row.addWidget(self._btn_cancel)
@@ -1103,43 +1224,39 @@ class UserEditDialog(QDialog):
 
     def _row_label(self, text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setStyleSheet(
-            f"color: {TEXT_SOFT}; font-size: 12px; font-weight: 600;"
-            " border: none; background: transparent;"
-        )
+        self._edit_row_labels.append(lbl)
+        lbl.setStyleSheet(self._row_label_style())
         return lbl
 
     def _make_field(self, text: str = "") -> QLineEdit:
         inp = QLineEdit(text)
         inp.setFixedHeight(36)
-        inp.setStyleSheet(f"""
-            QLineEdit {{
-                background: {CARD_BG};
-                border: 1.5px solid #DEE6F0;
-                border-radius: 8px;
-                padding: 0 10px;
-                font-size: 13px;
-                color: {TEXT_DARK};
-            }}
-            QLineEdit:focus {{
-                border: 1.5px solid {NAVY_SELECTED};
-                background: #F8FAFD;
-            }}
-        """)
+        self._edit_fields.append(inp)
+        inp.setStyleSheet(self._field_style())
         return inp
 
     def _combo_style(self) -> str:
+        return self._field_style(widget_type="QComboBox")
+
+    def _field_style(self, widget_type: str = "QLineEdit") -> str:
+        palette = _charging_theme_palette(bool(self._charging))
+        focus_border = "rgba(103, 224, 255, 0.54)" if bool(self._charging) else "rgba(255, 255, 255, 0.42)"
         return f"""
-            QComboBox {{
-                background: {CARD_BG};
-                border: 1.5px solid #DEE6F0;
+            {widget_type} {{
+                background: {palette['surface_bg']};
+                border: 1px solid {palette['panel_border']};
                 border-radius: 8px;
                 padding: 0 10px;
                 font-size: 13px;
-                color: {TEXT_DARK};
+                font-weight: 650;
+                color: {palette['panel_text']};
+                selection-background-color: rgba(80, 180, 255, 0.35);
             }}
-            QComboBox:focus {{
-                border: 1.5px solid {NAVY_SELECTED};
+            {widget_type}:focus {{
+                border: 1px solid {focus_border};
+            }}
+            QLineEdit::placeholder {{
+                color: rgba(230, 237, 246, 0.46);
             }}
             QComboBox::drop-down {{
                 border: none;
@@ -1147,15 +1264,50 @@ class UserEditDialog(QDialog):
             }}
         """
 
-    def _save_btn_style(self, bg: str, hover: str, pressed: str) -> str:
+    def _row_label_style(self) -> str:
+        palette = _charging_theme_palette(bool(self._charging))
+        return (
+            f"color: {palette['panel_muted']}; font-size: 12px; font-weight: 650;"
+            " border: none; background: transparent;"
+        )
+
+    def _cancel_btn_style(self, charging: bool) -> str:
+        palette = _charging_theme_palette(charging)
+        return f"""
+            QPushButton {{
+                background: {palette['surface_bg']};
+                color: {palette['panel_text']};
+                border: 1px solid {palette['panel_border']};
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 750;
+                padding: 0 20px;
+            }}
+            QPushButton:hover {{ background: {palette['surface_hover']}; }}
+            QPushButton:pressed {{ background: {palette['surface_selected']}; }}
+        """
+
+    def _save_btn_style(self, charging: bool) -> str:
+        if charging:
+            bg = "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(34, 72, 96, 0.98), stop:1 rgba(18, 65, 88, 0.98))"
+            hover = "rgba(80, 180, 255, 0.30)"
+            pressed = "rgba(80, 180, 255, 0.20)"
+            border = "rgba(103, 224, 255, 0.55)"
+            text = "#ECFCFF"
+        else:
+            bg = "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(65, 74, 88, 0.92), stop:1 rgba(27, 36, 49, 0.92))"
+            hover = "rgba(255, 255, 255, 0.18)"
+            pressed = "rgba(255, 255, 255, 0.12)"
+            border = "rgba(255, 255, 255, 0.30)"
+            text = "#FFFFFF"
         return f"""
             QPushButton {{
                 background: {bg};
-                color: #FFFFFF;
-                border: none;
+                color: {text};
+                border: 1px solid {border};
                 border-radius: 8px;
                 font-size: 13px;
-                font-weight: 700;
+                font-weight: 800;
                 padding: 0 20px;
             }}
             QPushButton:hover {{ background: {hover}; }}
@@ -1176,15 +1328,24 @@ class UserEditDialog(QDialog):
         """
 
     def _update_charging_theme(self) -> None:
-        info = _get_battery_info()
-        charging = _resolve_charging_state(info)
-        if charging == self._charging:
+        charging = _read_charging_state_from_context(self.parentWidget(), bool(self._charging))
+        if charging == self._charging and self._edit_theme_applied:
             return
-        self._charging = charging
+        self.set_charging(charging)
+        self._edit_theme_applied = True
         palette = _charging_theme_palette(charging)
         accent = palette["accent"]
+        self.setStyleSheet(_dashboard_dialog_stylesheet(charging))
         self._header_bar.setStyleSheet(
             f"background: {accent}; border-radius: 2px;"
+        )
+        for panel in self._edit_glass_panels:
+            panel.set_charging(charging)
+        self._header_label.setStyleSheet(
+            f"color: {palette['panel_text']}; font-size: 18px; font-weight: 900; background: transparent;"
+        )
+        self._header_subtitle.setStyleSheet(
+            f"color: {palette['panel_muted']}; font-size: 12px; font-weight: 600; background: transparent;"
         )
         title_css = (
             f"color: {accent}; font-size: 12px; font-weight: 800;"
@@ -1193,6 +1354,16 @@ class UserEditDialog(QDialog):
         self._info_title.setStyleSheet(title_css)
         self._old_title.setStyleSheet(title_css)
         self._new_title.setStyleSheet(title_css)
+        for label in self._edit_row_labels:
+            label.setStyleSheet(self._row_label_style())
+        for label in self._edit_hint_labels:
+            label.setStyleSheet(
+                f"color: {palette['panel_muted']}; font-size: 11px; font-weight: 600; background: transparent;"
+            )
+        for field in self._edit_fields:
+            field.setStyleSheet(self._field_style())
+        for combo in self._edit_combos:
+            combo.setStyleSheet(self._combo_style())
         self._theme_badge.setText(palette["badge_label"])
         self._theme_badge.setStyleSheet(
             self._badge_style(
@@ -1201,9 +1372,8 @@ class UserEditDialog(QDialog):
                 palette["badge_text"],
             )
         )
-        self._btn_save.setStyleSheet(
-            self._save_btn_style(accent, palette["hover"], palette["pressed"])
-        )
+        self._btn_cancel.setStyleSheet(self._cancel_btn_style(charging))
+        self._btn_save.setStyleSheet(self._save_btn_style(charging))
 
     def data(self) -> dict[str, str]:
         selected_status = self._status_combo.currentText().strip().lower()
@@ -1220,29 +1390,36 @@ class UserEditDialog(QDialog):
         }
 
 
-class UserAddDialog(QDialog):
+class UserAddDialog(DashboardGlassDialog):
     """Dialog to add a new user (password and PIN are auto-generated)."""
     def __init__(self, parent: Optional[QWidget] = None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, radius=18.0)
         self.setWindowTitle("Add User")
         self.setModal(True)
         self.resize(420, 260)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(14)
         form = QFormLayout()
+        form.setSpacing(10)
 
         self._username_input = QLineEdit()
+        self._username_input.setFixedHeight(36)
         self._username_input.setPlaceholderText("Example: riko01")
         
         self._nama_input = QLineEdit()
+        self._nama_input.setFixedHeight(36)
         self._nama_input.setPlaceholderText("Example: Riko Sinaga")
         
         self._role_combo = QComboBox()
         self._role_combo.addItems(list(CANONICAL_ROLES))
+        self._role_combo.setFixedHeight(36)
         self._role_combo.setCurrentText("Operator")
         
         self._status_combo = QComboBox()
         self._status_combo.addItems(["Active", "Inactive"])
+        self._status_combo.setFixedHeight(36)
 
         form.addRow("Username", self._username_input)
         form.addRow("Full Name", self._nama_input)
@@ -1250,9 +1427,8 @@ class UserAddDialog(QDialog):
         form.addRow("Status", self._status_combo)
         layout.addLayout(form)
         
-        info_label = QLabel("Password and PIN will be generated automatically.")
-        info_label.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 12px; font-style: italic;")
-        layout.addWidget(info_label)
+        self._info_label = QLabel("Password and PIN will be generated automatically.")
+        layout.addWidget(self._info_label)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Save).setText("Save")
@@ -1260,6 +1436,23 @@ class UserAddDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        self._buttons = buttons
+
+        self._charging_timer = QTimer(self)
+        self._charging_timer.timeout.connect(self._update_charging_theme)
+        self._charging_timer.start(500)
+        self._update_charging_theme()
+
+    def _update_charging_theme(self) -> None:
+        charging = _read_charging_state_from_context(self.parentWidget(), bool(self._charging))
+        if self._charging == charging and self.styleSheet():
+            return
+        self.set_charging(charging)
+        palette = _charging_theme_palette(charging)
+        self.setStyleSheet(_dashboard_dialog_stylesheet(charging))
+        self._info_label.setStyleSheet(
+            f"color: {palette['panel_muted']}; font-size: 12px; font-style: italic; font-weight: 650; background: transparent;"
+        )
 
     def data(self) -> dict[str, str]:
         selected_status = self._status_combo.currentText().strip().lower()
@@ -1284,6 +1477,7 @@ class DashboardForm(QMainWindow):
         self._section_cards: list[AnimatedSectionCard] = []
         self._action_buttons: list[AnimatedActionButton] = []
         self._dashboard_text_labels: list[QLabel] = []
+        self._dashboard_muted_labels: list[QLabel] = []
         self._dashboard_badges: list[QLabel] = []
         self._page_title_labels: list[QLabel] = []
         self._chart_area: Optional[QFrame] = None
@@ -1295,6 +1489,17 @@ class DashboardForm(QMainWindow):
         self._header_user_info: Optional[QLabel] = None
         self._header_mode_badge: Optional[QLabel] = None
         self._users_table: Optional[QTableWidget] = None
+        self._hris_quality_table: Optional[QTableWidget] = None
+        self._hris_quality_refresh_btn: Optional[QPushButton] = None
+        self._hris_quality_verify_selected_btn: Optional[QPushButton] = None
+        self._hris_quality_ignore_selected_btn: Optional[QPushButton] = None
+        self._hris_quality_fixed_selected_btn: Optional[QPushButton] = None
+        self._hris_quality_export_btn: Optional[QPushButton] = None
+        self._hris_quality_action_buttons: list[QPushButton] = []
+        self._hris_quality_search: Optional[QLineEdit] = None
+        self._hris_quality_status_filter: Optional[QComboBox] = None
+        self._hris_quality_severity_filter: Optional[QComboBox] = None
+        self._hris_quality_summary_label: Optional[QLabel] = None
         self._search_username: Optional[QLineEdit] = None
         self._role_filter: Optional[QComboBox] = None
         self._all_users_rows: list[UserRow] = []
@@ -1371,9 +1576,9 @@ class DashboardForm(QMainWindow):
         self._header_user_info = QLabel(f"User: {username}  |  Level: {role}\nTanggal: {date_text}")
         self._header_user_info.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        self._header_mode_badge = QLabel("Standard Mode")
+        self._header_mode_badge = QLabel(NOT_CHARGING_MODE_LABEL)
         self._header_mode_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._header_mode_badge.setFixedSize(118, 32)
+        self._header_mode_badge.setFixedSize(166, 32)
 
         change_password_btn = AnimatedActionButton("Ganti Password")
         change_password_btn.setFixedSize(140, 40)
@@ -1439,65 +1644,109 @@ class DashboardForm(QMainWindow):
             self._load_users_table()
             return
         if item_key == "data_karyawan":
-            self._content_stack.setCurrentWidget(self._hris_manpower_page)
+            self._refresh_hris_manpower_page()
             return
 
-        self._content_stack.setCurrentWidget(self._dashboard_overview_page)
+        self._refresh_dashboard_overview_page()
+
+    def _refresh_dashboard_overview_page(self) -> None:
+        refreshed_page = self._build_content()
+        self._replace_stack_page(self._dashboard_overview_page, refreshed_page, make_current=True)
+        self._dashboard_overview_page = refreshed_page
+
+        if self._charging is not None:
+            self._apply_dashboard_theme(bool(self._charging))
+
+    def _refresh_hris_manpower_page(self) -> None:
+        refreshed_page = self._build_hris_manpower_page()
+        self._replace_stack_page(self._hris_manpower_page, refreshed_page, make_current=True)
+        self._hris_manpower_page = refreshed_page
+
+        if self._charging is not None:
+            self._apply_dashboard_theme(bool(self._charging))
+
+    def _replace_stack_page(self, previous_page: QWidget, refreshed_page: QWidget, *, make_current: bool) -> None:
+        previous_index = self._content_stack.indexOf(previous_page)
+        if previous_index >= 0:
+            self._content_stack.removeWidget(previous_page)
+            self._content_stack.insertWidget(previous_index, refreshed_page)
+            previous_page.deleteLater()
+        else:
+            self._content_stack.addWidget(refreshed_page)
+
+        if make_current:
+            self._content_stack.setCurrentWidget(refreshed_page)
 
     def _read_hris_summary(self) -> dict[str, str]:
-        summary = {
-            "employees": "0",
-            "groups": "5",
-            "job_families": "12",
-            "permissions": "17",
-        }
-        session = Session()
-        try:
-            rows = session.execute(
-                text(
-                    """
-                    SELECT 'employees' AS key, COUNT(*)::text AS value FROM hr_employees
-                    UNION ALL
-                    SELECT 'groups', COUNT(*)::text FROM hr_employee_groups
-                    UNION ALL
-                    SELECT 'job_families', COUNT(*)::text FROM hr_job_families
-                    UNION ALL
-                    SELECT 'permissions', COUNT(*)::text FROM permissions WHERE permission_name LIKE 'hr.%'
-                    """
-                )
-            ).mappings()
-            for row in rows:
-                summary[str(row["key"])] = str(row["value"])
-        except Exception:
-            pass
-        finally:
-            session.close()
-        return summary
+        return read_hris_summary(Session, _table_exists, _table_columns)
+
+    def _read_hris_quality_issues(self, limit: int = 80) -> list[HrisQualityIssueRow]:
+        status_value = (
+            self._hris_quality_status_filter.currentText().strip().upper()
+            if self._hris_quality_status_filter is not None
+            else "OPEN"
+        )
+        severity_value = (
+            self._hris_quality_severity_filter.currentText().strip().upper()
+            if self._hris_quality_severity_filter is not None
+            else "ALL"
+        )
+        search_value = (
+            self._hris_quality_search.text().strip().lower()
+            if self._hris_quality_search is not None
+            else ""
+        )
+        return read_hris_quality_issues(
+            Session,
+            _table_exists,
+            status_value=status_value,
+            severity_value=severity_value,
+            search_value=search_value,
+            limit=limit,
+        )
+
+    def _read_hris_group_breakdown(self) -> list[tuple[str, str, str, str]]:
+        return read_hris_group_breakdown(Session, _table_exists)
 
     def _build_hris_manpower_page(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(16)
+        page = QScrollArea()
+        page.setWidgetResizable(True)
+        page.setFrameShape(QFrame.Shape.NoFrame)
+        page.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        page.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+            "QScrollArea > QWidget > QWidget { background: transparent; }"
+        )
 
-        title = QLabel("GBR Plantation HRIS & Manpower Control")
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(14)
+
+        title = QLabel("HRIS & Manpower Control")
         self._page_title_labels.append(title)
         layout.addWidget(title)
 
-        subtitle = QLabel("Human Resource Department, manpower category, legal employment, payroll scheme, and work-output control.")
+        subtitle = QLabel(
+            "Kontrol tenaga kerja kebun: master karyawan, assignment aktif, status efektif, kontrak, BPJS, payroll profile, dokumen, dan audit perubahan."
+        )
         subtitle.setWordWrap(True)
-        self._dashboard_text_labels.append(subtitle)
+        self._dashboard_muted_labels.append(subtitle)
         layout.addWidget(subtitle)
 
         summary = self._read_hris_summary()
+        warning_label = self._make_hris_data_warning_label(summary)
+        if warning_label is not None:
+            layout.addWidget(warning_label)
+        group_rows = self._read_hris_group_breakdown()
         metric_grid = QGridLayout()
         metric_grid.setHorizontalSpacing(16)
         metric_grid.setVerticalSpacing(16)
         cards = [
-            AnimatedInfoCard("STF", "Karyawan Terdaftar", summary["employees"], "#50B4FF"),
-            AnimatedInfoCard("GRP", "Kategori Manpower", summary["groups"], "#5BAE44"),
-            AnimatedInfoCard("JOB", "Job Family", summary["job_families"], "#F0C84B"),
-            AnimatedInfoCard("ACL", "HR Permissions", summary["permissions"], "#D94A38"),
+            AnimatedInfoCard("HC", "Karyawan Aktif", f"{summary['active_employees']} / {summary['employees']}", "#50B4FF"),
+            AnimatedInfoCard("DATA", "Kelengkapan Data", summary["data_completeness"], "#5BAE44"),
+            AnimatedInfoCard("QA", "Data Quality", summary["data_quality_score"], "#F0C84B"),
+            AnimatedInfoCard("GAP", "Assignment Gap", summary["assignment_missing"], "#D94A38"),
         ]
         self._info_cards.extend(cards)
         for index, card in enumerate(cards):
@@ -1508,66 +1757,584 @@ class DashboardForm(QMainWindow):
         main_grid.setHorizontalSpacing(16)
         main_grid.setVerticalSpacing(16)
 
-        category_card = AnimatedSectionCard("Manpower Category")
+        category_card = AnimatedSectionCard("Manpower Category Map")
         self._section_cards.append(category_card)
-        for code, label in [
-            ("STF", "Staff: pimpinan, asisten, KTU, HRGA, controller"),
-            ("BLN", "Karyawan bulanan non staff: mandor, krani, operator, driver"),
-            ("PHT/SKU", "Karyawan tetap non staff: SKU, PHT, tenaga tetap lapangan"),
-            ("PHL/KHL", "Karyawan harian lepas: tenaga HK, KHL, alias historis BHL"),
-            ("BRG", "Borongan: tenaga output atau grup kerja"),
-        ]:
-            category_card.body_layout.addWidget(self._make_hris_row(code, label))
+        for code, name, detail, value in group_rows[:6]:
+            category_card.body_layout.addWidget(
+                self._make_hris_row(code, name, detail, value)
+            )
         category_card.body_layout.addStretch(1)
 
-        dimension_card = AnimatedSectionCard("Control Dimensions")
-        self._section_cards.append(dimension_card)
-        for code, label in [
-            ("GROUP", "Kategori manpower dipisah dari status legal."),
-            ("LEGAL", "PKWTT, PKWT, probation, KHL, dan borongan disimpan historis."),
-            ("PAY", "Bulanan, HK, kg panen, dan output tidak dicampur dengan kategori."),
-            ("JOB", "Panen, rawat, traksi, kantor, gudang, dan bibitan menjadi job family."),
+        coverage_card = AnimatedSectionCard("Operational Coverage")
+        self._section_cards.append(coverage_card)
+        for code, title_text, detail, value in [
+            (
+                "ID",
+                "Identitas & Alamat",
+                f"{summary['identity_missing']} aktif belum punya identitas; {summary['address_missing']} belum punya alamat.",
+                summary["data_completeness"],
+            ),
+            (
+                "ASG",
+                "Assignment Aktif",
+                "Estate, divisi, posisi, dan kategori current disimpan sebagai histori kerja.",
+                summary["active_assignments"],
+            ),
+            (
+                "PAY",
+                "Payroll Readiness",
+                f"{summary['payroll_missing']} karyawan aktif belum punya payroll profile.",
+                summary["payroll_profiles"],
+            ),
+            (
+                "BPJS",
+                "BPJS Coverage",
+                f"Health {summary['bpjs_health_active']}; TK {summary['bpjs_tk_active']}; missing {summary['bpjs_missing']}.",
+                summary["bpjs_health_active"],
+            ),
+            (
+                "DOC",
+                "Dokumen Karyawan",
+                f"{summary['document_count']} dokumen tersimpan; {summary['document_missing']} aktif belum punya dokumen.",
+                summary["document_count"],
+            ),
         ]:
-            dimension_card.body_layout.addWidget(self._make_hris_row(code, label))
-        dimension_card.body_layout.addStretch(1)
+            coverage_card.body_layout.addWidget(self._make_hris_row(code, title_text, detail, value))
+        coverage_card.body_layout.addStretch(1)
 
-        access_card = AnimatedSectionCard("Access Governance")
-        self._section_cards.append(access_card)
-        for code, label in [
-            ("Superior", "Akses penuh HRD dan manpower control."),
-            ("Administrator", "Kelola operasional HRD tanpa delete dan payroll manage penuh."),
-            ("Auditor", "Akses view-only untuk kontrol dan pemeriksaan."),
-            ("Operator", "Belum diberi HR permission sampai scope kerja ditentukan."),
+        control_card = AnimatedSectionCard("Legal, Payroll & Output Control")
+        self._section_cards.append(control_card)
+        for code, title_text, detail, value in [
+            ("GROUP", "Kategori Manpower", "STF, BLN, SKU/PHT, PHL/KHL, dan BRG dipisah dari status legal.", summary["groups"]),
+            ("LEGAL", "Status Legal", "PKWTT, PKWT, probation, KHL, dan borongan disimpan historis.", summary["employment_types"]),
+            ("PAY", "Skema Upah", "Bulanan, HK, kg panen, dan output tidak dicampur dengan kategori.", summary["pay_schemes"]),
+            ("JOB", "Job Family", "Panen, rawat, traksi, kantor, gudang, dan bibitan menjadi dimensi kerja.", summary["job_families"]),
+            ("MOVE", "Movement 30 Hari", "Mutasi, promosi, demosi, cuti, keluar, dan perubahan data tercatat.", summary["movements_30d"]),
         ]:
-            access_card.body_layout.addWidget(self._make_hris_row(code, label))
+            control_card.body_layout.addWidget(self._make_hris_row(code, title_text, detail, value))
+        control_card.body_layout.addStretch(1)
+
+        access_card = AnimatedSectionCard("Governance & Data Readiness")
+        self._section_cards.append(access_card)
+        for code, title_text, detail, value in [
+            ("ORG", "Struktur Organisasi", f"{summary['companies']} company; {summary['estates']} estate; {summary['divisions']} divisi.", summary["positions"]),
+            ("ACL", "Employee Permission", "Hak akses employee:view, create, update, status, delete, export.", summary["permissions"]),
+            ("ATT", "Kode Absensi", "Kode H, S, I, A, CT dan nilai HK menjadi referensi absensi.", summary["attendance_codes"]),
+            ("SNAP", "Schema Status", summary["latest_snapshot"], "Ready"),
+            ("QA", "Data Quality Watch", f"{summary['future_assignment_starts']} tanggal aktif masa depan; {summary['source_date_reviews']} tanggal sumber dinormalisasi; {summary['age_review']} usia perlu verifikasi.", summary["quality_watch"]),
+            ("DUP", "Duplicate Control", f"Employee no {summary['duplicate_employee_no']}; identitas {summary['duplicate_identity']}; assignment {summary['duplicate_current_assignments']}.", summary["contract_conflicts"]),
+            ("WARN", "Contract Watch", "Kontrak jatuh tempo 30 hari ke depan.", summary["contracts_expiring_30"]),
+        ]:
+            access_card.body_layout.addWidget(self._make_hris_row(code, title_text, detail, value))
         access_card.body_layout.addStretch(1)
 
         main_grid.addWidget(category_card, 0, 0)
-        main_grid.addWidget(dimension_card, 0, 1)
-        main_grid.addWidget(access_card, 1, 0, 1, 2)
+        main_grid.addWidget(coverage_card, 0, 1)
+        main_grid.addWidget(control_card, 1, 0)
+        main_grid.addWidget(access_card, 1, 1)
         main_grid.setColumnStretch(0, 1)
         main_grid.setColumnStretch(1, 1)
         layout.addLayout(main_grid, 1)
+
+        quality_card = AnimatedSectionCard("Data Quality Drill-down")
+        self._section_cards.append(quality_card)
+        quality_header = QHBoxLayout()
+        quality_header.setContentsMargins(0, 0, 0, 0)
+        quality_header.setSpacing(10)
+        self._hris_quality_summary_label = QLabel(
+            f"Open {summary['quality_open_total']} | Blocking {summary['quality_open_blocking']} | Review {summary['quality_open_review']} | Info {summary['quality_open_info']} | Overdue {summary['quality_overdue']} | Import {summary['latest_import_batch']}"
+        )
+        self._hris_quality_summary_label.setWordWrap(True)
+        self._dashboard_muted_labels.append(self._hris_quality_summary_label)
+        self._hris_quality_refresh_btn = QPushButton("Refresh")
+        self._hris_quality_refresh_btn.setFixedSize(92, 32)
+        self._hris_quality_refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._hris_quality_refresh_btn.clicked.connect(lambda _checked=False: self._refresh_hris_quality_table())
+        quality_header.addWidget(self._hris_quality_summary_label, 1)
+        quality_header.addWidget(self._hris_quality_refresh_btn)
+        quality_card.body_layout.addLayout(quality_header)
+
+        filter_row = QHBoxLayout()
+        filter_row.setContentsMargins(0, 0, 0, 0)
+        filter_row.setSpacing(10)
+        self._hris_quality_search = QLineEdit()
+        self._hris_quality_search.setPlaceholderText("Search employee, issue, division")
+        self._hris_quality_search.setFixedHeight(34)
+        self._hris_quality_search.textChanged.connect(lambda _value: self._refresh_hris_quality_table())
+        self._hris_quality_status_filter = QComboBox()
+        self._hris_quality_status_filter.addItems(["OPEN", "VERIFIED", "IGNORED", "FIXED", "ALL"])
+        self._hris_quality_status_filter.setFixedHeight(34)
+        self._hris_quality_status_filter.currentTextChanged.connect(lambda _value: self._refresh_hris_quality_table())
+        self._hris_quality_severity_filter = QComboBox()
+        self._hris_quality_severity_filter.addItems(["ALL", "BLOCKING", "REVIEW", "INFO"])
+        self._hris_quality_severity_filter.setFixedHeight(34)
+        self._hris_quality_severity_filter.currentTextChanged.connect(lambda _value: self._refresh_hris_quality_table())
+        filter_row.addWidget(self._hris_quality_search, 1)
+        filter_row.addWidget(self._hris_quality_status_filter)
+        filter_row.addWidget(self._hris_quality_severity_filter)
+        quality_card.body_layout.addLayout(filter_row)
+
+        workflow_row = QHBoxLayout()
+        workflow_row.setContentsMargins(0, 0, 0, 0)
+        workflow_row.setSpacing(10)
+        self._hris_quality_verify_selected_btn = QPushButton("Verify Selected")
+        self._hris_quality_ignore_selected_btn = QPushButton("Ignore Selected")
+        self._hris_quality_fixed_selected_btn = QPushButton("Fixed Selected")
+        self._hris_quality_export_btn = QPushButton("Export Filter")
+        for button in (
+            self._hris_quality_verify_selected_btn,
+            self._hris_quality_ignore_selected_btn,
+            self._hris_quality_fixed_selected_btn,
+            self._hris_quality_export_btn,
+        ):
+            button.setFixedHeight(32)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._hris_quality_action_buttons.append(button)
+            workflow_row.addWidget(button)
+        self._hris_quality_verify_selected_btn.clicked.connect(
+            lambda _checked=False: self._bulk_set_hris_quality_status("VERIFIED")
+        )
+        self._hris_quality_ignore_selected_btn.clicked.connect(
+            lambda _checked=False: self._bulk_set_hris_quality_status("IGNORED")
+        )
+        self._hris_quality_fixed_selected_btn.clicked.connect(
+            lambda _checked=False: self._bulk_set_hris_quality_status("FIXED")
+        )
+        self._hris_quality_export_btn.clicked.connect(lambda _checked=False: self._export_filtered_hris_quality_issues())
+        can_manage_quality = self._can_current_user_manage_hris_quality()
+        for button in (
+            self._hris_quality_verify_selected_btn,
+            self._hris_quality_ignore_selected_btn,
+            self._hris_quality_fixed_selected_btn,
+        ):
+            button.setEnabled(can_manage_quality)
+            if not can_manage_quality:
+                button.setToolTip("Only Active Superior or Administrator users can update Data Quality workflow.")
+        can_export_quality = self._can_current_user_export_hris_quality()
+        self._hris_quality_export_btn.setEnabled(can_export_quality)
+        if not can_export_quality:
+            self._hris_quality_export_btn.setToolTip("Data Quality export permission is required.")
+        workflow_row.addStretch(1)
+        quality_card.body_layout.addLayout(workflow_row)
+
+        self._hris_quality_table = self._build_hris_quality_table()
+        quality_card.body_layout.addWidget(self._hris_quality_table)
+        layout.addWidget(quality_card)
+
+        page.setWidget(content)
         return page
 
-    def _make_hris_row(self, code: str, text_value: str) -> QWidget:
+    def _build_hris_quality_table(self) -> QTableWidget:
+        table = QTableWidget()
+        table.setColumnCount(10)
+        table.setHorizontalHeaderLabels(
+            [
+                "Severity",
+                "Status",
+                "Issue",
+                "Employee",
+                "Division",
+                "Age",
+                "SLA",
+                "Observed",
+                "Recommendation",
+                "Workflow",
+            ]
+        )
+        table.setAlternatingRowColors(True)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        table.setMinimumHeight(300)
+        table.verticalHeader().setVisible(False)
+        header = table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)
+        table.itemDoubleClicked.connect(self._open_hris_employee_detail_from_issue_item)
+        self._refresh_hris_quality_table(table)
+        return table
+
+    def _refresh_hris_quality_table(self, table: Optional[QTableWidget] = None) -> None:
+        target_table = table or self._hris_quality_table
+        if target_table is None:
+            return
+        self._refresh_hris_quality_summary_label()
+        rows = self._read_hris_quality_issues()
+        target_table.clearSpans()
+        target_table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            values = [
+                row["severity"],
+                row["status"],
+                row["issue"],
+                row["employee"],
+                row["division"],
+                row["age_days"],
+                row["sla"],
+                row["observed"],
+                row["recommendation"],
+            ]
+            for column_index, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                item.setToolTip(value)
+                item.setData(Qt.ItemDataRole.UserRole, row["issue_id"])
+                item.setData(Qt.ItemDataRole.UserRole + 1, row["employee_id"])
+                if column_index in {0, 1, 2, 4, 5, 6}:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                target_table.setItem(row_index, column_index, item)
+            target_table.setCellWidget(
+                row_index,
+                9,
+                self._build_hris_quality_action_widget(row["issue_id"], row["status"], row["employee_id"]),
+            )
+            target_table.setRowHeight(row_index, 46)
+        if not rows:
+            target_table.setRowCount(1)
+            item = QTableWidgetItem("Tidak ada open issue.")
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            target_table.setSpan(0, 0, 1, 10)
+            target_table.setItem(0, 0, item)
+
+    def _refresh_hris_quality_summary_label(self) -> None:
+        if self._hris_quality_summary_label is None:
+            return
+        summary = self._read_hris_summary()
+        self._hris_quality_summary_label.setText(
+            f"Open {summary['quality_open_total']} | Blocking {summary['quality_open_blocking']} | "
+            f"Review {summary['quality_open_review']} | Info {summary['quality_open_info']} | "
+            f"Overdue {summary['quality_overdue']} | Import {summary['latest_import_batch']}"
+        )
+
+    def _build_hris_quality_action_widget(self, issue_id: int, current_status: str, employee_id: int) -> QWidget:
+        wrapper = QWidget()
+        wrapper.setAutoFillBackground(False)
+        wrapper.setStyleSheet("background: transparent;")
+        layout = QHBoxLayout(wrapper)
+        layout.setContentsMargins(6, 5, 6, 5)
+        layout.setSpacing(6)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        actions = [
+            ("Detail", "DETAIL", "secondary"),
+            ("Verify", "VERIFIED", "primary"),
+            ("Ignore", "IGNORED", "secondary"),
+            ("Fixed", "FIXED", "primary"),
+        ]
+        can_manage_quality = self._can_current_user_manage_hris_quality()
+        for label, status, role in actions:
+            button = QPushButton(label)
+            button.setFixedSize(62, 26)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._apply_table_action_button_style(button, role)
+            if status == "DETAIL":
+                button.setEnabled(employee_id > 0)
+                button.clicked.connect(
+                    lambda _checked=False, target_issue_id=issue_id: self._open_hris_employee_detail_from_issue(
+                        target_issue_id
+                    )
+                )
+            else:
+                button.setEnabled(can_manage_quality and current_status != status)
+                if not can_manage_quality:
+                    button.setToolTip("Only Active Superior or Administrator users can update Data Quality workflow.")
+                button.clicked.connect(
+                    lambda _checked=False, target_issue_id=issue_id, target_status=status: self._set_hris_quality_issue_status(
+                        target_issue_id,
+                        target_status,
+                    )
+                )
+            layout.addWidget(button)
+        return wrapper
+
+    def _open_hris_employee_detail_from_issue_item(self, item: QTableWidgetItem) -> None:
+        issue_id = item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(issue_id, int):
+            self._open_hris_employee_detail_from_issue(issue_id)
+
+    def _open_hris_employee_detail_from_issue(self, issue_id: int) -> None:
+        employee_id = read_hris_employee_id_for_issue(Session, issue_id=issue_id)
+        if employee_id <= 0:
+            QMessageBox.information(self, "Employee Detail", "Issue ini tidak terhubung ke karyawan tertentu.")
+            return
+        detail = self._read_hris_employee_detail(employee_id, issue_id)
+        if detail is None:
+            QMessageBox.information(self, "Employee Detail", "Detail karyawan tidak ditemukan.")
+            return
+        self._show_hris_employee_detail_dialog(detail)
+
+    def _read_hris_employee_detail(self, employee_id: int, issue_id: int | None = None) -> dict[str, str] | None:
+        return read_hris_employee_detail(
+            Session,
+            _table_exists,
+            employee_id=employee_id,
+            issue_id=issue_id,
+        )
+
+    def _show_hris_employee_detail_dialog(self, detail: dict[str, str]) -> None:
+        dialog = DashboardGlassDialog(self, radius=18.0)
+        dialog.set_charging(bool(self._charging))
+        dialog.setWindowTitle("Employee Detail")
+        dialog.setModal(True)
+        dialog.resize(760, 620)
+        dialog.setStyleSheet(_dashboard_dialog_stylesheet(bool(self._charging)))
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(14)
+
+        title = QLabel(f"{detail['employee_no']} - {detail['full_name']}")
+        title.setWordWrap(True)
+        title.setStyleSheet("font-size: 20px; font-weight: 900; background: transparent;")
+        layout.addWidget(title)
+
+        subtitle = QLabel(
+            f"{detail['division_name']} | {detail['position_name']} | {detail['status_code']}"
+        )
+        subtitle.setWordWrap(True)
+        layout.addWidget(subtitle)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(12)
+
+        for section_title, rows in [
+            (
+                "Profile",
+                [
+                    ("Gender", detail["gender"]),
+                    ("Tempat/Tanggal Lahir", f"{detail['birth_place']} / {detail['birth_date']}"),
+                    ("Agama", detail["religion"]),
+                    ("Pendidikan", detail["education"]),
+                    ("Status Keluarga", detail["marital_status"]),
+                    ("Status Aktif", detail["active_flag"]),
+                ],
+            ),
+            (
+                "Assignment & Legal",
+                [
+                    ("Estate", detail["estate_name"]),
+                    ("Divisi", detail["division_name"]),
+                    ("Posisi", detail["position_name"]),
+                    ("Kategori", detail["category_name"]),
+                    ("Mulai Assignment", detail["assignment_start"]),
+                    ("Status Efektif", f"{detail['status_name']} / {detail['status_effective']}"),
+                    ("Tipe Kontrak", detail["employment_type"]),
+                    ("Kontrak", f"{detail['contract_no']} / {detail['contract_start']} - {detail['contract_end']}"),
+                ],
+            ),
+            (
+                "Completeness",
+                [
+                    ("Identitas", detail["identity_count"]),
+                    ("Alamat", detail["address_count"]),
+                    ("BPJS Aktif", detail["bpjs_count"]),
+                    ("Dokumen", detail["document_count"]),
+                    ("Open Issues", detail["open_issues"]),
+                    ("Blocking / Review / Info", f"{detail['blocking_issues']} / {detail['review_issues']} / {detail['info_issues']}"),
+                ],
+            ),
+            (
+                "Selected Issue",
+                [
+                    ("Issue", detail["issue_code"]),
+                    ("Severity / Status", f"{detail['issue_severity']} / {detail['issue_status']}"),
+                    ("Observed", detail["issue_observed"]),
+                    ("Recommendation", detail["issue_recommendation"]),
+                ],
+            ),
+        ]:
+            section = AnimatedSectionCard(section_title)
+            section.set_charging(bool(self._charging))
+            for label_text, value_text in rows:
+                section.body_layout.addWidget(self._make_hris_detail_row(label_text, value_text))
+            body_layout.addWidget(section)
+
+        scroll.setWidget(body)
+        layout.addWidget(scroll, 1)
+
+        close_button = QPushButton("Close")
+        close_button.setFixedHeight(36)
+        close_button.clicked.connect(dialog.accept)
+        layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignRight)
+        dialog.exec()
+
+    def _make_hris_detail_row(self, label_text: str, value_text: str) -> QWidget:
+        palette = _charging_theme_palette(bool(self._charging))
         row = QWidget()
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
-        row_layout.setSpacing(10)
+        row_layout.setSpacing(12)
+
+        label = QLabel(label_text)
+        label.setFixedWidth(160)
+        label.setWordWrap(True)
+        label.setStyleSheet(
+            f"color: {palette['panel_muted']}; font-size: 12px; font-weight: 800; background: transparent;"
+        )
+        value = QLabel(value_text)
+        value.setWordWrap(True)
+        value.setStyleSheet(
+            f"color: {palette['panel_text']}; font-size: 13px; font-weight: 700; background: transparent;"
+        )
+        row_layout.addWidget(label)
+        row_layout.addWidget(value, 1)
+        return row
+
+    def _make_hris_data_warning_label(self, summary: dict[str, str]) -> Optional[QLabel]:
+        if summary.get("data_warning") != "1":
+            return None
+        warning = QLabel("Data sync warning: sebagian metrik memakai fallback karena query HRIS gagal.")
+        warning.setWordWrap(True)
+        warning.setProperty("badgeColor", "#F6EEBD")
+        self._dashboard_badges.append(warning)
+        return warning
+
+    def _set_hris_quality_issue_status(self, issue_id: int, status: str) -> None:
+        self._set_hris_quality_issue_statuses([issue_id], status)
+
+    def _selected_hris_quality_issue_ids(self) -> list[int]:
+        if self._hris_quality_table is None:
+            return []
+        issue_ids: set[int] = set()
+        for item in self._hris_quality_table.selectedItems():
+            value = item.data(Qt.ItemDataRole.UserRole)
+            if isinstance(value, int):
+                issue_ids.add(value)
+        return sorted(issue_ids)
+
+    def _bulk_set_hris_quality_status(self, status: str) -> None:
+        if not self._can_current_user_manage_hris_quality():
+            self._show_hris_quality_access_denied_dialog()
+            return
+        issue_ids = self._selected_hris_quality_issue_ids()
+        if not issue_ids:
+            QMessageBox.information(self, "Data Quality", "Pilih satu atau beberapa issue terlebih dahulu.")
+            return
+        self._set_hris_quality_issue_statuses(issue_ids, status)
+
+    def _set_hris_quality_issue_statuses(self, issue_ids: list[int], status: str) -> None:
+        if not self._can_current_user_manage_hris_quality():
+            self._show_hris_quality_access_denied_dialog()
+            return
+        if not issue_ids:
+            return
+
+        updated, error_message = update_hris_quality_issue_statuses(
+            Session,
+            _table_exists,
+            _table_columns,
+            user_id=self.current_user_id() or None,
+            issue_ids=issue_ids,
+            status=status,
+        )
+        if not updated:
+            QMessageBox.warning(self, "Data Quality", f"Gagal update issue: {error_message}")
+            return
+        self._refresh_hris_quality_table()
+        self._refresh_dashboard_overview_page_in_background()
+
+    def _refresh_dashboard_overview_page_in_background(self) -> None:
+        if self._content_stack.currentWidget() is self._dashboard_overview_page:
+            self._refresh_dashboard_overview_page()
+            return
+
+        refreshed_page = self._build_content()
+        self._replace_stack_page(self._dashboard_overview_page, refreshed_page, make_current=False)
+        self._dashboard_overview_page = refreshed_page
+        if self._charging is not None:
+            self._apply_dashboard_theme(bool(self._charging))
+
+    def _export_filtered_hris_quality_issues(self) -> None:
+        if not self._can_current_user_export_hris_quality():
+            self._show_hris_quality_export_access_denied_dialog()
+            return
+
+        rows = self._read_hris_quality_issues(limit=100_000)
+        if not rows:
+            QMessageBox.information(self, "Data Quality", "Tidak ada issue pada filter saat ini.")
+            return
+
+        output_path = export_hris_quality_issues(
+            rows,
+            reports_dir=DEFAULT_REPORTS_DIR,
+            session_factory=Session,
+            table_exists=_table_exists,
+            table_columns=_table_columns,
+            user_id=self.current_user_id() or None,
+            status_filter=(
+                self._hris_quality_status_filter.currentText().strip()
+                if self._hris_quality_status_filter is not None
+                else "OPEN"
+            ),
+            severity_filter=(
+                self._hris_quality_severity_filter.currentText().strip()
+                if self._hris_quality_severity_filter is not None
+                else "ALL"
+            ),
+            search_text=(
+                self._hris_quality_search.text().strip()
+                if self._hris_quality_search is not None
+                else ""
+            ),
+        )
+
+        QMessageBox.information(
+            self,
+            "Data Quality",
+            f"Export selesai: {output_path}",
+        )
+
+    def _make_hris_row(self, code: str, title_text: str, detail_text: str = "", value_text: str = "") -> QWidget:
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(12)
 
         code_label = QLabel(code)
-        code_label.setFixedWidth(86)
+        code_label.setFixedWidth(88)
         code_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         code_label.setProperty("badgeColor", "#D7E8F8")
         self._dashboard_badges.append(code_label)
 
-        description = QLabel(text_value)
-        description.setWordWrap(True)
-        self._dashboard_text_labels.append(description)
+        text_stack = QVBoxLayout()
+        text_stack.setContentsMargins(0, 0, 0, 0)
+        text_stack.setSpacing(2)
+
+        title_label = QLabel(title_text)
+        title_label.setWordWrap(True)
+        self._dashboard_text_labels.append(title_label)
+        text_stack.addWidget(title_label)
+
+        if detail_text:
+            detail_label = QLabel(detail_text)
+            detail_label.setWordWrap(True)
+            self._dashboard_muted_labels.append(detail_label)
+            text_stack.addWidget(detail_label)
 
         row_layout.addWidget(code_label)
-        row_layout.addWidget(description, 1)
+        row_layout.addLayout(text_stack, 1)
+        if value_text:
+            value_label = QLabel(value_text)
+            value_label.setMinimumWidth(74)
+            value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            value_label.setProperty("badgeColor", "#D7E8F8")
+            self._dashboard_badges.append(value_label)
+            row_layout.addWidget(value_label)
         return row
 
     def _build_management_users_page(self) -> QWidget:
@@ -1637,11 +2404,13 @@ class DashboardForm(QMainWindow):
         self._users_table.setWordWrap(False)
         self._users_table.setTextElideMode(Qt.TextElideMode.ElideRight)
         self._users_table.setStyleSheet(
-            "QTableWidget { background: white; alternate-background-color: #F5F9FF; border: 1px solid #D5E2F0; border-radius: 12px; font-size: 14px; outline: none; }"
-            "QHeaderView::section { background: #EDF3FB; color: #6B87A8; font-size: 11px; font-weight: 700; border: none; border-bottom: 2px solid #DAE6F3; padding: 10px 14px; }"
-            "QTableWidget::item { padding: 10px 12px; color: #2D405C; border: none; }"
-            "QTableWidget::item:hover { background: #EDF5FF; }"
-            "QTableWidget::item:selected { background: #DDEEFF; color: #163A69; }"
+            "QTableWidget { background: rgba(23, 31, 42, 0.78); alternate-background-color: rgba(38, 47, 59, 0.72); "
+            "color: #F4F8FF; border: 1px solid rgba(255, 255, 255, 0.26); border-radius: 12px; font-size: 14px; outline: none; }"
+            "QHeaderView::section { background: rgba(43, 52, 65, 0.86); color: rgba(230, 237, 246, 0.72); "
+            "font-size: 11px; font-weight: 800; border: none; border-bottom: 1px solid rgba(255,255,255,0.18); padding: 10px 14px; }"
+            "QTableWidget::item { padding: 10px 12px; border: none; }"
+            "QTableWidget::item:hover { background: rgba(255, 255, 255, 0.09); }"
+            "QTableWidget::item:selected { background: rgba(255, 255, 255, 0.16); color: #F4F8FF; }"
         )
 
         header = self._users_table.horizontalHeader()
@@ -1761,15 +2530,15 @@ class DashboardForm(QMainWindow):
                 dot_color = "#48E08A"
                 text_color = "#DFFFEA"
             elif selected:
-                pill_bg = "#DDEFE5"
-                pill_border = "#B7CCBE"
-                dot_color = "#1F8F55"
-                text_color = "#1F6B45"
+                pill_bg = "rgba(72, 187, 120, 0.22)"
+                pill_border = "rgba(255, 255, 255, 0.28)"
+                dot_color = "#68D391"
+                text_color = "#E9FDF0"
             else:
-                pill_bg = "#E8F4EE"
-                pill_border = "#C9D8CE"
-                dot_color = "#22A15F"
-                text_color = "#1F6B45"
+                pill_bg = "rgba(72, 187, 120, 0.16)"
+                pill_border = "rgba(255, 255, 255, 0.20)"
+                dot_color = "#68D391"
+                text_color = "#E9FDF0"
         else:
             if charging:
                 pill_bg = "rgba(255, 106, 106, 0.18)" if not selected else "rgba(255, 106, 106, 0.26)"
@@ -1777,15 +2546,15 @@ class DashboardForm(QMainWindow):
                 dot_color = "#FF7B7B"
                 text_color = "#FFE3E3"
             elif selected:
-                pill_bg = "#F3E2E2"
-                pill_border = "#CFB8B8"
-                dot_color = "#C74747"
-                text_color = "#8D2F2F"
+                pill_bg = "rgba(255, 106, 106, 0.22)"
+                pill_border = "rgba(255, 255, 255, 0.26)"
+                dot_color = "#FF8A8A"
+                text_color = "#FFE3E3"
             else:
-                pill_bg = "#F8ECEC"
-                pill_border = "#DCCACA"
-                dot_color = "#D65353"
-                text_color = "#8D2F2F"
+                pill_bg = "rgba(255, 106, 106, 0.15)"
+                pill_border = "rgba(255, 255, 255, 0.18)"
+                dot_color = "#FF8A8A"
+                text_color = "#FFE3E3"
 
         pill.setStyleSheet(f"background: {pill_bg}; border: 1px solid {pill_border}; border-radius: 12px;")
         dot.setStyleSheet(f"QLabel {{ background: {dot_color}; border-radius: 4px; border: none; }}")
@@ -1807,10 +2576,12 @@ class DashboardForm(QMainWindow):
                 )
                 return
             button.setStyleSheet(
-                "QPushButton { background: #2563EB; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; }"
-                "QPushButton:hover { background: #1D55D8; }"
-                "QPushButton:pressed { background: #1749C0; }"
-                "QPushButton:disabled { background: #BFCDE2; color: #6A7F9E; }"
+                "QPushButton { background: rgba(255, 255, 255, 0.14); color: #F4F8FF; "
+                "border: 1px solid rgba(255, 255, 255, 0.28); border-radius: 6px; "
+                "font-size: 12px; font-weight: 700; }"
+                "QPushButton:hover { background: rgba(255, 255, 255, 0.20); }"
+                "QPushButton:pressed { background: rgba(255, 255, 255, 0.11); }"
+                "QPushButton:disabled { background: rgba(255, 255, 255, 0.08); color: rgba(244, 248, 255, 0.44); }"
             )
             return
 
@@ -1824,9 +2595,11 @@ class DashboardForm(QMainWindow):
             )
             return
         button.setStyleSheet(
-            "QPushButton { background: #FFFFFF; color: #3F5875; border: 1px solid #CDDAEA; border-radius: 6px; font-size: 13px; font-weight: 800; padding: 0; }"
-            "QPushButton:hover { background: #EEF3FA; color: #22364D; border-color: #B8CAE0; }"
-            "QPushButton:pressed { background: #E2EBF5; }"
+            "QPushButton { background: rgba(255, 255, 255, 0.08); color: #F4F8FF; "
+            "border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 6px; "
+            "font-size: 13px; font-weight: 800; padding: 0; }"
+            "QPushButton:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.34); }"
+            "QPushButton:pressed { background: rgba(255, 255, 255, 0.10); }"
         )
 
     def _sync_user_table_widget_states(self) -> None:
@@ -1916,10 +2689,10 @@ class DashboardForm(QMainWindow):
             )
         else:
             menu.setStyleSheet(
-                "QMenu { background: white; border: 1px solid #D0DAE7; border-radius: 8px; padding: 4px; font-size: 13px; }"
-                "QMenu::item { padding: 7px 20px; border-radius: 5px; color: #2D405C; }"
-                "QMenu::item:selected { background: #E7F1FF; color: #1F3F66; }"
-                "QMenu::separator { height: 1px; background: #E7EDF4; margin: 3px 8px; }"
+                "QMenu { background: #1F2732; border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 8px; padding: 4px; font-size: 13px; }"
+                "QMenu::item { padding: 7px 20px; border-radius: 5px; color: #F4F8FF; }"
+                "QMenu::item:selected { background: rgba(255, 255, 255, 0.14); color: #FFFFFF; }"
+                "QMenu::separator { height: 1px; background: rgba(255, 255, 255, 0.14); margin: 3px 8px; }"
             )
         edit_action = menu.addAction("Edit User")
         can_manage_actions = self._can_current_user_manage_user_actions()
@@ -1989,6 +2762,78 @@ class DashboardForm(QMainWindow):
 
         session = Session()
         try:
+            if _is_hris_auth_schema(session):
+                rows = session.execute(
+                    text(
+                        """
+                        SELECT
+                            u.user_id,
+                            u.username,
+                            COALESCE(NULLIF(u.full_name, ''), u.username) AS full_name,
+                            COALESCE(NULLIF(u.email, ''), '-') AS email,
+                            COALESCE(NULLIF(u.phone, ''), '-') AS phone,
+                            COALESCE(NULLIF(u.status, ''), CASE WHEN u.is_active THEN 'active' ELSE 'inactive' END) AS status,
+                            u.password_hash IS NOT NULL AS has_password,
+                            u.pin_hash IS NOT NULL AS has_pin,
+                            u.created_at,
+                            u.updated_at,
+                            u.is_active,
+                            u.is_locked,
+                            array_agg(r.role_name ORDER BY r.role_name)
+                                FILTER (WHERE r.role_name IS NOT NULL) AS role_names
+                        FROM users u
+                        LEFT JOIN user_roles ur ON ur.user_id = u.user_id
+                        LEFT JOIN roles r ON r.role_id = ur.role_id
+                        GROUP BY
+                            u.user_id, u.username, u.full_name, u.email, u.phone, u.status,
+                            u.password_hash, u.pin_hash,
+                            u.created_at, u.updated_at, u.is_active, u.is_locked
+                        ORDER BY u.user_id ASC
+                        """
+                    )
+                ).mappings().all()
+
+                self._all_users_rows = []
+                role_values: set[str] = set()
+                for row in rows:
+                    role_names = _role_names_from_value(row.get("role_names"))
+                    normalized_role = _map_hris_role_to_dashboard_role(role_names)
+                    is_active = bool(row.get("is_active")) and not bool(row.get("is_locked"))
+                    status = str(row.get("status") or "").strip().lower()
+                    row_status = "Active" if is_active and status in {"aktif", "active"} else "Inactive"
+                    row_data: UserRow = {
+                        "id": int(row.get("user_id") or 0),
+                        "username": str(row.get("username") or ""),
+                        "full_name": str(row.get("full_name") or row.get("username") or ""),
+                        "email": str(row.get("email") or "-"),
+                        "phone": str(row.get("phone") or "-"),
+                        "role": normalized_role,
+                        "status": row_status,
+                        "password_value": _credential_status_label(row.get("has_password")),
+                        "pin_value": _credential_status_label(row.get("has_pin")),
+                        "created_at": _fmt_dt(row.get("created_at")),
+                        "updated_at": _fmt_dt(row.get("updated_at")),
+                    }
+                    self._all_users_rows.append(row_data)
+                    role_values.add(normalized_role)
+
+                self._role_filter.blockSignals(True)
+                self._role_filter.clear()
+                self._role_filter.addItem("All")
+                for value in sorted(role_values):
+                    self._role_filter.addItem(value)
+                self._role_filter.setCurrentText("All")
+                self._role_filter.blockSignals(False)
+
+                if self._search_username is not None:
+                    self._search_username.blockSignals(True)
+                    self._search_username.clear()
+                    self._search_username.blockSignals(False)
+
+                self._apply_user_filters()
+                self._auto_fit_all_user_columns()
+                return
+
             # CRITICAL: Pre-load role_links before closing session to prevent DetachedInstanceError
             # when accessing user.role property later
             from sqlalchemy.orm import selectinload
@@ -2027,8 +2872,6 @@ class DashboardForm(QMainWindow):
             updated_at = _fmt_dt(getattr(user, "updated_at", None))
             password_record = getattr(user, "password_record", None)
             pin_record = getattr(user, "pin_record", None)
-            password_plaintext = str(getattr(user, "password_plaintext", None) or "").strip()
-            pin_plaintext = str(getattr(user, "pin_plaintext", None) or "").strip()
             row: UserRow = {
                 "id": user_id,
                 "username": username,
@@ -2037,8 +2880,10 @@ class DashboardForm(QMainWindow):
                 "phone": phone or "-",
                 "role": normalized_role,
                 "status": "Active" if status in {"aktif", "active"} else "Inactive",
-                "password_value": password_plaintext if password_plaintext else ("✓ CONFIGURED" if getattr(password_record, "password_hash", None) else "-"),
-                "pin_value": pin_plaintext if pin_plaintext else ("✓ CONFIGURED" if getattr(pin_record, "pin_hash", None) else "-"),
+                "password_value": _credential_status_label(
+                    getattr(password_record, "password_hash", None)
+                ),
+                "pin_value": _credential_status_label(getattr(pin_record, "pin_hash", None)),
                 "created_at": created_at,
                 "updated_at": updated_at,
             }
@@ -2192,23 +3037,13 @@ class DashboardForm(QMainWindow):
             raw_status = str(getattr(user, "status", "") or "").strip()
             status_value = raw_status if raw_status else fallback_status
 
-            raw_password = str(getattr(user, "password_plaintext", "") or "").strip()
-            password_value = raw_password if raw_password else fallback_password
-            if password_value in {"-", "✓ CONFIGURED"}:
-                password_value = ""
-
-            raw_pin = str(getattr(user, "pin_plaintext", "") or "").strip()
-            pin_value = raw_pin if raw_pin else fallback_pin
-            if pin_value in {"-", "✓ CONFIGURED"}:
-                pin_value = ""
-
             dialog = UserEditDialog(
                 username=str(getattr(user, "username", "") or ""),
                 nama=str(getattr(user, "nama", "") or ""),
                 role=role_value,
                 status=status_value,
-                current_password=password_value,
-                current_pin=pin_value,
+                current_password="",
+                current_pin="",
                 parent=self,
             )
             if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -2224,15 +3059,7 @@ class DashboardForm(QMainWindow):
             old_pin = str(payload.get("old_pin", "") or "")
             new_pin = str(payload.get("new_pin", "") or "")
 
-            if new_password and not old_password:
-                QMessageBox.warning(self, "Validation", "Enter current password to change password.")
-                return
-
-            if new_pin and not old_pin:
-                QMessageBox.warning(self, "Validation", "Enter current PIN to change PIN.")
-                return
-
-            if new_password:
+            if old_password:
                 password_record = getattr(user, "password_record", None)
                 stored_salt = str(getattr(password_record, "password_salt", "") or "")
                 stored_hash = str(getattr(password_record, "password_hash", "") or "")
@@ -2243,7 +3070,7 @@ class DashboardForm(QMainWindow):
                     QMessageBox.warning(self, "Validation", "Current password is incorrect.")
                     return
 
-            if new_pin:
+            if old_pin:
                 pin_record = getattr(user, "pin_record", None)
                 stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
                 stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
@@ -2283,6 +3110,31 @@ class DashboardForm(QMainWindow):
         if user_id > 0:
             session = Session()
             try:
+                if _is_hris_auth_schema(session):
+                    row = session.execute(
+                        text(
+                            """
+                            SELECT u.user_id, u.is_active, u.is_locked, u.status,
+                                   array_agg(r.role_name ORDER BY r.role_name)
+                                       FILTER (WHERE r.role_name IS NOT NULL) AS role_names
+                            FROM users u
+                            LEFT JOIN user_roles ur ON ur.user_id = u.user_id
+                            LEFT JOIN roles r ON r.role_id = ur.role_id
+                            WHERE u.user_id = :user_id
+                            GROUP BY u.user_id, u.is_active, u.is_locked, u.status
+                            """
+                        ),
+                        {"user_id": user_id},
+                    ).mappings().first()
+                    if row is not None:
+                        role_value = _map_hris_role_to_dashboard_role(
+                            _role_names_from_value(row.get("role_names"))
+                        )
+                        raw_status = str(row.get("status") or "").strip().lower()
+                        is_active = bool(row.get("is_active")) and not bool(row.get("is_locked"))
+                        status_value = "Active" if is_active and raw_status in {"aktif", "active"} else "Inactive"
+                        return (role_value, status_value)
+
                 user = session.get(User, user_id)
                 if user is not None:
                     raw_role = str(getattr(user, "role", "Operator") or "Operator").strip()
@@ -2310,13 +3162,70 @@ class DashboardForm(QMainWindow):
         role_value, status_value = self._get_current_user_access_profile()
         return role_value.strip().lower() == "superior" and status_value.strip().lower() == "active"
 
+    def _current_user_has_permission(self, module_name: str, action_name: str) -> Optional[bool]:
+        return current_user_has_permission(
+            Session,
+            _table_exists,
+            _table_columns,
+            user_id=self.current_user_id(),
+            module_name=module_name,
+            action_name=action_name,
+        )
+
+    def _can_current_user_manage_hris_quality(self) -> bool:
+        permission_result = self._current_user_has_permission("data_quality", "update")
+        if permission_result is not None:
+            return permission_result
+        permission_result = self._current_user_has_permission("employee", "update")
+        if permission_result is not None:
+            return permission_result
+
+        role_value, status_value = self._get_current_user_access_profile()
+        if status_value.strip().lower() != "active":
+            return False
+        return role_value.strip().lower() in {"superior", "administrator"}
+
+    def _can_current_user_export_hris_quality(self) -> bool:
+        permission_result = self._current_user_has_permission("data_quality", "export")
+        if permission_result is not None:
+            return permission_result
+        permission_result = self._current_user_has_permission("employee", "export")
+        if permission_result is not None:
+            return permission_result
+
+        role_value, status_value = self._get_current_user_access_profile()
+        if status_value.strip().lower() != "active":
+            return False
+        return role_value.strip().lower() in {"superior", "administrator", "auditor"}
+
     def _can_current_user_edit_users(self) -> bool:
         # Backward-compatible alias for existing call sites.
         return self._can_current_user_manage_user_actions()
 
+    def _show_hris_quality_access_denied_dialog(self) -> None:
+        role_value, status_value = self._get_current_user_access_profile()
+        QMessageBox.warning(
+            self,
+            "Data Quality Restricted",
+            "Only Active Superior or Administrator users can update Data Quality workflow.\n\n"
+            f"Current access: {role_value} / {status_value}",
+        )
+
+    def _show_hris_quality_export_access_denied_dialog(self) -> None:
+        role_value, status_value = self._get_current_user_access_profile()
+        QMessageBox.warning(
+            self,
+            "Data Quality Export Restricted",
+            "Data Quality export permission is required.\n\n"
+            f"Current access: {role_value} / {status_value}",
+        )
+
     def _show_user_action_access_denied_dialog(self, action_name: str) -> None:
         role_value, status_value = self._get_current_user_access_profile()
-        dialog = QDialog(self)
+        charging = bool(self._charging)
+        palette = _charging_theme_palette(charging)
+        dialog = DashboardGlassDialog(self, radius=16.0)
+        dialog.set_charging(charging)
         dialog.setModal(True)
         dialog.setWindowTitle("User Action Restricted")
         dialog.setWindowFlags(
@@ -2325,38 +3234,35 @@ class DashboardForm(QMainWindow):
         )
         dialog.setFixedWidth(464)
         dialog.setStyleSheet(
-            "QDialog {"
-            " background: #F6F9FD;"
-            " border: 1px solid #D9E2EF;"
-            " border-radius: 0px;"
-            "}"
+            "QDialog { background: transparent; }"
             "QFrame#headerBand {"
-            " background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #EEF3FB, stop:1 #E8F0FC);"
-            " border: 1px solid #D5E0EE;"
+            f" background: {palette['surface_bg']};"
+            f" border: 1px solid {palette['panel_border']};"
             " border-radius: 8px;"
             "}"
-            "QLabel#titleLabel { color: #1E3E67; font-size: 14px; font-weight: 800; }"
-            "QLabel#subtitleLabel { color: #4A678A; font-size: 11px; font-weight: 600; }"
+            f"QLabel#titleLabel {{ color: {palette['panel_text']}; font-size: 14px; font-weight: 850; background: transparent; }}"
+            f"QLabel#subtitleLabel {{ color: {palette['panel_muted']}; font-size: 11px; font-weight: 650; background: transparent; }}"
             "QFrame#contentCard {"
-            " background: rgba(255, 255, 255, 0.92);"
-            " border: 1px solid #D9E3F2;"
+            f" background: {palette['surface_bg']};"
+            f" border: 1px solid {palette['panel_border']};"
             " border-radius: 8px;"
             "}"
             "QLabel#infoIcon {"
             " min-width: 28px; max-width: 28px;"
             " min-height: 28px; max-height: 28px;"
             " border-radius: 14px;"
-            " background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2C8ED8, stop:1 #1E71BB);"
-            " color: white;"
+            f" background: {palette['surface_selected']};"
+            f" border: 1px solid {palette['panel_border']};"
+            f" color: {palette['panel_text']};"
             " font-size: 15px;"
             " font-weight: 900;"
             " qproperty-alignment: AlignCenter;"
             "}"
-            "QLabel#contentText { color: #284566; font-size: 11px; }"
+            f"QLabel#contentText {{ color: {palette['panel_text']}; font-size: 11px; background: transparent; }}"
             "QLabel#statusPill {"
-            " color: #1B4B78;"
-            " background: #ECF3FF;"
-            " border: 1px solid #CCDCF3;"
+            f" color: {palette['panel_text']};"
+            f" background: {palette['badge_bg']};"
+            f" border: 1px solid {palette['badge_border']};"
             " border-radius: 8px;"
             " padding: 3px 8px;"
             " font-size: 10px;"
@@ -2627,6 +3533,7 @@ class DashboardForm(QMainWindow):
             session.close()
 
     def _build_content(self) -> QWidget:
+        summary = self._read_hris_summary()
         content = QWidget()
         layout = QVBoxLayout(content)
         layout.setContentsMargins(18, 18, 18, 18)
@@ -2636,43 +3543,46 @@ class DashboardForm(QMainWindow):
         top_cards.setHorizontalSpacing(16)
         top_cards.setVerticalSpacing(16)
         overview_cards = [
-            AnimatedInfoCard("🏭", "Total Produksi", "52,300 Kg", "#1D4ED8"),
-            AnimatedInfoCard("✅", "Kehadiran Hari Ini", "85 Hadir", "#5BAE44"),
-            AnimatedInfoCard("⚙", "Status Pekerjaan", "5 Tugas Berjalan", "#5BAE44"),
-            AnimatedInfoCard("🔔", "Notifikasi", "2 Pesan Baru", "#D94A38"),
+            AnimatedInfoCard("HC", "Karyawan Aktif", f"{summary['active_employees']} / {summary['employees']}", "#50B4FF"),
+            AnimatedInfoCard("QA", "Data Quality", summary["data_quality_score"], "#5BAE44"),
+            AnimatedInfoCard("ATT", "Absensi Hari Ini", f"{summary['attendance_present_today']} hadir", "#F0C84B"),
+            AnimatedInfoCard("GAP", "Assignment Gap", summary["assignment_missing"], "#D94A38"),
         ]
         self._info_cards.extend(overview_cards)
         for index, card in enumerate(overview_cards):
             top_cards.addWidget(card, 0, index)
         layout.addLayout(top_cards)
+        warning_label = self._make_hris_data_warning_label(summary)
+        if warning_label is not None:
+            layout.addWidget(warning_label)
 
         main_grid = QGridLayout()
         main_grid.setHorizontalSpacing(16)
         main_grid.setVerticalSpacing(16)
 
-        production = AnimatedSectionCard("Grafik Produksi")
+        production = AnimatedSectionCard("Manpower Snapshot")
         self._section_cards.append(production)
-        production.body_layout.addWidget(self._make_chart_placeholder())
+        production.body_layout.addWidget(self._make_chart_placeholder(summary))
         production.body_layout.addStretch(1)
 
         attendance = AnimatedSectionCard("Absensi Karyawan")
         self._section_cards.append(attendance)
-        attendance.body_layout.addWidget(self._make_attendance_placeholder())
+        attendance.body_layout.addWidget(self._make_attendance_placeholder(summary))
 
-        tasks = AnimatedSectionCard("Pekerjaan Hari Ini")
+        tasks = AnimatedSectionCard("Control Watch")
         self._section_cards.append(tasks)
         for task_text, badge_text, badge_color in [
-            ("Perawatan Blok A1", "Sedang Berlangsung", "#D7E8F8"),
-            ("Panen Blok C3", "Dalam Proses", "#F7D7D6"),
-            ("Penyemprotan Blok B2", "Belum Selesai", "#F6EEBD"),
+            ("Payroll profile belum lengkap", summary["payroll_missing"], "#D7E8F8"),
+            ("Kontrak jatuh tempo 30 hari", summary["contracts_expiring_30"], "#F7D7D6"),
+            ("Data quality overdue", summary["quality_overdue"], "#F6EEBD"),
         ]:
             tasks.body_layout.addWidget(self._make_task_row(task_text, badge_text, badge_color))
 
         notifications = AnimatedSectionCard("Notifikasi")
         self._section_cards.append(notifications)
         for line in [
-            "Pesan: Laporan harian sudah diupdate.",
-            "Reminder: Rapat evaluasi jam 14.00.",
+            f"Import terakhir: {summary['latest_import_batch']} ({summary['latest_import_rows']} baris).",
+            f"BPJS missing: {summary['bpjs_missing']} | Dokumen missing: {summary['document_missing']}.",
         ]:
             label = QLabel(line)
             label.setWordWrap(True)
@@ -2695,7 +3605,7 @@ class DashboardForm(QMainWindow):
 
         return content
 
-    def _make_chart_placeholder(self) -> QWidget:
+    def _make_chart_placeholder(self, summary: dict[str, str]) -> QWidget:
         area = QFrame()
         self._chart_area = area
         area.setMinimumHeight(300)
@@ -2706,20 +3616,29 @@ class DashboardForm(QMainWindow):
 
         bars = QHBoxLayout()
         bars.setSpacing(14)
-        heights = [90, 165, 150, 210, 176, 185, 230, 255, 170]
-        months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep"]
+        metrics = [
+            ("Aktif", hris_summary_int(summary, "active_employees")),
+            ("Assign", hris_summary_int(summary, "active_assignments")),
+            ("Payroll", hris_summary_int(summary, "payroll_profiles")),
+            ("BPJS", hris_summary_int(summary, "bpjs_health_active")),
+            ("Dok", hris_summary_int(summary, "document_count")),
+            ("Move", hris_summary_int(summary, "movements_30d")),
+            ("QA", hris_summary_int(summary, "quality_open_total")),
+        ]
+        max_value = max((value for _label, value in metrics), default=1) or 1
 
         bar_row = QHBoxLayout()
         bar_row.setSpacing(14)
-        for height, month in zip(heights, months):
+        for label_text, value in metrics:
             col = QVBoxLayout()
             col.setSpacing(6)
             col.addStretch(1)
             bar = QFrame()
             bar.setFixedWidth(34)
+            height = max(18, round((value / max_value) * 230))
             bar.setFixedHeight(height)
             bar.setStyleSheet("QFrame { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5BA4F0, stop:1 #1C67C7); border-radius: 6px; }")
-            month_label = QLabel(month)
+            month_label = QLabel(label_text)
             month_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._dashboard_text_labels.append(month_label)
             col.addWidget(bar, alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
@@ -2728,7 +3647,10 @@ class DashboardForm(QMainWindow):
         bars.addLayout(bar_row)
         bars.addStretch(1)
 
-        trend = QLabel("Produksi bulanan meningkat stabil.")
+        trend = QLabel(
+            f"Kelengkapan {summary['data_completeness']} | QA {summary['data_quality_score']} | "
+            f"Movement 30 hari {summary['movements_30d']}."
+        )
         self._dashboard_text_labels.append(trend)
 
         layout.addStretch(1)
@@ -2736,13 +3658,20 @@ class DashboardForm(QMainWindow):
         layout.addWidget(trend)
         return area
 
-    def _make_attendance_placeholder(self) -> QWidget:
+    def _make_attendance_placeholder(self, summary: dict[str, str]) -> QWidget:
         wrapper = QWidget()
         layout = QHBoxLayout(wrapper)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
 
-        pie = QLabel("85\nHadir")
+        present = hris_summary_int(summary, "attendance_present_today")
+        exception = hris_summary_int(summary, "attendance_exception_today")
+        total = hris_summary_int(summary, "attendance_today")
+        if total <= 0:
+            total = present + exception
+        absent = max(total - present - exception, 0)
+
+        pie = QLabel(f"{present}\nHadir")
         pie.setFixedSize(180, 180)
         pie.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pie.setStyleSheet(
@@ -2751,12 +3680,16 @@ class DashboardForm(QMainWindow):
         )
 
         legend = QVBoxLayout()
-        for color, text in [("#5BAE44", "Hadir"), ("#F0C84B", "Izin"), ("#D94A38", "Alpa")]:
+        for color, label_text in [
+            ("#5BAE44", f"Hadir {present}"),
+            ("#F0C84B", f"Izin/Sakit/Cuti {exception}"),
+            ("#D94A38", f"Belum tercatat {absent}"),
+        ]:
             row = QHBoxLayout()
             dot = QLabel()
             dot.setFixedSize(16, 16)
             dot.setStyleSheet(f"background: {color}; border-radius: 4px;")
-            label = QLabel(text)
+            label = QLabel(label_text)
             self._dashboard_text_labels.append(label)
             row.addWidget(dot)
             row.addWidget(label)
@@ -2869,6 +3802,11 @@ class DashboardForm(QMainWindow):
                 )
             )
 
+        for label in self._dashboard_muted_labels:
+            label.setStyleSheet(
+                f"color: {palette['panel_muted']}; font-size: 12px; font-weight: 650; background: transparent;"
+            )
+
         for badge in self._dashboard_badges:
             source_color = str(badge.property("badgeColor") or palette["surface_selected"])
             badge_bg = "rgba(80, 180, 255, 0.18)" if charging else "rgba(255, 255, 255, 0.13)"
@@ -2894,6 +3832,12 @@ class DashboardForm(QMainWindow):
             self._search_username.setStyleSheet(field_style)
         if self._role_filter is not None:
             self._role_filter.setStyleSheet(field_style)
+        if self._hris_quality_search is not None:
+            self._hris_quality_search.setStyleSheet(field_style)
+        if self._hris_quality_status_filter is not None:
+            self._hris_quality_status_filter.setStyleSheet(field_style)
+        if self._hris_quality_severity_filter is not None:
+            self._hris_quality_severity_filter.setStyleSheet(field_style)
         if self._add_user_btn is not None:
             self._add_user_btn.setStyleSheet(
                 "QPushButton {"
@@ -2904,22 +3848,47 @@ class DashboardForm(QMainWindow):
                 f"QPushButton:hover {{ background: {palette['surface_hover']}; }}"
                 f"QPushButton:pressed {{ background: {palette['surface_selected']}; }}"
             )
+        table_style = (
+            "QTableWidget {"
+            f" background: {palette['table_bg']}; alternate-background-color: {palette['table_alt']};"
+            f" color: {palette['panel_text']}; border: 1px solid {palette['panel_border']};"
+            " border-radius: 12px; font-size: 14px; outline: none;"
+            "}"
+            "QHeaderView::section {"
+            f" background: {palette['table_header']}; color: {palette['panel_muted']};"
+            " font-size: 11px; font-weight: 800; border: none; border-bottom: 1px solid rgba(255,255,255,0.18); padding: 10px 14px;"
+            "}"
+            "QTableWidget::item { padding: 10px 12px; border: none; }"
+            f"QTableWidget::item:hover {{ background: {palette['surface_hover']}; }}"
+            f"QTableWidget::item:selected {{ background: {palette['surface_selected']}; color: {palette['panel_text']}; }}"
+        )
         if self._users_table is not None:
-            self._users_table.setStyleSheet(
-                "QTableWidget {"
-                f" background: {palette['table_bg']}; alternate-background-color: {palette['table_alt']};"
-                f" color: {palette['panel_text']}; border: 1px solid {palette['panel_border']};"
-                " border-radius: 12px; font-size: 14px; outline: none;"
-                "}"
-                "QHeaderView::section {"
-                f" background: {palette['table_header']}; color: {palette['panel_muted']};"
-                " font-size: 11px; font-weight: 800; border: none; border-bottom: 1px solid rgba(255,255,255,0.18); padding: 10px 14px;"
-                "}"
-                "QTableWidget::item { padding: 10px 12px; border: none; }"
-                f"QTableWidget::item:hover {{ background: {palette['surface_hover']}; }}"
-                f"QTableWidget::item:selected {{ background: {palette['surface_selected']}; color: {palette['panel_text']}; }}"
-            )
+            self._users_table.setStyleSheet(table_style)
             self._sync_user_table_widget_states()
+        if self._hris_quality_table is not None:
+            self._hris_quality_table.setStyleSheet(table_style)
+        if self._hris_quality_refresh_btn is not None:
+            self._hris_quality_refresh_btn.setStyleSheet(
+                "QPushButton {"
+                f" background: {palette['surface_selected']}; color: {palette['panel_text']};"
+                f" border: 1px solid {palette['panel_border']};"
+                " border-radius: 8px; font-size: 13px; font-weight: 800;"
+                "}"
+                f"QPushButton:hover {{ background: {palette['surface_hover']}; }}"
+                f"QPushButton:pressed {{ background: {palette['surface_selected']}; }}"
+            )
+        quality_button_style = (
+            "QPushButton {"
+            f" background: {palette['surface_selected']}; color: {palette['panel_text']};"
+            f" border: 1px solid {palette['panel_border']};"
+            " border-radius: 8px; padding: 0 12px; font-size: 13px; font-weight: 800;"
+            "}"
+            f"QPushButton:hover {{ background: {palette['surface_hover']}; }}"
+            f"QPushButton:pressed {{ background: {palette['surface_selected']}; }}"
+            "QPushButton:disabled { background: rgba(255, 255, 255, 0.08); color: rgba(244, 248, 255, 0.44); }"
+        )
+        for button in self._hris_quality_action_buttons:
+            button.setStyleSheet(quality_button_style)
 
 
 def show_dashboard(app: QApplication, user: Optional[User] = None) -> DashboardForm:
