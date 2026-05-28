@@ -73,6 +73,9 @@ Catatan:
 
 - Jalankan lint dengan `python -m ruff check src/auth src/database src/main.py src/ui/mainform.py src/ui/userform.py src/ui/webform.py src/ui/battery_status.py src/ui/boot.py src/ui/login.py src/ui/lock.py scripts tests`.
 - Jalankan test dengan `python -m pytest`.
+- Sebelum backup, cek sampah lokal dengan `python scripts/clean_junk_before_backup.py`.
+- Jika hasilnya sesuai, bersihkan dengan `python scripts/clean_junk_before_backup.py --apply`.
+- Untuk ikut menghapus output debug lokal, gunakan `python scripts/clean_junk_before_backup.py --apply --include-debug`.
 - Test sekarang otomatis mengeluarkan report coverage terminal dan file `coverage.xml`.
 - VS Code task siap pakai: `Python Lint (Ruff)`, `Python Tests (Pytest)`, `Python Tests (Coverage)`, `Python Verify`, dan `Python Verify (With Coverage)`.
 - CI GitHub menjalankan lint dan test yang sama pada setiap `push` dan `pull_request`.

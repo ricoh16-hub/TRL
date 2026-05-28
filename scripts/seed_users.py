@@ -405,12 +405,6 @@ def _insert_credentials(session: Session) -> None:
             )
         )
 
-        # Simpan plaintext untuk kebutuhan tampilan panel manajemen user.
-        user_obj = session.get(User, row["user_id"])
-        if user_obj is not None:
-            setattr(user_obj, "password_plaintext", row["password_plain"])
-            setattr(user_obj, "pin_plaintext", row["pin_plain"])
-
 
 def _insert_activity(session: Session) -> None:
     for row in LOGIN_ATTEMPTS:

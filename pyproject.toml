@@ -21,6 +21,8 @@ force-exclude = true
 extend-exclude = [
   ".venv",
   "backup",
+  "backups",
+  "pytest-cache-files-*",
   "final",
   "assets",
   "alembic/versions",

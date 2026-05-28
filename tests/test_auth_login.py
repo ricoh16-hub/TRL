@@ -114,6 +114,42 @@ def test_authenticate_returns_none_for_unknown_user(monkeypatch) -> None:
     assert fake_session.closed is True
 
 
+def test_authenticate_returns_none_for_blank_username(monkeypatch) -> None:
+    fake_session = FakeSession(None)
+    monkeypatch.setattr(login_module, "Session", lambda: fake_session)
+
+    authenticated_user = login_module.authenticate("   ", "secret")
+
+    assert authenticated_user is None
+    assert fake_session.closed is True
+
+
+def test_authenticate_blank_username_with_external_session_does_not_close() -> None:
+    fake_session = FakeSession(None)
+
+    authenticated_user = login_module.authenticate("", "secret", session=fake_session)
+
+    assert authenticated_user is None
+    assert fake_session.closed is False
+
+
+def test_authenticate_retries_lowercase_username(monkeypatch) -> None:
+    salt, password_hash = login_module.create_password_hash("secret")
+    user = SimpleNamespace(
+        username="alice",
+        password=None,
+        password_hash=password_hash,
+        password_salt=salt,
+    )
+    fake_session = FakeSession(user)
+    monkeypatch.setattr(login_module, "Session", lambda: fake_session)
+
+    authenticated_user = login_module.authenticate("ALICE", "secret")
+
+    assert authenticated_user is user
+    assert fake_session.closed is True
+
+
 def test_authenticate_accepts_hashed_password(monkeypatch) -> None:
     salt, password_hash = login_module.create_password_hash("secret")
     user = SimpleNamespace(
@@ -168,6 +204,28 @@ def test_authenticate_returns_none_for_hashed_password_mismatch(monkeypatch) -> 
     assert authenticated_user is None
     assert fake_session.closed is True
     assert fake_session.committed is False
+
+
+def test_authenticate_repairs_hash_from_matching_plaintext_fallback(monkeypatch) -> None:
+    old_salt, old_hash = login_module.create_password_hash("old-secret")
+    user = SimpleNamespace(
+        id=14,
+        username="legacy-repair",
+        password=None,
+        password_hash=old_hash,
+        password_salt=old_salt,
+        password_plaintext="secret",
+    )
+    fake_session = AdvancedFakeSession(users=[user], password_records=[])
+    monkeypatch.setattr(login_module, "Session", lambda: fake_session)
+
+    authenticated_user = login_module.authenticate("legacy-repair", "secret")
+
+    assert authenticated_user is user
+    assert fake_session.committed is True
+    assert len(fake_session.password_records) == 1
+    assert user.password_hash != old_hash
+    assert user.password_salt != old_salt
 
 
 def test_authenticate_returns_none_for_plaintext_password_mismatch(monkeypatch) -> None:

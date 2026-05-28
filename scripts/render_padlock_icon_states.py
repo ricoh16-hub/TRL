@@ -19,11 +19,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from PySide6.QtCore import QRectF
-from PySide6.QtGui import QBrush, QColor, QImage, QLinearGradient, QPainter
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QRectF  # noqa: E402
+from PySide6.QtGui import QBrush, QColor, QImage, QLinearGradient, QPainter  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from ui.lock import _paint_premium_padlock
+from ui.lock import _paint_premium_padlock  # noqa: E402
 
 
 OUTPUT_DIR = ROOT / "assets"

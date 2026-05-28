@@ -11,11 +11,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from PySide6.QtCore import QPoint, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QImage, QLinearGradient, QPainter
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtCore import QPoint, QRectF, Qt  # noqa: E402
+from PySide6.QtGui import QBrush, QColor, QImage, QLinearGradient, QPainter  # noqa: E402
+from PySide6.QtWidgets import QApplication, QWidget  # noqa: E402
 
-from ui.lock import (
+from ui.lock import (  # noqa: E402
     TOP_BAR_CENTER_ICON_SIZE,
     BatteryLogoWidget,
     GearIconWidget,
@@ -24,7 +24,7 @@ from ui.lock import (
     CustomLockIcon,
     calculate_top_bar_layout,
 )
-from ui.login import CustomUnlockIcon
+from ui.login import CustomUnlockIcon  # noqa: E402
 
 
 OUTPUT = ROOT / "assets" / "topbar-states.png"

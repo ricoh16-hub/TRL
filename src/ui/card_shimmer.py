@@ -44,10 +44,6 @@ class CardShimmer(QWidget):
         self._timer.stop()
         self.hide()
 
-    def set_color(self, color: QColor) -> None:
-        self._color = color
-        self.update()
-
     def _tick(self) -> None:
         if self._fade_in:
             self._fade_alpha += self._fade_step
@@ -75,7 +71,7 @@ class CardShimmer(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        w, h = self.width(), self.height()
+        w = self.width()
         radius = self._radius
         margin = radius
         if w < 2 * margin:

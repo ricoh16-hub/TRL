@@ -1369,19 +1369,19 @@ class TimeVerticalStretchLabel(QWidget):
             path_x += char_widths[i] + self._letter_spacing
         path_bounds = text_path.boundingRect()
         if self._charging:
-            top_color = QColor(126, 232, 255, 248)
-            mid_color = QColor(86, 188, 252, 244)
-            bottom_color = QColor(58, 146, 236, 236)
-            shadow_color = QColor(18, 76, 132, 44)
-            highlight_color = QColor(236, 252, 255, 54)
+            top_color = QColor(119, 218, 252, 242)
+            mid_color = QColor(72, 164, 239, 238)
+            bottom_color = QColor(48, 124, 212, 230)
+            shadow_color = QColor(10, 48, 98, 34)
+            highlight_color = QColor(222, 248, 255, 38)
         else:
-            top_color = QColor(252, 254, 255, 246)
-            mid_color = QColor(232, 239, 246, 240)
-            bottom_color = QColor(198, 209, 221, 232)
-            shadow_color = QColor(0, 0, 0, 38)
-            highlight_color = QColor(255, 255, 255, 44)
+            top_color = QColor(240, 246, 253, 242)
+            mid_color = QColor(218, 228, 240, 236)
+            bottom_color = QColor(174, 192, 213, 226)
+            shadow_color = QColor(0, 0, 0, 28)
+            highlight_color = QColor(255, 255, 255, 34)
         shadow_path = QPainterPath(text_path)
-        shadow_path.translate(0.0, 0.72)
+        shadow_path.translate(0.0, 0.58)
         painter.setBrush(QBrush(shadow_color))
         painter.drawPath(shadow_path)
         grad = QLinearGradient(
@@ -1397,7 +1397,7 @@ class TimeVerticalStretchLabel(QWidget):
         painter.setBrush(QBrush(grad))
         painter.drawPath(text_path)
         highlight_path = QPainterPath(text_path)
-        highlight_path.translate(0.0, -0.48)
+        highlight_path.translate(0.0, -0.36)
         painter.setBrush(QBrush(highlight_color))
         painter.drawPath(highlight_path)
         painter.restore()
@@ -1430,16 +1430,16 @@ class TimeSeparatorWidget(QWidget):
             int(side),
         )
         if self._charging:
-            top_color = QColor(126, 232, 255, 232)
-            bottom_color = QColor(58, 146, 236, 220)
-            shadow_color = QColor(18, 76, 132, 38)
-            highlight_color = QColor(236, 252, 255, 42)
+            top_color = QColor(119, 218, 252, 224)
+            bottom_color = QColor(48, 124, 212, 210)
+            shadow_color = QColor(10, 48, 98, 30)
+            highlight_color = QColor(222, 248, 255, 34)
         else:
-            top_color = QColor(252, 254, 255, 232)
-            bottom_color = QColor(198, 209, 221, 218)
-            shadow_color = QColor(0, 0, 0, 34)
-            highlight_color = QColor(255, 255, 255, 34)
-        shadow_rect = QRectF(rect).translated(0.0, 0.72)
+            top_color = QColor(240, 246, 253, 224)
+            bottom_color = QColor(174, 192, 213, 208)
+            shadow_color = QColor(0, 0, 0, 28)
+            highlight_color = QColor(255, 255, 255, 28)
+        shadow_rect = QRectF(rect).translated(0.0, 0.58)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(shadow_color))
         painter.drawRoundedRect(shadow_rect, 0.9, 0.9)
@@ -1478,7 +1478,7 @@ class PremiumDateLabel(QWidget):
 
     def sizeHint(self):
         from PySide6.QtCore import QSize
-        from PySide6.QtGui import QFont, QFontMetrics
+        from PySide6.QtGui import QFontMetrics
         font = self._font()
         metrics = QFontMetrics(font)
         return QSize(metrics.horizontalAdvance(self._text if self._text else "Wed, 17 May 2026") + 18, metrics.height() + 9)
@@ -1504,19 +1504,19 @@ class PremiumDateLabel(QWidget):
         text_path.addText(QPointF(x, y), font, self._text)
         bounds = text_path.boundingRect()
         if self._charging:
-            top_color = QColor(158, 235, 255, 236)
-            mid_color = QColor(96, 190, 250, 224)
-            bottom_color = QColor(68, 150, 232, 222)
-            shadow_color = QColor(18, 76, 132, 46)
-            highlight_color = QColor(236, 252, 255, 38)
+            top_color = QColor(146, 226, 255, 232)
+            mid_color = QColor(91, 184, 248, 222)
+            bottom_color = QColor(58, 138, 224, 216)
+            shadow_color = QColor(10, 48, 98, 34)
+            highlight_color = QColor(222, 248, 255, 30)
         else:
-            top_color = QColor(252, 254, 255, 236)
-            mid_color = QColor(232, 239, 246, 224)
-            bottom_color = QColor(198, 209, 221, 222)
-            shadow_color = QColor(0, 0, 0, 42)
-            highlight_color = QColor(255, 255, 255, 34)
+            top_color = QColor(240, 246, 253, 232)
+            mid_color = QColor(218, 228, 240, 222)
+            bottom_color = QColor(174, 192, 213, 216)
+            shadow_color = QColor(0, 0, 0, 30)
+            highlight_color = QColor(255, 255, 255, 28)
         shadow_path = QPainterPath(text_path)
-        shadow_path.translate(0.0, 0.72)
+        shadow_path.translate(0.0, 0.58)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(shadow_color))
         painter.drawPath(shadow_path)
@@ -1857,9 +1857,6 @@ class AuthenticLockScreen(QDialog):
         self.date_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
     # (rollback: hapus pewarnaan dinamis label jam)
 
-        # Efek shadow pada label dot dan date (hour dan minute sudah diatur oleh widget custom)
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect
-        from PySide6.QtGui import QColor
         # Separator clock is custom-painted with its own subtle shadow.
         
         # Set alignment untuk semua label
@@ -2388,8 +2385,6 @@ class GearIconWidget(QWidget):
                 path.moveTo(px, py)
             else:
                 prev_angle, prev_radius, _ = points[i - 1]
-                prev_x = prev_radius * math.cos(prev_angle)
-                prev_y = prev_radius * math.sin(prev_angle)
                 delta = angle - prev_angle
                 c1_angle = prev_angle + delta * 0.48
                 c2_angle = angle - delta * 0.48

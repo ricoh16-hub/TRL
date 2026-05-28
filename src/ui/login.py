@@ -4,7 +4,6 @@ from database.models import User
 from PySide6.QtWidgets import QWidget, QDialog, QVBoxLayout, QGridLayout, QLabel, QApplication, QMessageBox
 from PySide6.QtCore import Qt, Signal, QRectF, QEasingCurve, QPropertyAnimation, Property, QEvent, QPointF, QSize, QTimer
 from PySide6.QtGui import QPainter, QBrush, QPen, QColor, QRadialGradient, QMouseEvent, QPaintEvent, QEnterEvent, QKeyEvent, QCloseEvent, QPainterPath
-from PySide6.QtCore import QRect
 from PySide6.QtGui import QLinearGradient
 # Import widgets from lock.py
 from ui.lock import (
@@ -1970,7 +1969,6 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     # --- Position lock.py widgets exactly as in lock.py ---
     # Calculate positions based on lock.py logic
     # Reference: lock.py AuthenticLockScreen __init__
-    lock_x = top_bar_center_x(dialog.width(), TOP_BAR_CENTER_ICON_SIZE)
     battery_logo = BatteryLogoWidget(dialog)
     battery_logo.setParent(dialog)
     # KeyCapWidget position (sinkron dengan battery_logo)

@@ -7,10 +7,23 @@ __pycache__/
 *.pyo
 .venv/
 .pytest_cache/
+pytest-cache-files-*/
 .ruff_cache/
+.mypy_cache/
+.hypothesis/
 .coverage
 coverage.xml
 htmlcov/
+build/
+dist/
+*.egg-info/
+backups/
+reports/
+
+# Local HR/source-data drops
+assets/*.xls
+assets/*.xlsx
+assets/*.xlsb
 
 # SQLite artifacts
 *.sqlite
