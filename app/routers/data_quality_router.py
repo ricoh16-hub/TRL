@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ from app.schemas.governance_schema import (
     DataQualityIssueUpdateRequest,
     DataQualitySummaryResponse,
 )
+from app.services import audit_service
 
 router = APIRouter(
     prefix="/data-quality",
@@ -48,6 +49,30 @@ def _issue_response(issue: DataQualityIssue) -> DataQualityIssueResponse:
         last_seen_at=issue.last_seen_at,
         resolved_at=issue.resolved_at,
     )
+
+
+def _audit_snapshot(issue: DataQualityIssue) -> dict[str, object]:
+    return {
+        "issue_id": issue.issue_id,
+        "issue_key": issue.issue_key,
+        "issue_code": issue.issue_code,
+        "severity": issue.severity,
+        "status": issue.status,
+        "employee_id": issue.employee_id,
+        "source_period": issue.source_period,
+        "recommendation": issue.recommendation,
+        "resolved_at": issue.resolved_at,
+    }
+
+
+def _client_ip(request: Request) -> str | None:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else None
 
 
 @router.get("/issues", response_model=list[DataQualityIssueResponse])
@@ -130,7 +155,8 @@ def update_data_quality_issue(
     issue_id: IssueId,
     payload: DataQualityIssueUpdateRequest,
     db: DbSession,
-    _current_user: DataQualityUpdater,
+    current_user: DataQualityUpdater,
+    request: Request,
 ) -> DataQualityIssueResponse:
     issue = db.get(DataQualityIssue, issue_id)
     if issue is None:
@@ -139,11 +165,25 @@ def update_data_quality_issue(
             detail=f"Data quality issue {issue_id} tidak ditemukan.",
         )
 
+    old_data = _audit_snapshot(issue)
+
     if payload.status is not None:
         issue.status = payload.status
         issue.resolved_at = datetime.now(UTC) if payload.status == "RESOLVED" else None
     if payload.recommendation is not None:
         issue.recommendation = payload.recommendation
+
+    audit_service.create_audit_log(
+        db,
+        user_id=current_user.user_id,
+        module_name="data_quality",
+        action_name="update_issue",
+        table_name="data_quality_issues",
+        record_id=issue.issue_id,
+        old_data=old_data,
+        new_data=_audit_snapshot(issue),
+        ip_address=_client_ip(request),
+    )
 
     db.commit()
     db.refresh(issue)

@@ -89,6 +89,14 @@ def test_authenticated_data_quality_workflow_smoke(client: TestClient) -> None:
     security = importlib.import_module("app.core.security")
     auth_models = importlib.import_module("app.models.auth")
     governance_models = importlib.import_module("app.models.governance")
+    data_quality_router = importlib.import_module("app.routers.data_quality_router")
+    audit_calls: list[dict[str, object]] = []
+
+    def fake_audit_log(_session, **kwargs):
+        audit_calls.append(kwargs)
+        return None
+
+    data_quality_router.audit_service.create_audit_log = fake_audit_log
 
     with connection.SessionLocal() as session:
         view_permission = auth_models.Permission(
@@ -170,3 +178,20 @@ def test_authenticated_data_quality_workflow_smoke(client: TestClient) -> None:
     assert body["status"] == "RESOLVED"
     assert body["resolved_at"] is not None
     assert body["recommendation"] == "Sudah diverifikasi dengan dokumen HR."
+    assert len(audit_calls) == 1
+    audit_call = audit_calls[0]
+    assert audit_call["user_id"] == 1
+    assert audit_call["module_name"] == "data_quality"
+    assert audit_call["action_name"] == "update_issue"
+    assert audit_call["table_name"] == "data_quality_issues"
+    assert audit_call["record_id"] == 1
+    assert audit_call["ip_address"] == "testclient"
+
+    old_data = audit_call["old_data"]
+    new_data = audit_call["new_data"]
+    assert old_data["status"] == "OPEN"
+    assert old_data["recommendation"] == "Verifikasi ulang tanggal lahir."
+    assert old_data["resolved_at"] is None
+    assert new_data["status"] == "RESOLVED"
+    assert new_data["recommendation"] == "Sudah diverifikasi dengan dokumen HR."
+    assert new_data["resolved_at"] is not None
