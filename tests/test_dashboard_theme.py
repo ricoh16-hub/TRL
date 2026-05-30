@@ -4,7 +4,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QToolButton, QWidget
 
 from src.ui.dashboard import (
     CHARGING_ACCENT,
@@ -130,6 +130,33 @@ def test_dashboard_dialogs_render_both_charging_states() -> None:
             parent.close()
 
 
+def test_user_edit_dialog_can_clear_failed_verification_fields() -> None:
+    _get_app()
+    dialog = UserEditDialog(
+        username="operator",
+        nama="Operator",
+        role="Operator",
+        status="Active",
+    )
+
+    try:
+        close_btn = dialog.findChild(QToolButton, "dashboardDialogClose")
+        assert close_btn is not None
+        assert close_btn.accessibleName() == "Close"
+        assert dialog.windowFlags() & Qt.WindowType.FramelessWindowHint
+
+        dialog._old_password_input.setText("wrong-password")  # type: ignore[attr-defined]
+        dialog._old_pin_input.setText("123456")  # type: ignore[attr-defined]
+
+        dialog.reset_password_verification()
+        dialog.reset_pin_verification()
+
+        assert dialog._old_password_input.text() == ""  # type: ignore[attr-defined]
+        assert dialog._old_pin_input.text() == ""  # type: ignore[attr-defined]
+    finally:
+        dialog.close()
+
+
 def test_hris_quality_permission_allows_active_superior_and_administrator() -> None:
     dashboard = DashboardForm.__new__(DashboardForm)
     dashboard._current_user_has_permission = lambda _module, _action: None  # type: ignore[method-assign]
@@ -186,6 +213,37 @@ def test_hris_quality_export_permission_database_denial_blocks_auditor_fallback(
     dashboard._get_current_user_access_profile = lambda: ("Auditor", "Active")  # type: ignore[method-assign]
 
     assert dashboard._can_current_user_export_hris_quality() is False
+
+
+def test_user_management_allows_active_superior_without_status_text(monkeypatch) -> None:  # noqa: ANN001
+    class FakeResult:
+        def mappings(self) -> "FakeResult":
+            return self
+
+        def first(self) -> dict[str, object]:
+            return {
+                "user_id": 7,
+                "is_active": True,
+                "is_locked": False,
+                "status": None,
+                "role_names": ["SUPER_ADMIN"],
+            }
+
+    class FakeSession:
+        def execute(self, _statement, _params):  # noqa: ANN001, ANN201
+            return FakeResult()
+
+        def close(self) -> None:
+            pass
+
+    dashboard = DashboardForm.__new__(DashboardForm)
+    dashboard._user = type("UserStub", (), {"id": 7, "role": "Operator", "status": "nonaktif"})()
+
+    monkeypatch.setattr("src.ui.dashboard.Session", lambda: FakeSession())
+    monkeypatch.setattr("src.ui.dashboard._is_hris_auth_schema", lambda _session: True)
+
+    assert dashboard._get_current_user_access_profile() == ("Superior", "Active")
+    assert dashboard._can_current_user_manage_user_actions() is True
 
 
 def test_hris_data_warning_label_only_renders_when_summary_warns() -> None:

@@ -5,13 +5,14 @@ import string
 from typing import Optional, TypedDict, cast
 
 from sqlalchemy import text
-from PySide6.QtCore import Property, QEvent, QPointF, QRectF, QPropertyAnimation, QEasingCurve, Qt, QTimer, Signal
+from PySide6.QtCore import Property, QEvent, QPointF, QRectF, QPropertyAnimation, QEasingCurve, Qt, QTimer, Signal, QSize
 from PySide6.QtGui import (
     QBrush,
     QColor,
     QEnterEvent,
     QFont,
     QFontMetrics,
+    QIcon,
     QKeyEvent,
     QLinearGradient,
     QMouseEvent,
@@ -42,6 +43,7 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -67,9 +69,9 @@ except ImportError:
     verify_bcrypt_password = None  # type: ignore[assignment]
 
 try:
-    from ui.credentials_login import _show_credentials_warning
+    from ui.credentials_login import _draw_close_icon, _show_credentials_warning
 except ImportError:
-    from src.ui.credentials_login import _show_credentials_warning  # type: ignore[no-redef]
+    from src.ui.credentials_login import _draw_close_icon, _show_credentials_warning  # type: ignore[no-redef]
 
 try:
     from ui.hris_dashboard_data import (
@@ -439,6 +441,100 @@ def _dashboard_dialog_stylesheet(charging: bool) -> str:
         f"QDialogButtonBox QPushButton:hover {{ background: {palette['surface_hover']}; }}"
         f"QDialogButtonBox QPushButton:pressed {{ background: {palette['surface_selected']}; }}"
     )
+
+
+def _style_premium_dialog_close_button(button: QToolButton, charging: bool) -> None:
+    icon_color = QColor("#ECFCFF") if charging else QColor("#F4F8FF")
+    icon_color.setAlpha(216 if charging else 196)
+    button.setIcon(QIcon(_draw_close_icon(14, icon_color)))
+    button.setIconSize(QSize(14, 14))
+    button.setFixedSize(30, 30)
+    button.setCursor(Qt.CursorShape.PointingHandCursor)
+    button.setToolTip("")
+    button.setAccessibleName("Close")
+    button.setAccessibleDescription("Close")
+    if charging:
+        button.setStyleSheet(
+            "QToolButton#dashboardDialogClose {"
+            " background: rgba(236, 252, 255, 0.07);"
+            " border: 1px solid rgba(126, 232, 255, 0.28);"
+            " border-radius: 10px;"
+            "}"
+            "QToolButton#dashboardDialogClose:hover {"
+            " background: rgba(226, 54, 68, 0.88);"
+            " border: 1px solid rgba(255, 168, 176, 0.72);"
+            "}"
+            "QToolButton#dashboardDialogClose:pressed {"
+            " background: rgba(194, 38, 52, 0.94);"
+            "}"
+        )
+        return
+    button.setStyleSheet(
+        "QToolButton#dashboardDialogClose {"
+        " background: rgba(255, 255, 255, 0.055);"
+        " border: 1px solid rgba(255, 255, 255, 0.16);"
+        " border-radius: 10px;"
+        "}"
+        "QToolButton#dashboardDialogClose:hover {"
+        " background: rgba(226, 54, 68, 0.86);"
+        " border: 1px solid rgba(255, 142, 150, 0.68);"
+        "}"
+        "QToolButton#dashboardDialogClose:pressed {"
+        " background: rgba(194, 38, 52, 0.93);"
+        "}"
+    )
+
+
+def _build_premium_dialog_title_bar(
+    dialog: QDialog,
+    title: str,
+    subtitle: str = "",
+) -> tuple[QWidget, QLabel, QLabel, QToolButton]:
+    title_bar = QWidget(dialog)
+    title_bar.setObjectName("dashboardDialogTitleBar")
+    title_bar.setStyleSheet("background: transparent;")
+    layout = QHBoxLayout(title_bar)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(12)
+
+    title_stack = QVBoxLayout()
+    title_stack.setContentsMargins(0, 0, 0, 0)
+    title_stack.setSpacing(2)
+
+    title_label = QLabel(title)
+    title_label.setObjectName("dashboardDialogTitle")
+    title_stack.addWidget(title_label)
+
+    subtitle_label = QLabel(subtitle)
+    subtitle_label.setObjectName("dashboardDialogSubtitle")
+    subtitle_label.setWordWrap(True)
+    subtitle_label.setVisible(bool(subtitle))
+    title_stack.addWidget(subtitle_label)
+
+    close_btn = QToolButton(title_bar)
+    close_btn.setObjectName("dashboardDialogClose")
+    close_btn.clicked.connect(dialog.reject)
+
+    layout.addLayout(title_stack, 1)
+    layout.addWidget(close_btn, 0, Qt.AlignmentFlag.AlignTop)
+    return title_bar, title_label, subtitle_label, close_btn
+
+
+def _apply_premium_dialog_title_bar_theme(
+    title_label: QLabel,
+    subtitle_label: QLabel,
+    close_btn: QToolButton,
+    charging: bool,
+) -> None:
+    palette = _charging_theme_palette(charging)
+    title_label.setStyleSheet(
+        f"color: {palette['panel_text']}; font-size: 12px; font-weight: 850; "
+        "letter-spacing: 0.2px; background: transparent;"
+    )
+    subtitle_label.setStyleSheet(
+        f"color: {palette['panel_muted']}; font-size: 11px; font-weight: 650; background: transparent;"
+    )
+    _style_premium_dialog_close_button(close_btn, charging)
 
 
 class DashboardGlassDialog(QDialog):
@@ -1048,7 +1144,11 @@ class UserEditDialog(DashboardGlassDialog):
         super().__init__(parent, radius=18.0)
         self.setWindowTitle("Edit User")
         self.setModal(True)
-        self.resize(520, 660)
+        self.setWindowFlags(
+            (self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+            | Qt.WindowType.FramelessWindowHint
+        )
+        self.resize(540, 730)
         self._edit_glass_panels: list[LoginGlassPanel] = []
         self._edit_row_labels: list[QLabel] = []
         self._edit_hint_labels: list[QLabel] = []
@@ -1057,8 +1157,18 @@ class UserEditDialog(DashboardGlassDialog):
         self._edit_theme_applied = False
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(24, 20, 24, 20)
-        main_layout.setSpacing(14)
+        main_layout.setContentsMargins(24, 16, 24, 20)
+        main_layout.setSpacing(12)
+
+        title_bar, title_label, subtitle_label, close_btn = _build_premium_dialog_title_bar(
+            self,
+            "User Management",
+            "Edit access profile and credential reset",
+        )
+        self._dialog_title_label = title_label
+        self._dialog_subtitle_label = subtitle_label
+        self._dialog_close_btn = close_btn
+        main_layout.addWidget(title_bar)
 
         # --- Accent bar ---
         self._header_bar = QFrame()
@@ -1346,6 +1456,12 @@ class UserEditDialog(DashboardGlassDialog):
         palette = _charging_theme_palette(charging)
         accent = palette["accent"]
         self.setStyleSheet(_dashboard_dialog_stylesheet(charging))
+        _apply_premium_dialog_title_bar_theme(
+            self._dialog_title_label,
+            self._dialog_subtitle_label,
+            self._dialog_close_btn,
+            charging,
+        )
         self._header_bar.setStyleSheet(
             f"background: {accent}; border-radius: 2px;"
         )
@@ -1398,6 +1514,14 @@ class UserEditDialog(DashboardGlassDialog):
             "old_pin": self._old_pin_input.text().strip(),
             "new_pin": self._new_pin_input.text().strip(),
         }
+
+    def reset_password_verification(self) -> None:
+        self._old_password_input.clear()
+        self._old_password_input.setFocus()
+
+    def reset_pin_verification(self) -> None:
+        self._old_pin_input.clear()
+        self._old_pin_input.setFocus()
 
 
 class UserAddDialog(DashboardGlassDialog):
@@ -3057,17 +3181,10 @@ class DashboardForm(QMainWindow):
             (dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
             | Qt.WindowType.FramelessWindowHint
         )
-        dialog.setFixedSize(386, 214)
+        dialog.setFixedSize(406, 238)
         dialog.setStyleSheet(
             _dashboard_dialog_stylesheet(charging)
             + f"""
-            QLabel#confirmWindowTitle {{
-                color: {palette['panel_muted']};
-                font-size: 11px;
-                font-weight: 700;
-                letter-spacing: 0.2px;
-                background: transparent;
-            }}
             QLabel#confirmTitle {{
                 color: {palette['panel_text']};
                 font-size: 15px;
@@ -3088,16 +3205,16 @@ class DashboardForm(QMainWindow):
         )
 
         layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(18, 12, 18, 16)
+        layout.setContentsMargins(18, 14, 18, 16)
         layout.setSpacing(12)
 
-        title_bar = QHBoxLayout()
-        title_bar.setContentsMargins(0, 0, 0, 0)
-        title_label = QLabel(window_title)
-        title_label.setObjectName("confirmWindowTitle")
-        title_bar.addWidget(title_label)
-        title_bar.addStretch(1)
-        layout.addLayout(title_bar)
+        title_bar, title_label, subtitle_label, close_btn = _build_premium_dialog_title_bar(
+            dialog,
+            window_title,
+            "Confirm this user management action",
+        )
+        _apply_premium_dialog_title_bar_theme(title_label, subtitle_label, close_btn, charging)
+        layout.addWidget(title_bar)
 
         separator = QFrame()
         separator.setObjectName("confirmSeparator")
@@ -3194,80 +3311,95 @@ class DashboardForm(QMainWindow):
                 current_pin="",
                 parent=self,
             )
-            if dialog.exec() != QDialog.DialogCode.Accepted:
-                return
 
-            payload = dialog.data()
-            if not payload["username"]:
-                self._show_user_management_notice("Validation", "Username cannot be empty.")
-                return
-
-            old_password = str(payload.get("old_password", "") or "")
-            new_password = str(payload.get("new_password", "") or "")
-            old_pin = str(payload.get("old_pin", "") or "")
-            new_pin = str(payload.get("new_pin", "") or "")
-
-            if old_password:
-                if hris_auth_schema:
-                    stored_hash = str(user_row.get("password_hash") or "")
-                    password_valid = bool(
-                        stored_hash
-                        and verify_bcrypt_password is not None
-                        and verify_bcrypt_password(old_password, stored_hash)
-                    )
-                else:
-                    password_record = getattr(user, "password_record", None)
-                    stored_salt = str(getattr(password_record, "password_salt", "") or "")
-                    stored_hash = str(getattr(password_record, "password_hash", "") or "")
-                    password_valid = bool(stored_salt and stored_hash and verify_password(old_password, stored_salt, stored_hash))
-                if not stored_hash:
-                    self._show_user_management_notice(
-                        "Credential Unavailable",
-                        "Current password is not available for this user.",
-                    )
-                    return
-                if not password_valid:
-                    self._show_user_management_notice(
-                        "Incorrect Password",
-                        "Current password is incorrect.",
-                    )
+            while True:
+                if dialog.exec() != QDialog.DialogCode.Accepted:
                     return
 
-            if old_pin:
-                if hris_auth_schema:
-                    stored_pin_hash = str(user_row.get("pin_hash") or "")
-                    pin_valid = bool(
-                        stored_pin_hash
-                        and verify_bcrypt_password is not None
-                        and verify_bcrypt_password(old_pin, stored_pin_hash)
-                    )
-                else:
-                    pin_record = getattr(user, "pin_record", None)
-                    stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
-                    stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
-                    pin_valid = bool(stored_pin_salt and stored_pin_hash and verify_pin_code(old_pin, stored_pin_salt, stored_pin_hash))
-                if not stored_pin_hash:
-                    self._show_user_management_notice(
-                        "Credential Unavailable",
-                        "Current PIN is not available for this user.",
-                    )
-                    return
-                if not pin_valid:
-                    self._show_user_management_notice("Incorrect PIN", "Current PIN is incorrect.")
-                    return
+                payload = dialog.data()
+                if not payload["username"]:
+                    self._show_user_management_notice("Validation", "Username cannot be empty.")
+                    continue
 
-            update_user(
-                session,
-                user_id,
-                username=payload["username"],
-                nama=payload["nama"],
-                role=payload["role"],
-                status=payload["status"],
-                password=new_password,
-            )
+                old_password = str(payload.get("old_password", "") or "")
+                new_password = str(payload.get("new_password", "") or "")
+                old_pin = str(payload.get("old_pin", "") or "")
+                new_pin = str(payload.get("new_pin", "") or "")
 
-            if new_pin:
-                set_user_pin(session, user_id, new_pin)
+                if old_password:
+                    if hris_auth_schema:
+                        stored_hash = str(user_row.get("password_hash") or "")
+                        password_valid = bool(
+                            stored_hash
+                            and verify_bcrypt_password is not None
+                            and verify_bcrypt_password(old_password, stored_hash)
+                        )
+                    else:
+                        password_record = getattr(user, "password_record", None)
+                        stored_salt = str(getattr(password_record, "password_salt", "") or "")
+                        stored_hash = str(getattr(password_record, "password_hash", "") or "")
+                        password_valid = bool(
+                            stored_salt
+                            and stored_hash
+                            and verify_password(old_password, stored_salt, stored_hash)
+                        )
+                    if not stored_hash:
+                        self._show_user_management_notice(
+                            "Credential Unavailable",
+                            "Current password is not available for this user.",
+                        )
+                        dialog.reset_password_verification()
+                        continue
+                    if not password_valid:
+                        self._show_user_management_notice(
+                            "Incorrect Password",
+                            "Current password is incorrect.",
+                        )
+                        dialog.reset_password_verification()
+                        continue
+
+                if old_pin:
+                    if hris_auth_schema:
+                        stored_pin_hash = str(user_row.get("pin_hash") or "")
+                        pin_valid = bool(
+                            stored_pin_hash
+                            and verify_bcrypt_password is not None
+                            and verify_bcrypt_password(old_pin, stored_pin_hash)
+                        )
+                    else:
+                        pin_record = getattr(user, "pin_record", None)
+                        stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
+                        stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
+                        pin_valid = bool(
+                            stored_pin_salt
+                            and stored_pin_hash
+                            and verify_pin_code(old_pin, stored_pin_salt, stored_pin_hash)
+                        )
+                    if not stored_pin_hash:
+                        self._show_user_management_notice(
+                            "Credential Unavailable",
+                            "Current PIN is not available for this user.",
+                        )
+                        dialog.reset_pin_verification()
+                        continue
+                    if not pin_valid:
+                        self._show_user_management_notice("Incorrect PIN", "Current PIN is incorrect.")
+                        dialog.reset_pin_verification()
+                        continue
+
+                update_user(
+                    session,
+                    user_id,
+                    username=payload["username"],
+                    nama=payload["nama"],
+                    role=payload["role"],
+                    status=payload["status"],
+                    password=new_password,
+                )
+
+                if new_pin:
+                    set_user_pin(session, user_id, new_pin)
+                break
         except ValueError as error:
             self._show_user_management_notice("Validation", str(error))
             return
@@ -3309,9 +3441,10 @@ class DashboardForm(QMainWindow):
                         role_value = _map_hris_role_to_dashboard_role(
                             _role_names_from_value(row.get("role_names"))
                         )
-                        raw_status = str(row.get("status") or "").strip().lower()
                         is_active = bool(row.get("is_active")) and not bool(row.get("is_locked"))
-                        status_value = "Active" if is_active and raw_status in {"aktif", "active"} else "Inactive"
+                        raw_status = str(row.get("status") or "").strip().lower()
+                        status_blocks_access = raw_status in {"nonaktif", "inactive", "disabled"}
+                        status_value = "Active" if is_active and not status_blocks_access else "Inactive"
                         return (role_value, status_value)
 
                 user = session.get(User, user_id)
