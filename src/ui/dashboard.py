@@ -62,6 +62,16 @@ except ImportError:
     from src.auth.passwords import verify_password, verify_pin_code  # type: ignore[no-redef]
 
 try:
+    from app.core.security import verify_password as verify_bcrypt_password
+except ImportError:
+    verify_bcrypt_password = None  # type: ignore[assignment]
+
+try:
+    from ui.credentials_login import _show_credentials_warning
+except ImportError:
+    from src.ui.credentials_login import _show_credentials_warning  # type: ignore[no-redef]
+
+try:
     from ui.hris_dashboard_data import (
         DEFAULT_REPORTS_DIR,
         HrisQualityIssueRow,
@@ -3012,6 +3022,121 @@ class DashboardForm(QMainWindow):
 
         self._sync_user_table_widget_states()
 
+    def _show_user_management_notice(
+        self,
+        title: str,
+        message: str,
+        *,
+        window_title: str = "User Management",
+    ) -> None:
+        _show_credentials_warning(
+            self,
+            title,
+            message,
+            bool(self._charging),
+            333,
+            window_title,
+            "pin",
+        )
+
+    def _confirm_user_management_action(
+        self,
+        title: str,
+        message: str,
+        *,
+        confirm_text: str,
+        window_title: str = "User Management",
+    ) -> bool:
+        charging = bool(self._charging)
+        palette = _charging_theme_palette(charging)
+        dialog = DashboardGlassDialog(self, radius=18.0)
+        dialog.set_charging(charging)
+        dialog.setModal(True)
+        dialog.setWindowTitle(window_title)
+        dialog.setWindowFlags(
+            (dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+            | Qt.WindowType.FramelessWindowHint
+        )
+        dialog.setFixedSize(386, 214)
+        dialog.setStyleSheet(
+            _dashboard_dialog_stylesheet(charging)
+            + f"""
+            QLabel#confirmWindowTitle {{
+                color: {palette['panel_muted']};
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.2px;
+                background: transparent;
+            }}
+            QLabel#confirmTitle {{
+                color: {palette['panel_text']};
+                font-size: 15px;
+                font-weight: 850;
+                background: transparent;
+            }}
+            QLabel#confirmMessage {{
+                color: {palette['panel_muted']};
+                font-size: 12px;
+                font-weight: 600;
+                background: transparent;
+            }}
+            QFrame#confirmSeparator {{
+                background: {palette['panel_border']};
+                border: none;
+            }}
+            """
+        )
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(18, 12, 18, 16)
+        layout.setSpacing(12)
+
+        title_bar = QHBoxLayout()
+        title_bar.setContentsMargins(0, 0, 0, 0)
+        title_label = QLabel(window_title)
+        title_label.setObjectName("confirmWindowTitle")
+        title_bar.addWidget(title_label)
+        title_bar.addStretch(1)
+        layout.addLayout(title_bar)
+
+        separator = QFrame()
+        separator.setObjectName("confirmSeparator")
+        separator.setFixedHeight(1)
+        layout.addWidget(separator)
+
+        headline = QLabel(title)
+        headline.setObjectName("confirmTitle")
+        headline.setWordWrap(True)
+        layout.addWidget(headline)
+
+        body = QLabel(message)
+        body.setObjectName("confirmMessage")
+        body.setWordWrap(True)
+        layout.addWidget(body, 1)
+
+        button_row = QHBoxLayout()
+        button_row.setSpacing(10)
+        button_row.addStretch(1)
+        cancel_btn = QPushButton("Cancel")
+        confirm_btn = QPushButton(confirm_text)
+        for button, role in ((cancel_btn, "secondary"), (confirm_btn, "primary")):
+            button.setFixedSize(104, 34)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._apply_table_action_button_style(button, role)
+            button_row.addWidget(button)
+        layout.addLayout(button_row)
+
+        cancel_btn.clicked.connect(dialog.reject)
+        confirm_btn.clicked.connect(dialog.accept)
+
+        if self.isVisible():
+            center = self.frameGeometry().center()
+            dialog_rect = dialog.frameGeometry()
+            dialog_rect.moveCenter(center)
+            dialog.move(dialog_rect.topLeft())
+
+        return dialog.exec() == QDialog.DialogCode.Accepted
+
     def _edit_user(
         self,
         user_id: int,
@@ -3026,20 +3151,43 @@ class DashboardForm(QMainWindow):
 
         session = Session()
         try:
-            user = session.get(User, user_id)
-            if user is None:
-                QMessageBox.warning(self, "Data Not Found", "User not found.")
-                return
+            hris_auth_schema = _is_hris_auth_schema(session)
+            if hris_auth_schema:
+                user_row = session.execute(
+                    text(
+                        """
+                        SELECT user_id, username, full_name, status, is_active, password_hash, pin_hash
+                        FROM users
+                        WHERE user_id = :user_id
+                        """
+                    ),
+                    {"user_id": user_id},
+                ).mappings().first()
+                if user_row is None:
+                    self._show_user_management_notice("Data Not Found", "User not found.")
+                    return
+                user = None
+                username_value = str(user_row.get("username") or "")
+                full_name_value = str(user_row.get("full_name") or "")
+                raw_role = fallback_role
+                raw_status = "aktif" if bool(user_row.get("is_active")) else "nonaktif"
+            else:
+                user = session.get(User, user_id)
+                if user is None:
+                    self._show_user_management_notice("Data Not Found", "User not found.")
+                    return
+                username_value = str(getattr(user, "username", "") or "")
+                full_name_value = str(getattr(user, "nama", "") or "")
+                raw_role = str(getattr(user, "role", "") or "").strip()
+                raw_status = str(getattr(user, "status", "") or "").strip()
 
-            raw_role = str(getattr(user, "role", "") or "").strip()
             role_value = raw_role if raw_role else fallback_role
 
-            raw_status = str(getattr(user, "status", "") or "").strip()
             status_value = raw_status if raw_status else fallback_status
 
             dialog = UserEditDialog(
-                username=str(getattr(user, "username", "") or ""),
-                nama=str(getattr(user, "nama", "") or ""),
+                username=username_value,
+                nama=full_name_value,
                 role=role_value,
                 status=status_value,
                 current_password="",
@@ -3051,7 +3199,7 @@ class DashboardForm(QMainWindow):
 
             payload = dialog.data()
             if not payload["username"]:
-                QMessageBox.warning(self, "Validation", "Username cannot be empty.")
+                self._show_user_management_notice("Validation", "Username cannot be empty.")
                 return
 
             old_password = str(payload.get("old_password", "") or "")
@@ -3060,25 +3208,52 @@ class DashboardForm(QMainWindow):
             new_pin = str(payload.get("new_pin", "") or "")
 
             if old_password:
-                password_record = getattr(user, "password_record", None)
-                stored_salt = str(getattr(password_record, "password_salt", "") or "")
-                stored_hash = str(getattr(password_record, "password_hash", "") or "")
-                if not stored_salt or not stored_hash:
-                    QMessageBox.warning(self, "Validation", "Current password is not available for this user.")
+                if hris_auth_schema:
+                    stored_hash = str(user_row.get("password_hash") or "")
+                    password_valid = bool(
+                        stored_hash
+                        and verify_bcrypt_password is not None
+                        and verify_bcrypt_password(old_password, stored_hash)
+                    )
+                else:
+                    password_record = getattr(user, "password_record", None)
+                    stored_salt = str(getattr(password_record, "password_salt", "") or "")
+                    stored_hash = str(getattr(password_record, "password_hash", "") or "")
+                    password_valid = bool(stored_salt and stored_hash and verify_password(old_password, stored_salt, stored_hash))
+                if not stored_hash:
+                    self._show_user_management_notice(
+                        "Credential Unavailable",
+                        "Current password is not available for this user.",
+                    )
                     return
-                if not verify_password(old_password, stored_salt, stored_hash):
-                    QMessageBox.warning(self, "Validation", "Current password is incorrect.")
+                if not password_valid:
+                    self._show_user_management_notice(
+                        "Incorrect Password",
+                        "Current password is incorrect.",
+                    )
                     return
 
             if old_pin:
-                pin_record = getattr(user, "pin_record", None)
-                stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
-                stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
-                if not stored_pin_salt or not stored_pin_hash:
-                    QMessageBox.warning(self, "Validation", "Current PIN is not available for this user.")
+                if hris_auth_schema:
+                    stored_pin_hash = str(user_row.get("pin_hash") or "")
+                    pin_valid = bool(
+                        stored_pin_hash
+                        and verify_bcrypt_password is not None
+                        and verify_bcrypt_password(old_pin, stored_pin_hash)
+                    )
+                else:
+                    pin_record = getattr(user, "pin_record", None)
+                    stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
+                    stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
+                    pin_valid = bool(stored_pin_salt and stored_pin_hash and verify_pin_code(old_pin, stored_pin_salt, stored_pin_hash))
+                if not stored_pin_hash:
+                    self._show_user_management_notice(
+                        "Credential Unavailable",
+                        "Current PIN is not available for this user.",
+                    )
                     return
-                if not verify_pin_code(old_pin, stored_pin_salt, stored_pin_hash):
-                    QMessageBox.warning(self, "Validation", "Current PIN is incorrect.")
+                if not pin_valid:
+                    self._show_user_management_notice("Incorrect PIN", "Current PIN is incorrect.")
                     return
 
             update_user(
@@ -3094,12 +3269,16 @@ class DashboardForm(QMainWindow):
             if new_pin:
                 set_user_pin(session, user_id, new_pin)
         except ValueError as error:
-            QMessageBox.warning(self, "Validation", str(error))
+            self._show_user_management_notice("Validation", str(error))
             return
         finally:
             session.close()
 
         self._load_users_table()
+        self._show_user_management_notice(
+            "User Updated",
+            "User profile and credentials were updated successfully.",
+        )
 
     def _get_current_user_access_profile(self) -> tuple[str, str]:
         if self._user is None:
@@ -3222,143 +3401,46 @@ class DashboardForm(QMainWindow):
 
     def _show_user_action_access_denied_dialog(self, action_name: str) -> None:
         role_value, status_value = self._get_current_user_access_profile()
-        charging = bool(self._charging)
-        palette = _charging_theme_palette(charging)
-        dialog = DashboardGlassDialog(self, radius=16.0)
-        dialog.set_charging(charging)
-        dialog.setModal(True)
-        dialog.setWindowTitle("User Action Restricted")
-        dialog.setWindowFlags(
-            (dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
-            | Qt.WindowType.WindowCloseButtonHint
+        self._show_user_management_notice(
+            "User Action Restricted",
+            "Only Active Superior users can perform this action.\n\n"
+            f"Action: {action_name}\nCurrent access: {role_value} / {status_value}",
         )
-        dialog.setFixedWidth(464)
-        dialog.setStyleSheet(
-            "QDialog { background: transparent; }"
-            "QFrame#headerBand {"
-            f" background: {palette['surface_bg']};"
-            f" border: 1px solid {palette['panel_border']};"
-            " border-radius: 8px;"
-            "}"
-            f"QLabel#titleLabel {{ color: {palette['panel_text']}; font-size: 14px; font-weight: 850; background: transparent; }}"
-            f"QLabel#subtitleLabel {{ color: {palette['panel_muted']}; font-size: 11px; font-weight: 650; background: transparent; }}"
-            "QFrame#contentCard {"
-            f" background: {palette['surface_bg']};"
-            f" border: 1px solid {palette['panel_border']};"
-            " border-radius: 8px;"
-            "}"
-            "QLabel#infoIcon {"
-            " min-width: 28px; max-width: 28px;"
-            " min-height: 28px; max-height: 28px;"
-            " border-radius: 14px;"
-            f" background: {palette['surface_selected']};"
-            f" border: 1px solid {palette['panel_border']};"
-            f" color: {palette['panel_text']};"
-            " font-size: 15px;"
-            " font-weight: 900;"
-            " qproperty-alignment: AlignCenter;"
-            "}"
-            f"QLabel#contentText {{ color: {palette['panel_text']}; font-size: 11px; background: transparent; }}"
-            "QLabel#statusPill {"
-            f" color: {palette['panel_text']};"
-            f" background: {palette['badge_bg']};"
-            f" border: 1px solid {palette['badge_border']};"
-            " border-radius: 8px;"
-            " padding: 3px 8px;"
-            " font-size: 10px;"
-            " font-weight: 700;"
-            "}"
-        )
-
-        root_layout = QVBoxLayout(dialog)
-        root_layout.setContentsMargins(12, 10, 12, 10)
-        root_layout.setSpacing(7)
-
-        header_band = QFrame()
-        header_band.setObjectName("headerBand")
-        header_layout = QVBoxLayout(header_band)
-        header_layout.setContentsMargins(9, 6, 9, 6)
-        header_layout.setSpacing(1)
-        title = QLabel("User Action Restricted")
-        title.setObjectName("titleLabel")
-        subtitle = QLabel(f"Action blocked: {action_name} in User Management")
-        subtitle.setObjectName("subtitleLabel")
-        header_layout.addWidget(title)
-        header_layout.addWidget(subtitle)
-        root_layout.addWidget(header_band)
-
-        content_card = QFrame()
-        content_card.setObjectName("contentCard")
-        content_layout = QVBoxLayout(content_card)
-        content_layout.setContentsMargins(10, 9, 10, 9)
-        content_layout.setSpacing(6)
-
-        content_top = QHBoxLayout()
-        content_top.setSpacing(9)
-        info_icon = QLabel("i")
-        info_icon.setObjectName("infoIcon")
-        content_text = QLabel(
-            "You are not allowed to perform this action.\n"
-            "Only users with Role = Superior and Status = Active can perform Edit and Delete actions.\n"
-            "Please contact an Active Superior for assistance."
-        )
-        content_text.setObjectName("contentText")
-        content_text.setWordWrap(True)
-        content_text.setMinimumWidth(370)
-        content_text.setMaximumWidth(370)
-        content_text.adjustSize()
-        content_text.setMinimumHeight(content_text.sizeHint().height() + 6)
-        content_top.addWidget(info_icon, alignment=Qt.AlignmentFlag.AlignTop)
-        content_top.addWidget(content_text, stretch=1)
-        content_layout.addLayout(content_top)
-
-        access_row = QHBoxLayout()
-        role_pill = QLabel(f"Role: {role_value}")
-        role_pill.setObjectName("statusPill")
-        status_pill = QLabel(f"Status: {status_value}")
-        status_pill.setObjectName("statusPill")
-        access_row.addWidget(role_pill)
-        access_row.addWidget(status_pill)
-        access_row.addStretch()
-        content_layout.addLayout(access_row)
-        root_layout.addWidget(content_card)
-
-        required_height = max(220, content_text.sizeHint().height() + 150)
-        dialog.setFixedHeight(required_height)
-
-        if self.isVisible():
-            center = self.frameGeometry().center()
-            dialog_rect = dialog.frameGeometry()
-            dialog_rect.moveCenter(center)
-            dialog.move(dialog_rect.topLeft())
-
-        dialog.exec()
 
     def _delete_user(self, user_id: int, username: str) -> None:
         if not self._can_current_user_manage_user_actions():
             self._show_user_action_access_denied_dialog("Delete")
             return
 
-        answer = QMessageBox.question(
-            self,
+        current_user_id = self.current_user_id()
+        if current_user_id == user_id:
+            self._show_user_management_notice(
+                "Delete Blocked",
+                "You cannot delete the currently signed-in user.",
+            )
+            return
+
+        if not self._confirm_user_management_action(
             "Delete User",
-            f"Delete user '{username}'?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if answer != QMessageBox.StandardButton.Yes:
+            f"Delete user '{username}'? This action cannot be undone.",
+            confirm_text="Delete",
+        ):
             return
 
         session = Session()
         try:
             delete_user(session, user_id)
         except ValueError as error:
-            QMessageBox.warning(self, "Delete Failed", str(error))
+            self._show_user_management_notice("Delete Failed", str(error))
             return
         finally:
             session.close()
 
         self._load_users_table()
+        self._show_user_management_notice(
+            "User Deleted",
+            f"User '{username}' was deleted successfully.",
+        )
 
     def _open_change_password_dialog(self) -> None:
         """Buka dialog untuk user mengganti password dan PIN mereka sendiri"""
@@ -3472,6 +3554,10 @@ class DashboardForm(QMainWindow):
 
     def _open_add_user_dialog(self) -> None:
         """Open dialog to add a new user."""
+        if not self._can_current_user_manage_user_actions():
+            self._show_user_action_access_denied_dialog("Add")
+            return
+
         dialog = UserAddDialog(self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -3480,11 +3566,11 @@ class DashboardForm(QMainWindow):
         
         # Validasi
         if not data["username"]:
-            QMessageBox.warning(self, "Validation", "Username cannot be empty.")
+            self._show_user_management_notice("Validation", "Username cannot be empty.")
             return
         
         if not data["nama"]:
-            QMessageBox.warning(self, "Validation", "Full name cannot be empty.")
+            self._show_user_management_notice("Validation", "Full name cannot be empty.")
             return
         
         self._add_user(data)
@@ -3497,36 +3583,32 @@ class DashboardForm(QMainWindow):
         
         session = Session()
         try:
-            from database.crud import create_user
+            try:
+                from database.crud import create_user
+            except ImportError:
+                from src.database.crud import create_user  # type: ignore
             
-            user = create_user(
+            create_user(
                 session,
                 username=data["username"],
                 nama=data["nama"],
                 password=generated_password,
                 role=data["role"],
                 status=data["status"],
+                pin=generated_pin,
             )
-            
-            # Set PIN untuk user baru
-            created_user_id = int(getattr(user, "id", 0) or 0)
-            set_user_pin(session, created_user_id, generated_pin)
             
             self._load_users_table()
-            QMessageBox.information(
-                self,
-                "User Created",
-                f"User '{data['username']}' was added successfully.\n\n"
-                f"Password: {generated_password}\n"
-                f"PIN: {generated_pin}\n\n"
-                f"Save these credentials now (shown only once)."
+            self._show_user_management_notice(
+                "Temporary Credentials",
+                f"{data['username']} created.\nPassword: {generated_password}\nPIN: {generated_pin}\nShown only once.",
             )
         except ValueError as error:
-            QMessageBox.warning(self, "Validation", str(error))
+            self._show_user_management_notice("Validation", str(error))
             session.rollback()
             return
         except Exception as error:
-            QMessageBox.critical(self, "Error", f"Error: {error}")
+            self._show_user_management_notice("User Create Failed", f"Error: {error}")
             session.rollback()
             return
         finally:
