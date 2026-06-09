@@ -36,7 +36,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
-    QMenu,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -1636,6 +1635,10 @@ class DashboardForm(QMainWindow):
         self._hris_quality_summary_label: Optional[QLabel] = None
         self._search_username: Optional[QLineEdit] = None
         self._role_filter: Optional[QComboBox] = None
+        self._user_management_summary_label: Optional[QLabel] = None
+        self._user_table_normal_column_widths: dict[int, int] = {}
+        self._user_table_expanded_columns: set[int] = set()
+        self._user_role_chip_width = 104
         self._all_users_rows: list[UserRow] = []
         self.setWindowTitle("Dashboard")
         self.resize(1360, 820)
@@ -2477,16 +2480,38 @@ class DashboardForm(QMainWindow):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(12)
 
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(12)
+
         self._page_title_label = QLabel("User Management")
+        self._page_title_label.setProperty("compactPageTitle", True)
         self._page_title_labels.append(self._page_title_label)
-        layout.addWidget(self._page_title_label)
+
+        self._add_user_btn = QPushButton("+ Add User")
+        self._add_user_btn.setFixedHeight(38)
+        self._add_user_btn.setMinimumWidth(132)
+        self._add_user_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._add_user_btn.clicked.connect(self._open_add_user_dialog)
+
+        title_row.addWidget(self._page_title_label)
+        title_row.addStretch(1)
+        title_row.addWidget(self._add_user_btn, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(title_row)
+
+        self._user_management_summary_label = QLabel("Loading users...")
+        self._user_management_summary_label.setWordWrap(True)
+        self._dashboard_muted_labels.append(self._user_management_summary_label)
+        layout.addWidget(self._user_management_summary_label)
 
         controls = QHBoxLayout()
+        controls.setContentsMargins(0, 2, 0, 4)
         controls.setSpacing(12)
 
         self._search_username = QLineEdit()
-        self._search_username.setPlaceholderText("Search username...")
+        self._search_username.setPlaceholderText("Search name, username, email, or phone...")
         self._search_username.setFixedHeight(36)
+        self._search_username.setMinimumWidth(320)
         self._search_username.textChanged.connect(self._apply_user_filters)
 
         filter_label = QLabel("Role Filter")
@@ -2495,31 +2520,21 @@ class DashboardForm(QMainWindow):
         self._role_filter = QComboBox()
         self._role_filter.addItem("All")
         self._role_filter.setFixedHeight(36)
-        self._role_filter.setMinimumWidth(180)
+        self._role_filter.setFixedWidth(170)
         self._role_filter.currentTextChanged.connect(self._apply_user_filters)
 
-        self._add_user_btn = QPushButton("+ Add User")
-        self._add_user_btn.setFixedHeight(36)
-        self._add_user_btn.setMinimumWidth(140)
-        self._add_user_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._add_user_btn.clicked.connect(self._open_add_user_dialog)
-
-        controls.addWidget(self._search_username, 2)
+        controls.addWidget(self._search_username, 1)
         controls.addStretch(1)
         controls.addWidget(filter_label)
         controls.addWidget(self._role_filter)
-        controls.addWidget(self._add_user_btn)
         layout.addLayout(controls)
 
         self._users_table = QTableWidget()
-        self._users_table.setColumnCount(9)
+        self._users_table.setColumnCount(6)
         self._users_table.setHorizontalHeaderLabels(
             [
-                "FULL NAME",
-                "USERNAME",
+                "USER",
                 "ROLE",
-                "EMAIL",
-                "PHONE",
                 "UPDATED",
                 "STATUS",
                 "ID",
@@ -2527,7 +2542,7 @@ class DashboardForm(QMainWindow):
             ]
         )
         self._users_table.verticalHeader().setVisible(False)
-        self._users_table.verticalHeader().setDefaultSectionSize(62)
+        self._users_table.verticalHeader().setDefaultSectionSize(68)
         self._users_table.setAlternatingRowColors(True)
         self._users_table.setShowGrid(False)
         self._users_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -2539,10 +2554,10 @@ class DashboardForm(QMainWindow):
         self._users_table.setTextElideMode(Qt.TextElideMode.ElideRight)
         self._users_table.setStyleSheet(
             "QTableWidget { background: rgba(23, 31, 42, 0.78); alternate-background-color: rgba(38, 47, 59, 0.72); "
-            "color: #F4F8FF; border: 1px solid rgba(255, 255, 255, 0.26); border-radius: 12px; font-size: 14px; outline: none; }"
+            "color: #F4F8FF; border: 1px solid rgba(255, 255, 255, 0.26); border-radius: 12px; font-size: 13px; outline: none; }"
             "QHeaderView::section { background: rgba(43, 52, 65, 0.86); color: rgba(230, 237, 246, 0.72); "
             "font-size: 11px; font-weight: 800; border: none; border-bottom: 1px solid rgba(255,255,255,0.18); padding: 10px 14px; }"
-            "QTableWidget::item { padding: 10px 12px; border: none; }"
+            "QTableWidget::item { padding: 8px 10px; border: none; }"
             "QTableWidget::item:hover { background: rgba(255, 255, 255, 0.09); }"
             "QTableWidget::item:selected { background: rgba(255, 255, 255, 0.16); color: #F4F8FF; }"
         )
@@ -2550,9 +2565,8 @@ class DashboardForm(QMainWindow):
         header = self._users_table.horizontalHeader()
         header.setMinimumSectionSize(72)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        # Widget-based columns should keep fixed width for consistent pixel alignment.
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
+        for column_index in range(6):
+            header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
         header.setSectionsClickable(True)
         header.setStretchLastSection(False)
         header.sectionDoubleClicked.connect(self._auto_size_user_table_column)
@@ -2561,20 +2575,15 @@ class DashboardForm(QMainWindow):
             section_handle_double_clicked.connect(self._auto_size_user_table_column)
 
         # Default widths tuned for readability while keeping manual resize enabled.
-        self._users_table.setColumnWidth(0, 210)
-        self._users_table.setColumnWidth(1, 165)
-        self._users_table.setColumnWidth(2, 108)
-        self._users_table.setColumnWidth(3, 220)
-        self._users_table.setColumnWidth(4, 140)
-        self._users_table.setColumnWidth(5, 150)
-        self._users_table.setColumnWidth(6, 176)
-        self._users_table.setColumnWidth(7, 72)
-        self._users_table.setColumnWidth(8, 210)
-        self._users_table.setColumnHidden(7, True)
+        self._users_table.setColumnWidth(0, 220)
+        self._users_table.setColumnWidth(1, 124)
+        self._users_table.setColumnWidth(2, 118)
+        self._users_table.setColumnWidth(3, 136)
+        self._users_table.setColumnWidth(4, 72)
+        self._users_table.setColumnWidth(5, 158)
+        self._users_table.setColumnHidden(4, True)
 
-        # Double-click row → edit; right-click → context menu; keyboard Delete/Enter
-        self._users_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self._users_table.customContextMenuRequested.connect(self._show_user_context_menu)
+        # Double-click row -> edit; keyboard Delete/Enter follow the visible row actions.
         self._users_table.cellDoubleClicked.connect(self._on_user_table_double_click)
         self._users_table.itemSelectionChanged.connect(self._sync_user_table_widget_states)
         self._users_table.installEventFilter(self)
@@ -2586,28 +2595,76 @@ class DashboardForm(QMainWindow):
         if self._users_table is None:
             return
 
-        # Keep widget-based columns fixed to avoid visual drift.
-        if logical_index in {6, 8}:
+        if logical_index == 4 or self._users_table.isColumnHidden(logical_index):
             return
 
+        normal_width = self._user_table_normal_column_widths.get(
+            logical_index,
+            self._users_table.columnWidth(logical_index),
+        )
+
+        if logical_index in self._user_table_expanded_columns:
+            self._users_table.setColumnWidth(logical_index, normal_width)
+            self._user_table_expanded_columns.remove(logical_index)
+            return
+
+        self._user_table_normal_column_widths[logical_index] = normal_width
         self._users_table.resizeColumnToContents(logical_index)
         fitted_width = self._users_table.columnWidth(logical_index)
-        padded_width = fitted_width + 18
-        self._users_table.setColumnWidth(logical_index, max(72, min(padded_width, 520)))
+        padded_width = fitted_width + 24
+        self._users_table.setColumnWidth(logical_index, max(normal_width, min(padded_width, 520)))
+        self._user_table_expanded_columns.add(logical_index)
 
     def _auto_fit_all_user_columns(self) -> None:
-        """Resize all columns to fit their content, with padding and a max cap."""
+        """Keep the user table stable: one stretch name column, fixed utility columns."""
         if self._users_table is None:
             return
-        self._users_table.resizeColumnsToContents()
-        for col in range(self._users_table.columnCount() - 1):
-            if self._users_table.isColumnHidden(col):
-                continue
-            w = self._users_table.columnWidth(col)
-            self._users_table.setColumnWidth(col, max(72, min(w + 20, 320)))
-        # Keep hidden ID internal-only and lock columns that use custom widgets.
-        self._users_table.setColumnWidth(6, 176)
-        self._users_table.setColumnWidth(8, 210)
+        self._fit_user_table_columns_to_rows(self._all_users_rows)
+
+    def _fit_user_table_columns_to_rows(self, rows: list[UserRow]) -> None:
+        if self._users_table is None:
+            return
+
+        metrics = QFontMetrics(self._users_table.font())
+
+        def text_width(values: list[str], fallback: str) -> int:
+            longest = max(values, key=len, default=fallback)
+            return metrics.horizontalAdvance(longest)
+
+        user_values: list[str] = []
+        role_values: list[str] = []
+        updated_values: list[str] = []
+        for row in rows:
+            user_values.extend(
+                [
+                    str(row["username"]),
+                    str(row["full_name"]),
+                    str(row["email"]),
+                ]
+            )
+            role_values.append(str(row["role"]))
+            updated_values.append(str(row["updated_at"]))
+
+        user_width = text_width(user_values, "username") + 76
+        role_chip_width = max(
+            text_width(role_values, "Operator"),
+            metrics.horizontalAdvance("Administrator"),
+        ) + 22
+        role_width = role_chip_width + 28
+        updated_width = text_width(updated_values, "Updated") + 36
+
+        self._users_table.setColumnWidth(0, max(176, min(user_width, 260)))
+        self._user_role_chip_width = max(60, min(role_chip_width, 108))
+        self._users_table.setColumnWidth(1, max(96, min(role_width, 132)))
+        self._users_table.setColumnWidth(2, max(108, min(updated_width, 132)))
+        self._users_table.setColumnWidth(3, 132)
+        self._users_table.setColumnWidth(4, 72)
+        self._users_table.setColumnWidth(5, 158)
+        self._user_table_normal_column_widths = {
+            column_index: self._users_table.columnWidth(column_index)
+            for column_index in range(self._users_table.columnCount())
+        }
+        self._user_table_expanded_columns.clear()
 
     def _build_status_badge(self, status_value: str) -> QWidget:
         is_active = status_value.strip().lower() == "active"
@@ -2696,6 +2753,101 @@ class DashboardForm(QMainWindow):
             f"QLabel {{ color: {text_color}; font-size: 12px; font-weight: 700; background: transparent; border: none; }}"
         )
 
+    def _build_user_identity_cell(self, username: str, full_name: str, email: str) -> QWidget:
+        palette = _charging_theme_palette(bool(self._charging))
+        display_name = username.strip() or "-"
+        middle_text = full_name.strip() or "-"
+        bottom_text = email.strip() if email.strip() and email.strip() != "-" else "-"
+        initials = "".join(part[:1] for part in display_name.split()[:2]).upper() or "U"
+
+        container = QWidget()
+        container.setAutoFillBackground(False)
+        container.setStyleSheet("background: transparent;")
+        outer = QHBoxLayout(container)
+        outer.setContentsMargins(10, 5, 10, 5)
+        outer.setSpacing(10)
+        outer.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        avatar = QLabel(initials)
+        avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        avatar.setFixedSize(36, 36)
+        avatar.setStyleSheet(
+            "QLabel {"
+            f" background: {palette['surface_selected']}; color: {palette['panel_text']};"
+            f" border: 1px solid {palette['panel_border']}; border-radius: 17px;"
+            " font-size: 11px; font-weight: 850;"
+            "}"
+        )
+
+        text_stack = QVBoxLayout()
+        text_stack.setContentsMargins(0, 0, 0, 0)
+        text_stack.setSpacing(0)
+
+        name_label = QLabel(display_name)
+        name_label.setToolTip(f"Username: {username}\nFull Name: {full_name}\nEmail: {email}")
+        name_label.setStyleSheet(
+            f"color: {palette['panel_text']}; font-size: 13px; font-weight: 800; background: transparent;"
+        )
+
+        full_name_label = QLabel(middle_text)
+        full_name_label.setToolTip(f"Username: {username}\nFull Name: {full_name}\nEmail: {email}")
+        full_name_label.setStyleSheet(
+            f"color: {palette['panel_muted']}; font-size: 11px; font-weight: 650; background: transparent;"
+        )
+
+        email_label = QLabel(bottom_text)
+        email_label.setToolTip(f"Username: {username}\nFull Name: {full_name}\nEmail: {email}")
+        email_label.setStyleSheet(
+            "color: rgba(230, 237, 246, 0.54); font-size: 10px; font-weight: 600; background: transparent;"
+        )
+
+        text_stack.addWidget(name_label)
+        text_stack.addWidget(full_name_label)
+        text_stack.addWidget(email_label)
+        outer.addWidget(avatar)
+        outer.addLayout(text_stack, 1)
+        return container
+
+    def _build_user_role_cell(self, role_value: str) -> QWidget:
+        palette = _charging_theme_palette(bool(self._charging))
+        role_text = role_value.strip() or "Operator"
+        role_key = role_text.lower()
+        if role_key == "superior":
+            bg = "rgba(255, 199, 92, 0.22)"
+            border = "rgba(255, 212, 112, 0.36)"
+            text = "#FFE7A6"
+        elif role_key == "administrator":
+            bg = "rgba(80, 180, 255, 0.18)"
+            border = "rgba(126, 232, 255, 0.34)"
+            text = "#DDF8FF"
+        elif role_key == "auditor":
+            bg = "rgba(72, 187, 120, 0.18)"
+            border = "rgba(104, 211, 145, 0.34)"
+            text = "#DDFBE8"
+        else:
+            bg = palette["surface_bg"]
+            border = palette["panel_border"]
+            text = palette["panel_text"]
+
+        container = QWidget()
+        container.setAutoFillBackground(False)
+        container.setStyleSheet("background: transparent;")
+        outer = QHBoxLayout(container)
+        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        pill = QLabel(role_text)
+        pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pill.setFixedSize(self._user_role_chip_width, 26)
+        pill.setStyleSheet(
+            "QLabel {"
+            f" background: {bg}; color: {text}; border: 1px solid {border};"
+            " border-radius: 9px; font-size: 11px; font-weight: 800;"
+            "}"
+        )
+        outer.addWidget(pill)
+        return container
+
     def _apply_table_action_button_style(self, button: QPushButton, role: str) -> None:
         charging = bool(self._charging)
         if role == "primary":
@@ -2716,6 +2868,29 @@ class DashboardForm(QMainWindow):
                 "QPushButton:hover { background: rgba(255, 255, 255, 0.20); }"
                 "QPushButton:pressed { background: rgba(255, 255, 255, 0.11); }"
                 "QPushButton:disabled { background: rgba(255, 255, 255, 0.08); color: rgba(244, 248, 255, 0.44); }"
+            )
+            return
+
+        if role == "danger":
+            if charging:
+                button.setStyleSheet(
+                    "QPushButton { background: rgba(255, 96, 96, 0.07); color: #FFD8D8; "
+                    "border: 1px solid rgba(255, 128, 128, 0.42); border-radius: 6px; "
+                    "font-size: 12px; font-weight: 750; padding: 0; }"
+                    "QPushButton:hover { background: rgba(255, 96, 96, 0.16); border-color: rgba(255, 154, 154, 0.62); color: #FFFFFF; }"
+                    "QPushButton:pressed { background: rgba(255, 96, 96, 0.11); }"
+                    "QPushButton:disabled { background: rgba(255, 255, 255, 0.06); color: rgba(255, 216, 216, 0.38); "
+                    "border-color: rgba(255, 128, 128, 0.18); }"
+                )
+                return
+            button.setStyleSheet(
+                "QPushButton { background: rgba(255, 92, 92, 0.06); color: #FFB8B8; "
+                "border: 1px solid rgba(255, 120, 120, 0.34); border-radius: 6px; "
+                "font-size: 12px; font-weight: 750; padding: 0; }"
+                "QPushButton:hover { background: rgba(255, 92, 92, 0.14); border-color: rgba(255, 145, 145, 0.58); color: #FFECEC; }"
+                "QPushButton:pressed { background: rgba(255, 92, 92, 0.09); }"
+                "QPushButton:disabled { background: rgba(255, 255, 255, 0.06); color: rgba(255, 184, 184, 0.34); "
+                "border-color: rgba(255, 120, 120, 0.16); }"
             )
             return
 
@@ -2746,7 +2921,7 @@ class DashboardForm(QMainWindow):
                 self._users_table.rootIndex(),
             )
 
-            status_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 6))
+            status_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 3))
             if status_container is not None:
                 pill = status_container.findChild(QWidget, "statusBadgePill")
                 dot = status_container.findChild(QLabel, "statusBadgeDot")
@@ -2756,14 +2931,14 @@ class DashboardForm(QMainWindow):
                     self._apply_status_badge_style(pill, dot, lbl, is_active, is_selected)
                     pill.setProperty("rowSelected", is_selected)
 
-            actions_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 8))
+            actions_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 5))
             if actions_container is not None:
                 edit_btn = actions_container.findChild(QPushButton, "userActionEditButton")
-                more_btn = actions_container.findChild(QPushButton, "userActionMoreButton")
+                delete_btn = actions_container.findChild(QPushButton, "userActionDeleteButton")
                 if edit_btn is not None:
                     self._apply_table_action_button_style(edit_btn, "primary")
-                if more_btn is not None:
-                    self._apply_table_action_button_style(more_btn, "secondary")
+                if delete_btn is not None:
+                    self._apply_table_action_button_style(delete_btn, "danger")
 
     def _row_data_from_table(self, row: int) -> Optional[tuple[int, str, str, str, str, str]]:
         if self._users_table is None:
@@ -2782,65 +2957,6 @@ class DashboardForm(QMainWindow):
             return
         user_id, role_value, status_value, password_value, pin_value, _username = data
         self._edit_user(int(user_id), str(role_value), str(status_value), str(password_value), str(pin_value))
-
-    def _show_user_context_menu(self, pos: object) -> None:
-        if self._users_table is None:
-            return
-        index = self._users_table.indexAt(pos)  # type: ignore[arg-type]
-        if not index.isValid():
-            return
-        data = self._row_data_from_table(index.row())
-        if not data:
-            return
-        user_id, role_value, status_value, password_value, pin_value, username = data
-        self._show_user_actions_menu(
-            self._users_table.viewport().mapToGlobal(pos),  # type: ignore[arg-type]
-            int(user_id),
-            str(role_value),
-            str(status_value),
-            str(password_value),
-            str(pin_value),
-            str(username),
-        )
-
-    def _show_user_actions_menu(
-        self,
-        global_pos: object,
-        user_id: int,
-        role_value: str,
-        status_value: str,
-        password_value: str,
-        pin_value: str,
-        username: str,
-    ) -> None:
-        menu = QMenu(self)
-        if bool(self._charging):
-            menu.setStyleSheet(
-                "QMenu { background: #14283A; border: 1px solid rgba(126, 232, 255, 0.34); border-radius: 8px; padding: 4px; font-size: 13px; }"
-                "QMenu::item { padding: 7px 20px; border-radius: 5px; color: #ECFCFF; }"
-                "QMenu::item:selected { background: rgba(80, 180, 255, 0.20); color: #FFFFFF; }"
-                "QMenu::separator { height: 1px; background: rgba(126, 232, 255, 0.18); margin: 3px 8px; }"
-            )
-        else:
-            menu.setStyleSheet(
-                "QMenu { background: #1F2732; border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 8px; padding: 4px; font-size: 13px; }"
-                "QMenu::item { padding: 7px 20px; border-radius: 5px; color: #F4F8FF; }"
-                "QMenu::item:selected { background: rgba(255, 255, 255, 0.14); color: #FFFFFF; }"
-                "QMenu::separator { height: 1px; background: rgba(255, 255, 255, 0.14); margin: 3px 8px; }"
-            )
-        edit_action = menu.addAction("Edit User")
-        can_manage_actions = self._can_current_user_manage_user_actions()
-        if not can_manage_actions:
-            edit_action.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
-        menu.addSeparator()
-        delete_action = menu.addAction("Delete User")
-        if not can_manage_actions:
-            delete_action.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
-        action = menu.exec(global_pos)  # type: ignore[arg-type]
-        if action is edit_action:
-            self._edit_user(user_id, role_value, status_value, password_value, pin_value)
-        elif action is delete_action:
-            self._delete_user(user_id, username)
 
     def _action_on_selected_user_row(self, action: str) -> None:
         if self._users_table is None:
@@ -2965,7 +3081,6 @@ class DashboardForm(QMainWindow):
                     self._search_username.blockSignals(False)
 
                 self._apply_user_filters()
-                self._auto_fit_all_user_columns()
                 return
 
             # CRITICAL: Pre-load role_links before closing session to prevent DetachedInstanceError
@@ -3039,7 +3154,6 @@ class DashboardForm(QMainWindow):
             self._search_username.blockSignals(False)
 
         self._apply_user_filters()
-        self._auto_fit_all_user_columns()
 
     def _apply_user_filters(self) -> None:
         if self._users_table is None or self._search_username is None or self._role_filter is None:
@@ -3051,12 +3165,35 @@ class DashboardForm(QMainWindow):
         filtered_rows = [
             row
             for row in self._all_users_rows
-            if (not search_value or search_value in row["username"].lower())
+            if (
+                not search_value
+                or search_value in str(row["username"]).lower()
+                or search_value in str(row["full_name"]).lower()
+                or search_value in str(row["email"]).lower()
+                or search_value in str(row["phone"]).lower()
+            )
             and (selected_role == "All" or row["role"] == selected_role)
         ]
 
         can_manage_actions = self._can_current_user_manage_user_actions()
+        total_users = len(self._all_users_rows)
+        active_users = sum(1 for row in self._all_users_rows if str(row["status"]).lower() == "active")
+        inactive_users = total_users - active_users
 
+        if self._user_management_summary_label is not None:
+            access_text = "Manage enabled" if can_manage_actions else "View only"
+            self._user_management_summary_label.setText(
+                f"Showing {len(filtered_rows)} of {total_users} users  |  Active {active_users}  |  "
+                f"Inactive {inactive_users}  |  {access_text}"
+            )
+
+        if self._add_user_btn is not None:
+            self._add_user_btn.setEnabled(can_manage_actions)
+            self._add_user_btn.setToolTip(
+                "" if can_manage_actions else "Only Active Superior users can add users."
+            )
+
+        self._fit_user_table_columns_to_rows(filtered_rows)
         self._users_table.setRowCount(len(filtered_rows))
         for row_index, row in enumerate(filtered_rows):
             # Hoist row scalars so lambdas and UserRole data share the same refs
@@ -3068,34 +3205,35 @@ class DashboardForm(QMainWindow):
             row_username = str(row["username"])
 
             # Col 0 — Full Name (also carries full row data for row actions)
-            full_name_item = QTableWidgetItem(str(row["full_name"]))
+            full_name_item = QTableWidgetItem("")
             full_name_item.setToolTip(str(row["full_name"]))
             full_name_item.setData(
                 Qt.ItemDataRole.UserRole,
                 (row_id, row_role, row_status, row_password, row_pin, row_username),
             )
+            full_name_item.setToolTip(
+                f"{row['full_name']}\nUsername: {row_username}\nEmail: {row['email']}\nPhone: {row['phone']}"
+            )
             self._users_table.setItem(row_index, 0, full_name_item)
+            self._users_table.setCellWidget(
+                row_index,
+                0,
+                self._build_user_identity_cell(row_username, str(row["full_name"]), str(row["email"])),
+            )
 
-            username_item = QTableWidgetItem(row_username)
-            username_item.setToolTip(row_username)
-            self._users_table.setItem(row_index, 1, username_item)
-
-            self._users_table.setItem(row_index, 2, QTableWidgetItem(row_role))
-
-            email_item = QTableWidgetItem(str(row["email"]))
-            email_item.setToolTip(str(row["email"]))
-            self._users_table.setItem(row_index, 3, email_item)
-
-            self._users_table.setItem(row_index, 4, QTableWidgetItem(str(row["phone"])))
+            role_item = QTableWidgetItem("")
+            role_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._users_table.setItem(row_index, 1, role_item)
+            self._users_table.setCellWidget(row_index, 1, self._build_user_role_cell(row_role))
 
             updated_item = QTableWidgetItem(str(row["updated_at"]))
             updated_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._users_table.setItem(row_index, 5, updated_item)
+            self._users_table.setItem(row_index, 2, updated_item)
 
             status_value = row_status
-            self._users_table.setCellWidget(row_index, 6, self._build_status_badge(status_value))
+            self._users_table.setCellWidget(row_index, 3, self._build_status_badge(status_value))
 
-            self._users_table.setItem(row_index, 7, QTableWidgetItem(str(row_id)))
+            self._users_table.setItem(row_index, 4, QTableWidgetItem(str(row_id)))
 
             actions = QWidget()
             actions.setAutoFillBackground(False)
@@ -3107,7 +3245,7 @@ class DashboardForm(QMainWindow):
 
             edit_btn = QPushButton("Edit")
             edit_btn.setObjectName("userActionEditButton")
-            edit_btn.setFixedSize(102, 28)
+            edit_btn.setFixedSize(66, 26)
             edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             self._apply_table_action_button_style(edit_btn, "primary")
             edit_btn.clicked.connect(
@@ -3121,28 +3259,27 @@ class DashboardForm(QMainWindow):
             )
             if not can_manage_actions:
                 edit_btn.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
+                edit_btn.setEnabled(False)
 
-            more_btn = QPushButton("...")
-            more_btn.setObjectName("userActionMoreButton")
-            more_btn.setFixedSize(38, 28)
-            more_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            self._apply_table_action_button_style(more_btn, "secondary")
-            more_btn.clicked.connect(
-                lambda _checked=False, button=more_btn, user_id=row_id, role_value=row_role, status_value=row_status, password_value=row_password, pin_value=row_pin, username=row_username: self._show_user_actions_menu(
-                    button.mapToGlobal(button.rect().bottomLeft()),
-                    user_id,
-                    role_value,
-                    status_value,
-                    password_value,
-                    pin_value,
-                    username,
+            delete_btn = QPushButton("Delete")
+            delete_btn.setObjectName("userActionDeleteButton")
+            delete_btn.setFixedSize(72, 26)
+            delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._apply_table_action_button_style(delete_btn, "danger")
+            delete_btn.clicked.connect(
+                lambda _checked=False, user_id=row_id, username=row_username: self._delete_user(
+                    int(user_id),
+                    str(username),
                 )
             )
+            if not can_manage_actions:
+                delete_btn.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
+                delete_btn.setEnabled(False)
 
             actions_layout.addWidget(edit_btn)
-            actions_layout.addWidget(more_btn)
-            self._users_table.setCellWidget(row_index, 8, actions)
-            self._users_table.setRowHeight(row_index, 62)
+            actions_layout.addWidget(delete_btn)
+            self._users_table.setCellWidget(row_index, 5, actions)
+            self._users_table.setRowHeight(row_index, 68)
 
         self._sync_user_table_widget_states()
 
@@ -3987,12 +4124,14 @@ class DashboardForm(QMainWindow):
                 "}"
             )
         if self._page_title_label is not None:
+            title_size = "26px" if bool(self._page_title_label.property("compactPageTitle")) else "38px"
             self._page_title_label.setStyleSheet(
-                f"color: {palette['panel_text']}; font-size: 38px; font-weight: 850; background: transparent;"
+                f"color: {palette['panel_text']}; font-size: {title_size}; font-weight: 850; background: transparent;"
             )
         for title_label in self._page_title_labels:
+            title_size = "26px" if bool(title_label.property("compactPageTitle")) else "38px"
             title_label.setStyleSheet(
-                f"color: {palette['panel_text']}; font-size: 38px; font-weight: 850; background: transparent;"
+                f"color: {palette['panel_text']}; font-size: {title_size}; font-weight: 850; background: transparent;"
             )
         if self._footer_label is not None:
             self._footer_label.setStyleSheet(
@@ -4058,22 +4197,24 @@ class DashboardForm(QMainWindow):
                 "QPushButton {"
                 f" background: {palette['surface_selected']}; color: {palette['panel_text']};"
                 f" border: 1px solid {palette['panel_border']};"
-                " border-radius: 9px; padding: 0 16px; font-size: 14px; font-weight: 800;"
+                " border-radius: 9px; padding: 0 18px; font-size: 13px; font-weight: 850;"
                 "}"
                 f"QPushButton:hover {{ background: {palette['surface_hover']}; }}"
                 f"QPushButton:pressed {{ background: {palette['surface_selected']}; }}"
+                "QPushButton:disabled { background: rgba(255, 255, 255, 0.07); color: rgba(230, 237, 246, 0.42);"
+                " border-color: rgba(255, 255, 255, 0.14); }"
             )
         table_style = (
             "QTableWidget {"
             f" background: {palette['table_bg']}; alternate-background-color: {palette['table_alt']};"
             f" color: {palette['panel_text']}; border: 1px solid {palette['panel_border']};"
-            " border-radius: 12px; font-size: 14px; outline: none;"
+            " border-radius: 12px; font-size: 13px; outline: none;"
             "}"
             "QHeaderView::section {"
             f" background: {palette['table_header']}; color: {palette['panel_muted']};"
             " font-size: 11px; font-weight: 800; border: none; border-bottom: 1px solid rgba(255,255,255,0.18); padding: 10px 14px;"
             "}"
-            "QTableWidget::item { padding: 10px 12px; border: none; }"
+            "QTableWidget::item { padding: 8px 10px; border: none; }"
             f"QTableWidget::item:hover {{ background: {palette['surface_hover']}; }}"
             f"QTableWidget::item:selected {{ background: {palette['surface_selected']}; color: {palette['panel_text']}; }}"
         )
