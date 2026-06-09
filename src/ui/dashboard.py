@@ -5,7 +5,7 @@ import string
 from typing import Optional, TypedDict, cast
 
 from sqlalchemy import text
-from PySide6.QtCore import Property, QEvent, QPointF, QRectF, QPropertyAnimation, QEasingCurve, Qt, QTimer, Signal, QSize
+from PySide6.QtCore import QByteArray, Property, QEvent, QPointF, QRectF, QPropertyAnimation, QEasingCurve, Qt, QTimer, Signal, QSize
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -20,8 +20,10 @@ from PySide6.QtGui import (
     QPainter,
     QPainterPath,
     QPen,
+    QPixmap,
     QRadialGradient,
 )
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -128,6 +130,27 @@ TEMP_PASSWORD_LENGTH = 12
 CHARGING_ACCENT = "#50B4FF"
 CHARGING_MODE_LABEL = "Kondisi Charging"
 NOT_CHARGING_MODE_LABEL = "Kondisi Tidak Charging"
+
+
+def _draw_user_action_icon(action: str, size: int, color: str) -> QPixmap:
+    paths = {
+        "edit": "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
+        "delete": "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4z",
+    }
+    path = paths["edit" if action == "edit" else "delete"]
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 24 24">'
+        f'<path fill="{color}" d="{path}"/></svg>'
+    )
+
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    renderer.render(painter)
+    painter.end()
+    return pixmap
 
 
 class UserRow(TypedDict):
@@ -1639,6 +1662,7 @@ class DashboardForm(QMainWindow):
         self._user_table_normal_column_widths: dict[int, int] = {}
         self._user_table_expanded_columns: set[int] = set()
         self._user_role_chip_width = 104
+        self._user_status_badge_width = 104
         self._all_users_rows: list[UserRow] = []
         self.setWindowTitle("Dashboard")
         self.resize(1360, 820)
@@ -2535,10 +2559,10 @@ class DashboardForm(QMainWindow):
             [
                 "USER",
                 "ROLE",
-                "UPDATED",
                 "STATUS",
-                "ID",
                 "ACTIONS",
+                "ID",
+                "UPDATED",
             ]
         )
         self._users_table.verticalHeader().setVisible(False)
@@ -2578,9 +2602,9 @@ class DashboardForm(QMainWindow):
         self._users_table.setColumnWidth(0, 220)
         self._users_table.setColumnWidth(1, 124)
         self._users_table.setColumnWidth(2, 118)
-        self._users_table.setColumnWidth(3, 136)
+        self._users_table.setColumnWidth(3, 82)
         self._users_table.setColumnWidth(4, 72)
-        self._users_table.setColumnWidth(5, 158)
+        self._users_table.setColumnWidth(5, 118)
         self._users_table.setColumnHidden(4, True)
 
         # Double-click row -> edit; keyboard Delete/Enter follow the visible row actions.
@@ -2634,6 +2658,7 @@ class DashboardForm(QMainWindow):
         user_values: list[str] = []
         role_values: list[str] = []
         updated_values: list[str] = []
+        status_values: list[str] = []
         for row in rows:
             user_values.extend(
                 [
@@ -2644,22 +2669,28 @@ class DashboardForm(QMainWindow):
             )
             role_values.append(str(row["role"]))
             updated_values.append(str(row["updated_at"]))
+            status_values.append(str(row["status"]))
 
         user_width = text_width(user_values, "username") + 76
         role_chip_width = max(
             text_width(role_values, "Operator"),
             metrics.horizontalAdvance("Administrator"),
         ) + 22
+        status_badge_width = max(
+            text_width(status_values, "Inactive"),
+            metrics.horizontalAdvance("Inactive"),
+        ) + 28
         role_width = role_chip_width + 28
         updated_width = text_width(updated_values, "Updated") + 36
 
         self._users_table.setColumnWidth(0, max(176, min(user_width, 260)))
         self._user_role_chip_width = max(60, min(role_chip_width, 108))
         self._users_table.setColumnWidth(1, max(96, min(role_width, 132)))
-        self._users_table.setColumnWidth(2, max(108, min(updated_width, 132)))
-        self._users_table.setColumnWidth(3, 132)
+        self._user_status_badge_width = max(76, min(status_badge_width, 108))
+        self._users_table.setColumnWidth(2, max(100, min(self._user_status_badge_width + 28, 132)))
+        self._users_table.setColumnWidth(3, 82)
         self._users_table.setColumnWidth(4, 72)
-        self._users_table.setColumnWidth(5, 158)
+        self._users_table.setColumnWidth(5, max(108, min(updated_width, 132)))
         self._user_table_normal_column_widths = {
             column_index: self._users_table.columnWidth(column_index)
             for column_index in range(self._users_table.columnCount())
@@ -2682,16 +2713,16 @@ class DashboardForm(QMainWindow):
         pill.setObjectName("statusBadgePill")
         pill.setProperty("isActive", is_active)
         pill.setProperty("rowSelected", False)
-        pill.setFixedSize(124, 32)
+        pill.setFixedSize(self._user_status_badge_width, 26)
         pill_layout = QHBoxLayout(pill)
-        pill_layout.setContentsMargins(10, 0, 12, 0)
+        pill_layout.setContentsMargins(9, 0, 10, 0)
         pill_layout.setSpacing(5)
         pill_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         # Colored dot indicator
         dot = QLabel()
         dot.setObjectName("statusBadgeDot")
-        dot.setFixedSize(10, 10)
+        dot.setFixedSize(9, 9)
 
         # Text label
         lbl = QLabel(status_value)
@@ -2750,7 +2781,7 @@ class DashboardForm(QMainWindow):
         pill.setStyleSheet(f"background: {pill_bg}; border: 1px solid {pill_border}; border-radius: 12px;")
         dot.setStyleSheet(f"QLabel {{ background: {dot_color}; border-radius: 4px; border: none; }}")
         lbl.setStyleSheet(
-            f"QLabel {{ color: {text_color}; font-size: 12px; font-weight: 700; background: transparent; border: none; }}"
+            f"QLabel {{ color: {text_color}; font-size: 11px; font-weight: 800; background: transparent; border: none; }}"
         )
 
     def _build_user_identity_cell(self, username: str, full_name: str, email: str) -> QWidget:
@@ -2853,44 +2884,42 @@ class DashboardForm(QMainWindow):
         if role == "primary":
             if charging:
                 button.setStyleSheet(
-                    "QPushButton { background: rgba(80, 180, 255, 0.25); color: #ECFCFF; "
-                    "border: 1px solid rgba(126, 232, 255, 0.45); border-radius: 6px; "
-                    "font-size: 12px; font-weight: 700; }"
-                    "QPushButton:hover { background: rgba(80, 180, 255, 0.34); }"
-                    "QPushButton:pressed { background: rgba(80, 180, 255, 0.18); }"
-                    "QPushButton:disabled { background: rgba(255, 255, 255, 0.09); color: rgba(236, 252, 255, 0.44); }"
+                    "QPushButton { background: transparent; color: #ECFCFF; "
+                    "border: none; border-radius: 7px; "
+                    "font-size: 12px; font-weight: 700; padding: 0; }"
+                    "QPushButton:hover { background: rgba(80, 180, 255, 0.18); }"
+                    "QPushButton:pressed { background: rgba(80, 180, 255, 0.11); }"
+                    "QPushButton:disabled { background: transparent; color: rgba(236, 252, 255, 0.34); }"
                 )
                 return
             button.setStyleSheet(
-                "QPushButton { background: rgba(255, 255, 255, 0.14); color: #F4F8FF; "
-                "border: 1px solid rgba(255, 255, 255, 0.28); border-radius: 6px; "
-                "font-size: 12px; font-weight: 700; }"
-                "QPushButton:hover { background: rgba(255, 255, 255, 0.20); }"
-                "QPushButton:pressed { background: rgba(255, 255, 255, 0.11); }"
-                "QPushButton:disabled { background: rgba(255, 255, 255, 0.08); color: rgba(244, 248, 255, 0.44); }"
+                "QPushButton { background: transparent; color: #F4F8FF; "
+                "border: none; border-radius: 7px; "
+                "font-size: 12px; font-weight: 700; padding: 0; }"
+                "QPushButton:hover { background: rgba(255, 255, 255, 0.13); }"
+                "QPushButton:pressed { background: rgba(255, 255, 255, 0.08); }"
+                "QPushButton:disabled { background: transparent; color: rgba(244, 248, 255, 0.34); }"
             )
             return
 
         if role == "danger":
             if charging:
                 button.setStyleSheet(
-                    "QPushButton { background: rgba(255, 96, 96, 0.07); color: #FFD8D8; "
-                    "border: 1px solid rgba(255, 128, 128, 0.42); border-radius: 6px; "
+                    "QPushButton { background: transparent; color: #FFD8D8; "
+                    "border: none; border-radius: 7px; "
                     "font-size: 12px; font-weight: 750; padding: 0; }"
-                    "QPushButton:hover { background: rgba(255, 96, 96, 0.16); border-color: rgba(255, 154, 154, 0.62); color: #FFFFFF; }"
-                    "QPushButton:pressed { background: rgba(255, 96, 96, 0.11); }"
-                    "QPushButton:disabled { background: rgba(255, 255, 255, 0.06); color: rgba(255, 216, 216, 0.38); "
-                    "border-color: rgba(255, 128, 128, 0.18); }"
+                    "QPushButton:hover { background: rgba(255, 96, 96, 0.14); color: #FFFFFF; }"
+                    "QPushButton:pressed { background: rgba(255, 96, 96, 0.09); }"
+                    "QPushButton:disabled { background: transparent; color: rgba(255, 216, 216, 0.32); }"
                 )
                 return
             button.setStyleSheet(
-                "QPushButton { background: rgba(255, 92, 92, 0.06); color: #FFB8B8; "
-                "border: 1px solid rgba(255, 120, 120, 0.34); border-radius: 6px; "
+                "QPushButton { background: transparent; color: #FFB8B8; "
+                "border: none; border-radius: 7px; "
                 "font-size: 12px; font-weight: 750; padding: 0; }"
-                "QPushButton:hover { background: rgba(255, 92, 92, 0.14); border-color: rgba(255, 145, 145, 0.58); color: #FFECEC; }"
-                "QPushButton:pressed { background: rgba(255, 92, 92, 0.09); }"
-                "QPushButton:disabled { background: rgba(255, 255, 255, 0.06); color: rgba(255, 184, 184, 0.34); "
-                "border-color: rgba(255, 120, 120, 0.16); }"
+                "QPushButton:hover { background: rgba(255, 92, 92, 0.13); color: #FFECEC; }"
+                "QPushButton:pressed { background: rgba(255, 92, 92, 0.08); }"
+                "QPushButton:disabled { background: transparent; color: rgba(255, 184, 184, 0.30); }"
             )
             return
 
@@ -2921,7 +2950,7 @@ class DashboardForm(QMainWindow):
                 self._users_table.rootIndex(),
             )
 
-            status_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 3))
+            status_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 2))
             if status_container is not None:
                 pill = status_container.findChild(QWidget, "statusBadgePill")
                 dot = status_container.findChild(QLabel, "statusBadgeDot")
@@ -2931,7 +2960,7 @@ class DashboardForm(QMainWindow):
                     self._apply_status_badge_style(pill, dot, lbl, is_active, is_selected)
                     pill.setProperty("rowSelected", is_selected)
 
-            actions_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 5))
+            actions_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 3))
             if actions_container is not None:
                 edit_btn = actions_container.findChild(QPushButton, "userActionEditButton")
                 delete_btn = actions_container.findChild(QPushButton, "userActionDeleteButton")
@@ -3226,12 +3255,8 @@ class DashboardForm(QMainWindow):
             self._users_table.setItem(row_index, 1, role_item)
             self._users_table.setCellWidget(row_index, 1, self._build_user_role_cell(row_role))
 
-            updated_item = QTableWidgetItem(str(row["updated_at"]))
-            updated_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._users_table.setItem(row_index, 2, updated_item)
-
             status_value = row_status
-            self._users_table.setCellWidget(row_index, 3, self._build_status_badge(status_value))
+            self._users_table.setCellWidget(row_index, 2, self._build_status_badge(status_value))
 
             self._users_table.setItem(row_index, 4, QTableWidgetItem(str(row_id)))
 
@@ -3239,13 +3264,17 @@ class DashboardForm(QMainWindow):
             actions.setAutoFillBackground(False)
             actions.setStyleSheet("background: transparent;")
             actions_layout = QHBoxLayout(actions)
-            actions_layout.setContentsMargins(10, 8, 10, 8)
-            actions_layout.setSpacing(8)
+            actions_layout.setContentsMargins(8, 8, 8, 8)
+            actions_layout.setSpacing(6)
             actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            edit_btn = QPushButton("Edit")
+            edit_btn = QPushButton()
             edit_btn.setObjectName("userActionEditButton")
-            edit_btn.setFixedSize(66, 26)
+            edit_btn.setAccessibleName("Edit")
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(32, 28)
+            edit_btn.setIcon(QIcon(_draw_user_action_icon("edit", 19, "#9AAAB6")))
+            edit_btn.setIconSize(QSize(18, 18))
             edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             self._apply_table_action_button_style(edit_btn, "primary")
             edit_btn.clicked.connect(
@@ -3261,9 +3290,13 @@ class DashboardForm(QMainWindow):
                 edit_btn.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
                 edit_btn.setEnabled(False)
 
-            delete_btn = QPushButton("Delete")
+            delete_btn = QPushButton()
             delete_btn.setObjectName("userActionDeleteButton")
-            delete_btn.setFixedSize(72, 26)
+            delete_btn.setAccessibleName("Delete")
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(32, 28)
+            delete_btn.setIcon(QIcon(_draw_user_action_icon("delete", 19, "#9AAAB6")))
+            delete_btn.setIconSize(QSize(18, 18))
             delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             self._apply_table_action_button_style(delete_btn, "danger")
             delete_btn.clicked.connect(
@@ -3278,7 +3311,11 @@ class DashboardForm(QMainWindow):
 
             actions_layout.addWidget(edit_btn)
             actions_layout.addWidget(delete_btn)
-            self._users_table.setCellWidget(row_index, 5, actions)
+            self._users_table.setCellWidget(row_index, 3, actions)
+
+            updated_item = QTableWidgetItem(str(row["updated_at"]))
+            updated_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._users_table.setItem(row_index, 5, updated_item)
             self._users_table.setRowHeight(row_index, 68)
 
         self._sync_user_table_widget_states()
