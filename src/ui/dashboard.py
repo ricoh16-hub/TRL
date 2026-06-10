@@ -26,6 +26,7 @@ from PySide6.QtGui import (
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -392,6 +393,215 @@ class LoginGlassPanel(QFrame):
             focus_y=max(28.0, min(86.0, self.height() * 0.36)),
             focus_radius=max(120.0, self.width() * 0.28),
         )
+        painter.end()
+
+
+class StatusToggleSwitch(QCheckBox):
+    """Compact active/inactive switch styled after the dashboard toggle asset."""
+
+    def __init__(self, active: bool = True, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._charging = False
+        self._press_x: float | None = None
+        self._dragging = False
+        self._drag_progress = 1.0 if active else 0.0
+        self._knob_progress = self._drag_progress
+        self._pending_checked: bool | None = None
+        self._commit_connection_active = False
+        self._knob_animation = QPropertyAnimation(self, b"knobProgress", self)
+        self._knob_animation.setDuration(260)
+        self._knob_animation.setEasingCurve(QEasingCurve.Type.OutQuint)
+        self.setChecked(active)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedSize(64, 34)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.toggled.connect(self._sync_accessible_state)
+        self.toggled.connect(self._animate_to_checked_state)
+        self._sync_accessible_state(active)
+
+    def set_active(self, active: bool) -> None:
+        self._pending_checked = None
+        self._knob_animation.stop()
+        self.setChecked(bool(active))
+        self.set_knob_progress(1.0 if active else 0.0)
+
+    def is_active(self) -> bool:
+        return self.isChecked()
+
+    def get_knob_progress(self) -> float:
+        return self._knob_progress
+
+    def set_knob_progress(self, value: float) -> None:
+        self._knob_progress = max(0.0, min(1.0, float(value)))
+        self.update()
+
+    knobProgress = Property(float, get_knob_progress, set_knob_progress)
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self.update()
+
+    def _sync_accessible_state(self, active: bool) -> None:
+        status = "Active" if active else "Inactive"
+        self.setAccessibleName(f"Status {status}")
+        self.setToolTip(status)
+
+    def _set_checked_from_x(self, x_position: float) -> None:
+        self.setChecked(x_position >= self.width() / 2)
+
+    def _progress_from_x(self, x_position: float) -> float:
+        return max(0.0, min(1.0, x_position / max(1.0, float(self.width()))))
+
+    def _animate_to_checked_state(self, active: bool) -> None:
+        if self._dragging:
+            return
+        if self._pending_checked is not None:
+            return
+        self._knob_animation.stop()
+        self._knob_animation.setStartValue(self._knob_progress)
+        self._knob_animation.setEndValue(1.0 if active else 0.0)
+        self._knob_animation.start()
+
+    def _animate_visual_state(self, active: bool, *, commit_after_animation: bool) -> None:
+        self._knob_animation.stop()
+        if self._commit_connection_active:
+            try:
+                self._knob_animation.finished.disconnect(self._commit_pending_checked_state)
+            except (RuntimeError, TypeError):
+                pass
+            self._commit_connection_active = False
+
+        self._pending_checked = active if commit_after_animation else None
+        self._knob_animation.setStartValue(self._knob_progress)
+        self._knob_animation.setEndValue(1.0 if active else 0.0)
+
+        if commit_after_animation:
+            self._knob_animation.finished.connect(self._commit_pending_checked_state)
+            self._commit_connection_active = True
+
+        self._knob_animation.start()
+
+    def _commit_pending_checked_state(self) -> None:
+        target = self._pending_checked
+        self._pending_checked = None
+        if self._commit_connection_active:
+            try:
+                self._knob_animation.finished.disconnect(self._commit_pending_checked_state)
+            except (RuntimeError, TypeError):
+                pass
+            self._commit_connection_active = False
+        if target is not None and self.isChecked() != target:
+            self.setChecked(target)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if not self.isEnabled() or event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
+            return
+        self._press_x = event.position().x()
+        self._dragging = False
+        event.accept()
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if (
+            not self.isEnabled()
+            or self._press_x is None
+            or not event.buttons() & Qt.MouseButton.LeftButton
+        ):
+            super().mouseMoveEvent(event)
+            return
+        if abs(event.position().x() - self._press_x) >= 4:
+            self._dragging = True
+            self._knob_animation.stop()
+            self.set_knob_progress(self._progress_from_x(event.position().x()))
+        event.accept()
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if not self.isEnabled() or event.button() != Qt.MouseButton.LeftButton:
+            super().mouseReleaseEvent(event)
+            return
+        if self._dragging:
+            self.set_knob_progress(self._progress_from_x(event.position().x()))
+            target_active = event.position().x() >= self.width() / 2
+            self._press_x = None
+            self._dragging = False
+            if self.isChecked() == target_active:
+                self._animate_visual_state(target_active, commit_after_animation=False)
+            else:
+                self._animate_visual_state(target_active, commit_after_animation=True)
+        else:
+            self._animate_visual_state(not self.isChecked(), commit_after_animation=True)
+            self._press_x = None
+            self._dragging = False
+        event.accept()
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        event.accept()
+
+    def paintEvent(self, _event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if not self.isEnabled():
+            painter.setOpacity(0.46)
+
+        track = QRectF(2.0, 3.0, float(self.width() - 4), float(self.height() - 6))
+        radius = track.height() / 2.0
+        progress = self._knob_progress
+
+        def blend(start: QColor, end: QColor, amount: float) -> QColor:
+            return QColor(
+                round(start.red() + (end.red() - start.red()) * amount),
+                round(start.green() + (end.green() - start.green()) * amount),
+                round(start.blue() + (end.blue() - start.blue()) * amount),
+                round(start.alpha() + (end.alpha() - start.alpha()) * amount),
+            )
+
+        inactive_top = QColor(95, 108, 126, 210)
+        inactive_bottom = QColor(57, 66, 82, 220)
+        inactive_border = QColor(255, 255, 255, 70)
+        if self._charging:
+            active_top = QColor("#28B8FF")
+            active_bottom = QColor("#087FAF")
+        else:
+            active_top = QColor("#0C8CFF")
+            active_bottom = QColor("#006FEA")
+        active_border = QColor(60, 170, 255, 210)
+
+        top = blend(inactive_top, active_top, progress)
+        bottom = blend(inactive_bottom, active_bottom, progress)
+        border = blend(inactive_border, active_border, progress)
+
+        if self.underMouse():
+            top = top.lighter(108)
+            bottom = bottom.lighter(106)
+            border = border.lighter(116)
+
+        track_gradient = QLinearGradient(track.left(), track.top(), track.left(), track.bottom())
+        track_gradient.setColorAt(0.0, top)
+        track_gradient.setColorAt(1.0, bottom)
+        painter.setPen(QPen(border, 1.2))
+        painter.setBrush(QBrush(track_gradient))
+        painter.drawRoundedRect(track, radius, radius)
+
+        knob_diameter = track.height() - 4.0
+        knob_min_x = track.left() + 3.0
+        knob_max_x = track.right() - knob_diameter - 3.0
+        knob_x = knob_min_x + (knob_max_x - knob_min_x) * progress
+        knob = QRectF(knob_x, track.top() + 2.0, knob_diameter, knob_diameter)
+
+        shadow = QColor(0, 31, 64, round(72 + (48 - 72) * progress))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(shadow))
+        painter.drawEllipse(knob.translated(0.0, 1.2))
+
+        knob_gradient = QLinearGradient(knob.left(), knob.top(), knob.left(), knob.bottom())
+        knob_gradient.setColorAt(0.0, QColor("#FFFFFF"))
+        knob_gradient.setColorAt(1.0, QColor("#EEF4FF"))
+        painter.setBrush(QBrush(knob_gradient))
+        painter.setPen(QPen(QColor(255, 255, 255, 225), 0.8))
+        painter.drawEllipse(knob)
         painter.end()
 
 
@@ -1152,6 +1362,91 @@ class ChangePasswordDialog(DashboardGlassDialog):
         }
 
 
+class StatusVerificationDialog(DashboardGlassDialog):
+    """Verify the signed-in user before changing another user's active status."""
+
+    def __init__(
+        self,
+        action_label: str,
+        target_username: str,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent, radius=18.0)
+        self.setWindowTitle("Verifikasi Status User")
+        self.setModal(True)
+        self.resize(430, 250)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(14)
+
+        self._title = QLabel(f"Verifikasi {action_label}\nUser: {target_username}")
+        layout.addWidget(self._title)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+
+        self._password_input = QLineEdit()
+        self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._password_input.setFixedHeight(36)
+        self._password_input.setPlaceholderText("Password user yang sedang login")
+
+        self._pin_input = QLineEdit()
+        self._pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._pin_input.setFixedHeight(36)
+        self._pin_input.setPlaceholderText("PIN user yang sedang login")
+        self._pin_input.setMaxLength(6)
+
+        form.addRow("Password", self._password_input)
+        form.addRow("PIN", self._pin_input)
+        layout.addLayout(form)
+
+        self._hint = QLabel("Perubahan status membutuhkan otorisasi password dan PIN.")
+        self._hint.setWordWrap(True)
+        layout.addWidget(self._hint)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Verify")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancel")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self._buttons = buttons
+
+        self._charging_timer = QTimer(self)
+        self._charging_timer.timeout.connect(self._update_charging_theme)
+        self._charging_timer.start(500)
+        self._update_charging_theme()
+
+    def _update_charging_theme(self) -> None:
+        charging = _read_charging_state_from_context(self.parentWidget(), bool(self._charging))
+        if self._charging == charging and self.styleSheet():
+            return
+        self.set_charging(charging)
+        palette = _charging_theme_palette(charging)
+        self.setStyleSheet(_dashboard_dialog_stylesheet(charging))
+        self._title.setStyleSheet(
+            f"color: {palette['panel_text']}; font-size: 15px; font-weight: 850; background: transparent;"
+        )
+        self._hint.setStyleSheet(
+            f"color: {palette['panel_muted']}; font-size: 12px; font-weight: 650; background: transparent;"
+        )
+
+    def data(self) -> dict[str, str]:
+        return {
+            "password": self._password_input.text(),
+            "pin": self._pin_input.text().strip(),
+        }
+
+    def reset_password(self) -> None:
+        self._password_input.clear()
+        self._password_input.setFocus()
+
+    def reset_pin(self) -> None:
+        self._pin_input.clear()
+        self._pin_input.setFocus()
+
+
 class UserEditDialog(DashboardGlassDialog):
     def __init__(
         self,
@@ -1695,7 +1990,7 @@ class DashboardForm(QMainWindow):
         self._update_charging_theme()
 
     def current_user_id(self) -> int:
-        return int(getattr(self._user, "id", 0) or 0)
+        return int(getattr(self._user, "id", None) or getattr(self._user, "user_id", 0) or 0)
 
     def _build_temp_password(self, length: int = TEMP_PASSWORD_LENGTH) -> str:
         alphabet = string.ascii_letters + string.digits
@@ -2601,7 +2896,7 @@ class DashboardForm(QMainWindow):
         # Default widths tuned for readability while keeping manual resize enabled.
         self._users_table.setColumnWidth(0, 220)
         self._users_table.setColumnWidth(1, 124)
-        self._users_table.setColumnWidth(2, 118)
+        self._users_table.setColumnWidth(2, 96)
         self._users_table.setColumnWidth(3, 82)
         self._users_table.setColumnWidth(4, 72)
         self._users_table.setColumnWidth(5, 118)
@@ -2687,7 +2982,7 @@ class DashboardForm(QMainWindow):
         self._user_role_chip_width = max(60, min(role_chip_width, 108))
         self._users_table.setColumnWidth(1, max(96, min(role_width, 132)))
         self._user_status_badge_width = max(76, min(status_badge_width, 108))
-        self._users_table.setColumnWidth(2, max(100, min(self._user_status_badge_width + 28, 132)))
+        self._users_table.setColumnWidth(2, 96)
         self._users_table.setColumnWidth(3, 82)
         self._users_table.setColumnWidth(4, 72)
         self._users_table.setColumnWidth(5, max(108, min(updated_width, 132)))
@@ -2783,6 +3078,40 @@ class DashboardForm(QMainWindow):
         lbl.setStyleSheet(
             f"QLabel {{ color: {text_color}; font-size: 11px; font-weight: 800; background: transparent; border: none; }}"
         )
+
+    def _build_status_toggle_cell(self, user_id: int, status_value: str, enabled: bool) -> QWidget:
+        is_active = status_value.strip().lower() == "active"
+
+        container = QWidget()
+        container.setObjectName("statusToggleContainer")
+        container.setAutoFillBackground(False)
+        container.setStyleSheet("background: transparent;")
+        outer = QHBoxLayout(container)
+        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        toggle = StatusToggleSwitch(is_active, container)
+        toggle.setObjectName("userStatusToggle")
+        toggle.set_charging(bool(self._charging))
+        toggle.setEnabled(enabled)
+        toggle.setToolTip(
+            "Click to set Active/Inactive"
+            if enabled
+            else "Only Active Superior or Administrator users can change user status."
+        )
+        toggle.toggled.connect(
+            lambda checked, uid=user_id, widget=toggle: self._toggle_user_status_from_table(
+                int(uid),
+                bool(checked),
+                widget,
+            )
+        )
+
+        outer.addWidget(toggle)
+        return container
+
+    def _sync_status_toggle_from_widget(self, toggle: StatusToggleSwitch) -> None:
+        toggle.update()
 
     def _build_user_identity_cell(self, username: str, full_name: str, email: str) -> QWidget:
         palette = _charging_theme_palette(bool(self._charging))
@@ -2952,13 +3281,17 @@ class DashboardForm(QMainWindow):
 
             status_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 2))
             if status_container is not None:
-                pill = status_container.findChild(QWidget, "statusBadgePill")
-                dot = status_container.findChild(QLabel, "statusBadgeDot")
-                lbl = status_container.findChild(QLabel, "statusBadgeLabel")
-                if pill is not None and dot is not None and lbl is not None:
-                    is_active = bool(pill.property("isActive"))
-                    self._apply_status_badge_style(pill, dot, lbl, is_active, is_selected)
-                    pill.setProperty("rowSelected", is_selected)
+                toggle = status_container.findChild(StatusToggleSwitch, "userStatusToggle")
+                if toggle is not None:
+                    toggle.set_charging(bool(self._charging))
+                else:
+                    pill = status_container.findChild(QWidget, "statusBadgePill")
+                    dot = status_container.findChild(QLabel, "statusBadgeDot")
+                    lbl = status_container.findChild(QLabel, "statusBadgeLabel")
+                    if pill is not None and dot is not None and lbl is not None:
+                        is_active = bool(pill.property("isActive"))
+                        self._apply_status_badge_style(pill, dot, lbl, is_active, is_selected)
+                        pill.setProperty("rowSelected", is_selected)
 
             actions_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 3))
             if actions_container is not None:
@@ -3205,6 +3538,7 @@ class DashboardForm(QMainWindow):
         ]
 
         can_manage_actions = self._can_current_user_manage_user_actions()
+        can_change_status = self._can_current_user_change_user_status()
         total_users = len(self._all_users_rows)
         active_users = sum(1 for row in self._all_users_rows if str(row["status"]).lower() == "active")
         inactive_users = total_users - active_users
@@ -3256,7 +3590,11 @@ class DashboardForm(QMainWindow):
             self._users_table.setCellWidget(row_index, 1, self._build_user_role_cell(row_role))
 
             status_value = row_status
-            self._users_table.setCellWidget(row_index, 2, self._build_status_badge(status_value))
+            self._users_table.setCellWidget(
+                row_index,
+                2,
+                self._build_status_toggle_cell(int(row_id), status_value, can_change_status),
+            )
 
             self._users_table.setItem(row_index, 4, QTableWidgetItem(str(row_id)))
 
@@ -3319,6 +3657,60 @@ class DashboardForm(QMainWindow):
             self._users_table.setRowHeight(row_index, 68)
 
         self._sync_user_table_widget_states()
+
+    def _username_for_user_id(self, user_id: int) -> str:
+        for row in self._all_users_rows:
+            if int(row["id"]) == int(user_id):
+                return str(row["username"])
+        return f"User #{user_id}"
+
+    def _toggle_user_status_from_table(
+        self,
+        user_id: int,
+        active: bool,
+        toggle: StatusToggleSwitch,
+    ) -> None:
+        if not self._can_current_user_change_user_status():
+            toggle.blockSignals(True)
+            toggle.set_active(not active)
+            toggle.blockSignals(False)
+            self._sync_status_toggle_from_widget(toggle)
+            self._show_user_action_access_denied_dialog("Change Status")
+            return
+
+        normalized_status = "aktif" if active else "nonaktif"
+        target_username = self._username_for_user_id(user_id)
+        action_label = "Activate" if active else "Deactivate"
+        if not self._verify_current_user_for_status_change(action_label, target_username):
+            toggle.blockSignals(True)
+            toggle.set_active(not active)
+            toggle.blockSignals(False)
+            self._sync_status_toggle_from_widget(toggle)
+            return
+
+        session = Session()
+        try:
+            update_user(session, user_id, status=normalized_status)
+        except ValueError as error:
+            session.rollback()
+            toggle.blockSignals(True)
+            toggle.set_active(not active)
+            toggle.blockSignals(False)
+            self._sync_status_toggle_from_widget(toggle)
+            self._show_user_management_notice("Status Update Failed", str(error))
+            return
+        except Exception as error:
+            session.rollback()
+            toggle.blockSignals(True)
+            toggle.set_active(not active)
+            toggle.blockSignals(False)
+            self._sync_status_toggle_from_widget(toggle)
+            self._show_user_management_notice("Status Update Failed", f"Error: {error}")
+            return
+        finally:
+            session.close()
+
+        self._load_users_table()
 
     def _show_user_management_notice(
         self,
@@ -3648,6 +4040,94 @@ class DashboardForm(QMainWindow):
         role_value, status_value = self._get_current_user_access_profile()
         return role_value.strip().lower() == "superior" and status_value.strip().lower() == "active"
 
+    def _can_current_user_change_user_status(self) -> bool:
+        role_value, status_value = self._get_current_user_access_profile()
+        return (
+            role_value.strip().lower() in {"superior", "administrator"}
+            and status_value.strip().lower() == "active"
+        )
+
+    def _verify_current_user_credentials(self, password: str, pin: str) -> tuple[bool, str]:
+        user_id = self.current_user_id()
+        if user_id <= 0:
+            return (False, "Session user tidak valid.")
+        if not password:
+            return (False, "Password wajib diisi.")
+        if not pin:
+            return (False, "PIN wajib diisi.")
+
+        session = Session()
+        try:
+            if _is_hris_auth_schema(session):
+                row = session.execute(
+                    text(
+                        """
+                        SELECT password_hash, pin_hash
+                        FROM users
+                        WHERE user_id = :user_id
+                        """
+                    ),
+                    {"user_id": user_id},
+                ).mappings().first()
+                if row is None:
+                    return (False, "User login tidak ditemukan.")
+                stored_hash = str(row.get("password_hash") or "")
+                stored_pin_hash = str(row.get("pin_hash") or "")
+                if not stored_hash:
+                    return (False, "Password user login belum tersedia.")
+                if not stored_pin_hash:
+                    return (False, "PIN user login belum tersedia.")
+                if verify_bcrypt_password is None:
+                    return (False, "Verifier password HRIS belum tersedia.")
+                if not verify_bcrypt_password(password, stored_hash):
+                    return (False, "Password tidak sesuai.")
+                if not verify_bcrypt_password(pin, stored_pin_hash):
+                    return (False, "PIN tidak sesuai.")
+                return (True, "")
+
+            user = session.get(User, user_id)
+            if user is None:
+                return (False, "User login tidak ditemukan.")
+
+            password_record = getattr(user, "password_record", None)
+            stored_salt = str(getattr(password_record, "password_salt", "") or "")
+            stored_hash = str(getattr(password_record, "password_hash", "") or "")
+            if not stored_salt or not stored_hash:
+                return (False, "Password user login belum tersedia.")
+            if not verify_password(password, stored_salt, stored_hash):
+                return (False, "Password tidak sesuai.")
+
+            pin_record = getattr(user, "pin_record", None)
+            stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
+            stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
+            if not stored_pin_salt or not stored_pin_hash:
+                return (False, "PIN user login belum tersedia.")
+            if not verify_pin_code(pin, stored_pin_salt, stored_pin_hash):
+                return (False, "PIN tidak sesuai.")
+            return (True, "")
+        finally:
+            session.close()
+
+    def _verify_current_user_for_status_change(self, action_label: str, target_username: str) -> bool:
+        dialog = StatusVerificationDialog(action_label, target_username, self)
+        while True:
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return False
+
+            payload = dialog.data()
+            valid, message = self._verify_current_user_credentials(
+                str(payload.get("password") or ""),
+                str(payload.get("pin") or ""),
+            )
+            if valid:
+                return True
+
+            self._show_user_management_notice("Verification Failed", message)
+            if "Password" in message or "password" in message:
+                dialog.reset_password()
+            elif "PIN" in message:
+                dialog.reset_pin()
+
     def _current_user_has_permission(self, module_name: str, action_name: str) -> Optional[bool]:
         return current_user_has_permission(
             Session,
@@ -3708,9 +4188,14 @@ class DashboardForm(QMainWindow):
 
     def _show_user_action_access_denied_dialog(self, action_name: str) -> None:
         role_value, status_value = self._get_current_user_access_profile()
+        required_access = (
+            "Only Active Superior or Administrator users can change Active/Inactive status."
+            if action_name == "Change Status"
+            else "Only Active Superior users can perform this action."
+        )
         self._show_user_management_notice(
             "User Action Restricted",
-            "Only Active Superior users can perform this action.\n\n"
+            f"{required_access}\n\n"
             f"Action: {action_name}\nCurrent access: {role_value} / {status_value}",
         )
 
