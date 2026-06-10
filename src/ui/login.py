@@ -2141,7 +2141,7 @@ def show_login(app: QApplication, parent: Optional[QWidget] = None) -> Optional[
     dialog._pin_charging_provider = is_pin_charging  # type: ignore[attr-defined]
 
     def submit_pin() -> None:
-        """Verifikasi PIN 6 digit. Buka MainForm jika benar, shake+clear jika salah."""
+        """Verifikasi PIN 6 digit. Return user jika benar, shake+clear jika salah."""
         nonlocal _pin_value, failed_attempts, pin_locked_out
         if pin_locked_out:
             return

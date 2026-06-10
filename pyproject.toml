@@ -1,5 +1,6 @@
 [tool.pytest.ini_options]
-addopts = "-q -ra --cov=src.auth --cov=src.database.models --cov-report=term-missing --cov-report=xml"
+addopts = "-q -ra"
+pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.coverage.run]

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, TypeVar
 
-from sqlalchemy import and_, desc, or_, select
+from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.bpjs import EmployeeBpjs
@@ -107,6 +107,61 @@ def get_employee_list(
         )
 
     return session.scalars(stmt).all()
+
+
+def count_employees(
+    session: Session,
+    *,
+    search: str | None = None,
+    division_id: int | None = None,
+    category_id: int | None = None,
+    status_id: int | None = None,
+    is_active: bool | None = True,
+) -> int:
+    stmt = select(func.count(Employee.employee_id))
+
+    if is_active is not None:
+        stmt = stmt.where(Employee.is_active.is_(is_active))
+
+    if search:
+        search_pattern = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Employee.employee_no.ilike(search_pattern),
+                Employee.full_name.ilike(search_pattern),
+                Employee.mobile_phone.ilike(search_pattern),
+                Employee.email.ilike(search_pattern),
+            ),
+        )
+
+    if division_id is not None:
+        stmt = stmt.where(
+            Employee.assignments.any(
+                and_(
+                    EmployeeAssignment.division_id == division_id,
+                    EmployeeAssignment.is_current.is_(True),
+                ),
+            ),
+        )
+
+    if category_id is not None:
+        stmt = stmt.where(
+            Employee.assignments.any(
+                and_(
+                    EmployeeAssignment.category_id == category_id,
+                    EmployeeAssignment.is_current.is_(True),
+                ),
+            ),
+        )
+
+    if status_id is not None:
+        stmt = stmt.where(
+            Employee.status_histories.any(
+                EmployeeStatusHistory.employment_status_id == status_id,
+            ),
+        )
+
+    return int(session.scalar(stmt) or 0)
 
 
 def get_employee_by_id(session: Session, employee_id: int) -> Employee | None:
@@ -312,6 +367,7 @@ __all__ = [
     "add_document",
     "add_family_member",
     "change_employee_status",
+    "count_employees",
     "create_assignment",
     "create_employee",
     "create_movement",

@@ -27,7 +27,12 @@ class DataQualityIssueResponse(BaseModel):
 
 
 class DataQualitySummaryResponse(BaseModel):
+    status: str | None = None
+    severity: str | None = None
+    issue_code: str | None = None
     source_period: str | None = None
+    employee_id: int | None = None
+    total: int
     open_total: int
     watch_total: int
     by_severity: dict[str, int]

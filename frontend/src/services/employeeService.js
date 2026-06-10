@@ -80,3 +80,9 @@ export const dataQualityService = {
     });
   },
 };
+
+export const manpowerService = {
+  summary() {
+    return request("/manpower/summary");
+  },
+};

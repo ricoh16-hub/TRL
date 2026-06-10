@@ -8,6 +8,7 @@ import {
   renderEmployeeStatusPage,
 } from "../modules/employee/employeePages.js";
 import { renderDataQualityPage } from "../modules/dataQuality/dataQualityPages.js";
+import { renderManpowerPage } from "../modules/manpower/manpowerPages.js";
 import { setRouteTitle } from "./state.js";
 
 function parseHash() {
@@ -27,6 +28,12 @@ export async function renderRoute() {
   if (moduleName === "data-quality") {
     setRouteTitle("Data Quality");
     await renderDataQualityPage(view);
+    return;
+  }
+
+  if (moduleName === "manpower") {
+    setRouteTitle("Manpower");
+    await renderManpowerPage(view);
     return;
   }
 
