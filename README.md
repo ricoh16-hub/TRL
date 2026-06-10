@@ -71,7 +71,7 @@ Catatan:
 
 ## Tooling Pengembangan
 
-- Jalankan lint dengan `python -m ruff check src/auth src/database src/main.py src/ui/mainform.py src/ui/userform.py src/ui/webform.py src/ui/battery_status.py src/ui/boot.py src/ui/login.py src/ui/lock.py scripts tests`.
+- Jalankan lint dengan `python -m ruff check src/auth src/database src/main.py src/ui/userform.py src/ui/webform.py src/ui/battery_status.py src/ui/boot.py src/ui/login.py src/ui/lock.py scripts tests`.
 - Jalankan test dengan `python -m pytest`.
 - Sebelum backup, cek sampah lokal dengan `python scripts/clean_junk_before_backup.py`.
 - Jika hasilnya sesuai, bersihkan dengan `python scripts/clean_junk_before_backup.py --apply`.

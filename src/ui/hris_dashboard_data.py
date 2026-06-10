@@ -179,6 +179,8 @@ def map_hris_role_to_dashboard_role(role_names: list[str]) -> str:
         return "Superior"
     if {"HR_ADMIN", "ADMIN", "ADMINISTRATOR"} & normalized_roles:
         return "Administrator"
+    if {"OPERATOR", "HR_OPERATOR"} & normalized_roles:
+        return "Operator"
     if {"HR_VIEWER", "VIEWER", "AUDITOR"} & normalized_roles:
         return "Auditor"
     if role_names:

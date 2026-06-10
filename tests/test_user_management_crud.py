@@ -201,7 +201,7 @@ def test_user_management_supports_hris_user_id_schema() -> None:
         rows = read_users(session)
         assert len(rows) == 1
         assert rows[0].username == "hris01"
-        assert rows[0].role == "SUPER_ADMIN"
+        assert rows[0].role == "Superior"
 
         updated = update_user(
             session,
@@ -236,5 +236,70 @@ def test_user_management_supports_hris_user_id_schema() -> None:
         assert session.execute(text("SELECT COUNT(*) FROM users")).scalar_one() == 0
         assert session.execute(text("SELECT COUNT(*) FROM user_sessions")).scalar_one() == 0
         assert session.execute(text("SELECT user_id FROM login_attempts")).scalar_one() is None
+    finally:
+        session.close()
+
+
+def test_user_management_hris_schema_preserves_operator_role() -> None:
+    session = _hris_session()
+    try:
+        user = create_user(
+            session,
+            username="operator01",
+            nama="Operator User",
+            password="Start123!",
+            role="Operator",
+            status="aktif",
+            pin="123456",
+        )
+        assert user.id == user.user_id
+
+        stored_role = session.execute(
+            text(
+                """
+                SELECT r.role_name
+                FROM user_roles ur
+                JOIN roles r ON r.role_id = ur.role_id
+                WHERE ur.user_id = :user_id
+                """
+            ),
+            {"user_id": user.id},
+        ).scalar_one()
+        assert stored_role == "OPERATOR"
+
+        rows = read_users(session)
+        assert rows[0].role == "Operator"
+    finally:
+        session.close()
+
+
+def test_user_management_hris_schema_hashes_without_app_security(monkeypatch) -> None:  # noqa: ANN001
+    session = _hris_session()
+    try:
+        monkeypatch.setattr("src.database.crud.create_bcrypt_hash", None)
+
+        user = create_user(
+            session,
+            username="desktop01",
+            nama="Desktop User",
+            password="Start123!",
+            role="Administrator",
+            status="aktif",
+            pin="123456",
+        )
+
+        row = session.execute(
+            text(
+                """
+                SELECT password_hash, pin_hash
+                FROM users
+                WHERE user_id = :user_id
+                """
+            ),
+            {"user_id": user.id},
+        ).mappings().one()
+
+        assert str(row["password_hash"]).startswith("$2")
+        assert str(row["pin_hash"]).startswith("$2")
     finally:
         session.close()

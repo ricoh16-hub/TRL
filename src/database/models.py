@@ -66,6 +66,8 @@ class User(Base):
     email = Column(String, unique=True, nullable=True)
     phone = Column(String, nullable=True)
     status = Column(String, nullable=False, server_default='aktif')
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    last_logout = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
@@ -848,6 +850,10 @@ def _run_user_table_migration() -> None:
             connection.execute(text("ALTER TABLE users ALTER COLUMN status SET NOT NULL"))
         if "deleted_at" not in existing_columns:  # pragma: no branch
             connection.execute(text("ALTER TABLE users ADD COLUMN deleted_at TIMESTAMPTZ"))
+        if "last_login" not in existing_columns:  # pragma: no branch
+            connection.execute(text("ALTER TABLE users ADD COLUMN last_login TIMESTAMPTZ"))
+        if "last_logout" not in existing_columns:  # pragma: no branch
+            connection.execute(text("ALTER TABLE users ADD COLUMN last_logout TIMESTAMPTZ"))
 
         connection.execute(
             text(

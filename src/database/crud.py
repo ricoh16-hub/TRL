@@ -6,6 +6,11 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 try:
+    import bcrypt
+except ImportError:  # pragma: no cover - bcrypt is a runtime dependency in packaged app builds
+    bcrypt = None  # type: ignore[assignment]
+
+try:
     from database.models import LoginAttempt, Role, User, UserPassword, UserPin, UserRole, UserSession
 except ImportError:
     from src.database.models import LoginAttempt, Role, User, UserPassword, UserPin, UserRole, UserSession
@@ -18,14 +23,25 @@ CANONICAL_ROLES: tuple[str, ...] = (
 )
 
 ROLE_MAPPING: dict[str, str] = {
+    "super_admin": "Superior",
     "super admin": "Superior",
+    "super-admin": "Superior",
     "superadmin": "Superior",
     "superior": "Superior",
+    "hr_admin": "Administrator",
+    "hr admin": "Administrator",
+    "hr-admin": "Administrator",
     "admin": "Administrator",
     "administrator": "Administrator",
     "manager": "Administrator",
     "staff": "Administrator",
+    "hr_operator": "Operator",
+    "hr operator": "Operator",
+    "hr-operator": "Operator",
     "operator": "Operator",
+    "hr_viewer": "Auditor",
+    "hr viewer": "Auditor",
+    "hr-viewer": "Auditor",
     "viewer": "Auditor",
     "auditor": "Auditor",
 }
@@ -66,7 +82,9 @@ def _hash_hris_secret(secret: str) -> str:
     if not secret:
         raise ValueError("Password tidak boleh kosong.")
     if create_bcrypt_hash is None:
-        raise RuntimeError("Hasher bcrypt HRIS tidak tersedia.")
+        if bcrypt is None:
+            raise RuntimeError("Hasher bcrypt tidak tersedia.")
+        return bcrypt.hashpw(secret.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     return str(create_bcrypt_hash(secret))
 
 
@@ -76,6 +94,8 @@ def _desktop_role_to_hris_role(role_name: str) -> str:
         return "SUPER_ADMIN"
     if normalized_role == "Administrator":
         return "HR_ADMIN"
+    if normalized_role == "Operator":
+        return "OPERATOR"
     return "HR_VIEWER"
 
 
@@ -504,6 +524,10 @@ def read_users(session: Session) -> list[User]:
         for row in rows:
             role_names = role_names_by_user_id.get(int(row["user_id"]), [])
             role_name = role_names[0] if role_names else "HR_VIEWER"
+            try:
+                normalized_role = normalize_role_name(role_name)
+            except ValueError:
+                normalized_role = "Operator"
             user = SimpleNamespace(
                 id=int(row["user_id"]),
                 user_id=int(row["user_id"]),
@@ -513,7 +537,7 @@ def read_users(session: Session) -> list[User]:
                 email=row.get("email"),
                 phone=row.get("phone"),
                 status="aktif" if bool(row.get("is_active")) else "nonaktif",
-                role=role_name,
+                role=normalized_role,
                 created_at=row.get("created_at"),
                 updated_at=row.get("updated_at"),
                 password_record=SimpleNamespace(password_hash=row.get("password_hash")),

@@ -26,7 +26,7 @@ print("""
       └─ Tekan submit PIN → verify_pin() ✅
       └─ Return User object ke main.py
 
-4. show_dashboard(app, user)      → Tampilkan DASHBOARD
+4. show_main_dashboard(app, user)      → Tampilkan DASHBOARD
    └─ User sudah authenticated
 """)
 
@@ -57,7 +57,7 @@ print("""
       └─ Jika salah: kembali ke login
       └─ Jika benar: Return User object
 
-3. show_dashboard(app, user)      → DASHBOARD
+3. show_main_dashboard(app, user)      → DASHBOARD
    └─ User sudah authenticated (PIN ✓ + Password ✓)
 """)
 
@@ -79,7 +79,7 @@ REKOMENDASI PERBAIKAN:
    - Hanya handle authenticate() untuk username/password
 
 3. main.py sudah dalam urutan yang benar:
-   - show_lock() → show_login() → show_dashboard()
+   - show_lock() → show_login() → show_main_dashboard()
    Tinggal ubah isi fungsinya saja.
 """)
 
