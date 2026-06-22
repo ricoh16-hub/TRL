@@ -31,7 +31,8 @@ jobs:
 
       - name: Run Pytest (with coverage)
         run: |
-          python -m coverage run -m pytest
+          # Tell coverage where the project source is so it doesn't search unrelated paths
+          python -m coverage run --source src -m pytest
           python -m coverage xml -o coverage.xml
 
       - name: Upload Coverage XML
