@@ -29,8 +29,10 @@ jobs:
           # Run ruff against directories to avoid failures from missing individual files
           python -m ruff check src scripts tests
 
-      - name: Run Pytest
-        run: python -m pytest
+      - name: Run Pytest (with coverage)
+        run: |
+          python -m coverage run -m pytest
+          python -m coverage xml -o coverage.xml
 
       - name: Upload Coverage XML
         uses: actions/upload-artifact@v4
