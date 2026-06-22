@@ -808,9 +808,23 @@ if DATABASE_URL:  # pragma: no branch
         parsed = None
 
     if parsed is not None and parsed.drivername and parsed.drivername.startswith("sqlite"):
-        raise RuntimeError(
-            "SQLite URLs are no longer supported in production or CI runs. "
-            "Set DATABASE_URL to a PostgreSQL DSN (postgresql+psycopg2://...) or use DB_* env vars."
+        # Allow an explicit developer opt-in for local SQLite when running tests or
+        # debugging. This must be set locally and is NOT recommended for CI or prod.
+        allow_sqlite = os.getenv("ALLOW_SQLITE_DEV", "0").strip().lower() in {"1", "true", "yes", "on"}
+        if not allow_sqlite:
+            raise RuntimeError(
+                "SQLite URLs are no longer supported in production or CI runs. "
+                "Set DATABASE_URL to a PostgreSQL DSN (postgresql+psycopg2://...) or use DB_* env vars. "
+                "If you need a local dev SQLite for quick UI tests, set ALLOW_SQLITE_DEV=1 locally."
+            )
+
+        # Developer opt-in enabled: create SQLite engine for local testing only.
+        sqlite_connect_args: dict[str, object] = {"check_same_thread": False}
+
+        engine = create_engine(
+            DATABASE_URL,
+            connect_args=sqlite_connect_args,
+            future=True,
         )
 
     engine = create_engine(
