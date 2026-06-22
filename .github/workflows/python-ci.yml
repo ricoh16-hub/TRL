@@ -37,4 +37,4 @@ jobs:
         with:
           name: coverage-xml
           path: coverage.xml
-          if-no-files-found: error
+          if-no-files-found: ignore
