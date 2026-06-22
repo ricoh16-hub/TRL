@@ -1,17 +1,25 @@
 from datetime import date, datetime
+import json
 import logging
+import re
 import secrets
 import string
 from typing import Optional, TypedDict, cast
 
+try:
+    import bcrypt
+except ImportError:  # pragma: no cover - bcrypt is a runtime dependency in packaged app builds
+    bcrypt = None  # type: ignore[assignment]
+
 from sqlalchemy import text
-from PySide6.QtCore import Property, QEvent, QPointF, QRectF, QPropertyAnimation, QEasingCurve, Qt, QTimer, Signal
+from PySide6.QtCore import QByteArray, Property, QEvent, QPointF, QRectF, QPropertyAnimation, QEasingCurve, Qt, QTimer, Signal, QSize
 from PySide6.QtGui import (
     QBrush,
     QColor,
     QEnterEvent,
     QFont,
     QFontMetrics,
+    QIcon,
     QKeyEvent,
     QLinearGradient,
     QMouseEvent,
@@ -19,10 +27,13 @@ from PySide6.QtGui import (
     QPainter,
     QPainterPath,
     QPen,
+    QPixmap,
     QRadialGradient,
 )
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -35,13 +46,13 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
-    QMenu,
     QMessageBox,
     QPushButton,
     QScrollArea,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -60,6 +71,16 @@ try:
     from auth.passwords import verify_password, verify_pin_code
 except ImportError:
     from src.auth.passwords import verify_password, verify_pin_code  # type: ignore[no-redef]
+
+try:
+    from app.core.security import verify_password as verify_bcrypt_password
+except ImportError:
+    verify_bcrypt_password = None  # type: ignore[assignment]
+
+try:
+    from ui.credentials_login import _draw_close_icon, _show_credentials_warning
+except ImportError:
+    from src.ui.credentials_login import _draw_close_icon, _show_credentials_warning  # type: ignore[no-redef]
 
 try:
     from ui.hris_dashboard_data import (
@@ -119,6 +140,27 @@ CHARGING_MODE_LABEL = "Kondisi Charging"
 NOT_CHARGING_MODE_LABEL = "Kondisi Tidak Charging"
 
 
+def _draw_user_action_icon(action: str, size: int, color: str) -> QPixmap:
+    paths = {
+        "edit": "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
+        "delete": "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4z",
+    }
+    path = paths["edit" if action == "edit" else "delete"]
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 24 24">'
+        f'<path fill="{color}" d="{path}"/></svg>'
+    )
+
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    renderer.render(painter)
+    painter.end()
+    return pixmap
+
+
 class UserRow(TypedDict):
     id: int
     username: str
@@ -129,8 +171,11 @@ class UserRow(TypedDict):
     status: str
     password_value: str
     pin_value: str
+    login_at: str
     created_at: str
-    updated_at: str
+    logout_at: str
+    created_by_text: str
+    modified_by_text: str
 
 
 def _credential_status_label(is_configured: object) -> str:
@@ -165,6 +210,17 @@ def _resolve_charging_state(info: Optional[dict[str, object]]) -> bool:
     if isinstance(charging, int):
         return bool(charging)
     return False
+
+
+def _verify_bcrypt_secret(secret: str, secret_hash: str) -> bool:
+    if verify_bcrypt_password is not None:
+        return bool(verify_bcrypt_password(secret, secret_hash))
+    if bcrypt is None:
+        return False
+    try:
+        return bool(bcrypt.checkpw(secret.encode("utf-8"), secret_hash.encode("utf-8")))
+    except ValueError:
+        return False
 
 
 def _charging_theme_palette(charging: bool) -> dict[str, str]:
@@ -361,6 +417,215 @@ class LoginGlassPanel(QFrame):
         painter.end()
 
 
+class StatusToggleSwitch(QCheckBox):
+    """Compact active/inactive switch styled after the dashboard toggle asset."""
+
+    def __init__(self, active: bool = True, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._charging = False
+        self._press_x: float | None = None
+        self._dragging = False
+        self._drag_progress = 1.0 if active else 0.0
+        self._knob_progress = self._drag_progress
+        self._pending_checked: bool | None = None
+        self._commit_connection_active = False
+        self._knob_animation = QPropertyAnimation(self, b"knobProgress", self)
+        self._knob_animation.setDuration(260)
+        self._knob_animation.setEasingCurve(QEasingCurve.Type.OutQuint)
+        self.setChecked(active)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedSize(64, 34)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.toggled.connect(self._sync_accessible_state)
+        self.toggled.connect(self._animate_to_checked_state)
+        self._sync_accessible_state(active)
+
+    def set_active(self, active: bool) -> None:
+        self._pending_checked = None
+        self._knob_animation.stop()
+        self.setChecked(bool(active))
+        self.set_knob_progress(1.0 if active else 0.0)
+
+    def is_active(self) -> bool:
+        return self.isChecked()
+
+    def get_knob_progress(self) -> float:
+        return self._knob_progress
+
+    def set_knob_progress(self, value: float) -> None:
+        self._knob_progress = max(0.0, min(1.0, float(value)))
+        self.update()
+
+    knobProgress = Property(float, get_knob_progress, set_knob_progress)
+
+    def set_charging(self, charging: bool) -> None:
+        charging = bool(charging)
+        if self._charging == charging:
+            return
+        self._charging = charging
+        self.update()
+
+    def _sync_accessible_state(self, active: bool) -> None:
+        status = "Active" if active else "Inactive"
+        self.setAccessibleName(f"Status {status}")
+        self.setToolTip(status)
+
+    def _set_checked_from_x(self, x_position: float) -> None:
+        self.setChecked(x_position >= self.width() / 2)
+
+    def _progress_from_x(self, x_position: float) -> float:
+        return max(0.0, min(1.0, x_position / max(1.0, float(self.width()))))
+
+    def _animate_to_checked_state(self, active: bool) -> None:
+        if self._dragging:
+            return
+        if self._pending_checked is not None:
+            return
+        self._knob_animation.stop()
+        self._knob_animation.setStartValue(self._knob_progress)
+        self._knob_animation.setEndValue(1.0 if active else 0.0)
+        self._knob_animation.start()
+
+    def _animate_visual_state(self, active: bool, *, commit_after_animation: bool) -> None:
+        self._knob_animation.stop()
+        if self._commit_connection_active:
+            try:
+                self._knob_animation.finished.disconnect(self._commit_pending_checked_state)
+            except (RuntimeError, TypeError):
+                pass
+            self._commit_connection_active = False
+
+        self._pending_checked = active if commit_after_animation else None
+        self._knob_animation.setStartValue(self._knob_progress)
+        self._knob_animation.setEndValue(1.0 if active else 0.0)
+
+        if commit_after_animation:
+            self._knob_animation.finished.connect(self._commit_pending_checked_state)
+            self._commit_connection_active = True
+
+        self._knob_animation.start()
+
+    def _commit_pending_checked_state(self) -> None:
+        target = self._pending_checked
+        self._pending_checked = None
+        if self._commit_connection_active:
+            try:
+                self._knob_animation.finished.disconnect(self._commit_pending_checked_state)
+            except (RuntimeError, TypeError):
+                pass
+            self._commit_connection_active = False
+        if target is not None and self.isChecked() != target:
+            self.setChecked(target)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if not self.isEnabled() or event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
+            return
+        self._press_x = event.position().x()
+        self._dragging = False
+        event.accept()
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if (
+            not self.isEnabled()
+            or self._press_x is None
+            or not event.buttons() & Qt.MouseButton.LeftButton
+        ):
+            super().mouseMoveEvent(event)
+            return
+        if abs(event.position().x() - self._press_x) >= 4:
+            self._dragging = True
+            self._knob_animation.stop()
+            self.set_knob_progress(self._progress_from_x(event.position().x()))
+        event.accept()
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if not self.isEnabled() or event.button() != Qt.MouseButton.LeftButton:
+            super().mouseReleaseEvent(event)
+            return
+        if self._dragging:
+            self.set_knob_progress(self._progress_from_x(event.position().x()))
+            target_active = event.position().x() >= self.width() / 2
+            self._press_x = None
+            self._dragging = False
+            if self.isChecked() == target_active:
+                self._animate_visual_state(target_active, commit_after_animation=False)
+            else:
+                self._animate_visual_state(target_active, commit_after_animation=True)
+        else:
+            self._animate_visual_state(not self.isChecked(), commit_after_animation=True)
+            self._press_x = None
+            self._dragging = False
+        event.accept()
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        event.accept()
+
+    def paintEvent(self, _event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if not self.isEnabled():
+            painter.setOpacity(0.46)
+
+        track = QRectF(2.0, 3.0, float(self.width() - 4), float(self.height() - 6))
+        radius = track.height() / 2.0
+        progress = self._knob_progress
+
+        def blend(start: QColor, end: QColor, amount: float) -> QColor:
+            return QColor(
+                round(start.red() + (end.red() - start.red()) * amount),
+                round(start.green() + (end.green() - start.green()) * amount),
+                round(start.blue() + (end.blue() - start.blue()) * amount),
+                round(start.alpha() + (end.alpha() - start.alpha()) * amount),
+            )
+
+        inactive_top = QColor(95, 108, 126, 210)
+        inactive_bottom = QColor(57, 66, 82, 220)
+        inactive_border = QColor(255, 255, 255, 70)
+        if self._charging:
+            active_top = QColor("#28B8FF")
+            active_bottom = QColor("#087FAF")
+        else:
+            active_top = QColor("#0C8CFF")
+            active_bottom = QColor("#006FEA")
+        active_border = QColor(60, 170, 255, 210)
+
+        top = blend(inactive_top, active_top, progress)
+        bottom = blend(inactive_bottom, active_bottom, progress)
+        border = blend(inactive_border, active_border, progress)
+
+        if self.underMouse():
+            top = top.lighter(108)
+            bottom = bottom.lighter(106)
+            border = border.lighter(116)
+
+        track_gradient = QLinearGradient(track.left(), track.top(), track.left(), track.bottom())
+        track_gradient.setColorAt(0.0, top)
+        track_gradient.setColorAt(1.0, bottom)
+        painter.setPen(QPen(border, 1.2))
+        painter.setBrush(QBrush(track_gradient))
+        painter.drawRoundedRect(track, radius, radius)
+
+        knob_diameter = track.height() - 4.0
+        knob_min_x = track.left() + 3.0
+        knob_max_x = track.right() - knob_diameter - 3.0
+        knob_x = knob_min_x + (knob_max_x - knob_min_x) * progress
+        knob = QRectF(knob_x, track.top() + 2.0, knob_diameter, knob_diameter)
+
+        shadow = QColor(0, 31, 64, round(72 + (48 - 72) * progress))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(shadow))
+        painter.drawEllipse(knob.translated(0.0, 1.2))
+
+        knob_gradient = QLinearGradient(knob.left(), knob.top(), knob.left(), knob.bottom())
+        knob_gradient.setColorAt(0.0, QColor("#FFFFFF"))
+        knob_gradient.setColorAt(1.0, QColor("#EEF4FF"))
+        painter.setBrush(QBrush(knob_gradient))
+        painter.setPen(QPen(QColor(255, 255, 255, 225), 0.8))
+        painter.drawEllipse(knob)
+        painter.end()
+
+
 class DashboardBackground(QWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -429,6 +694,100 @@ def _dashboard_dialog_stylesheet(charging: bool) -> str:
         f"QDialogButtonBox QPushButton:hover {{ background: {palette['surface_hover']}; }}"
         f"QDialogButtonBox QPushButton:pressed {{ background: {palette['surface_selected']}; }}"
     )
+
+
+def _style_premium_dialog_close_button(button: QToolButton, charging: bool) -> None:
+    icon_color = QColor("#ECFCFF") if charging else QColor("#F4F8FF")
+    icon_color.setAlpha(216 if charging else 196)
+    button.setIcon(QIcon(_draw_close_icon(14, icon_color)))
+    button.setIconSize(QSize(14, 14))
+    button.setFixedSize(30, 30)
+    button.setCursor(Qt.CursorShape.PointingHandCursor)
+    button.setToolTip("")
+    button.setAccessibleName("Close")
+    button.setAccessibleDescription("Close")
+    if charging:
+        button.setStyleSheet(
+            "QToolButton#dashboardDialogClose {"
+            " background: rgba(236, 252, 255, 0.07);"
+            " border: 1px solid rgba(126, 232, 255, 0.28);"
+            " border-radius: 10px;"
+            "}"
+            "QToolButton#dashboardDialogClose:hover {"
+            " background: rgba(226, 54, 68, 0.88);"
+            " border: 1px solid rgba(255, 168, 176, 0.72);"
+            "}"
+            "QToolButton#dashboardDialogClose:pressed {"
+            " background: rgba(194, 38, 52, 0.94);"
+            "}"
+        )
+        return
+    button.setStyleSheet(
+        "QToolButton#dashboardDialogClose {"
+        " background: rgba(255, 255, 255, 0.055);"
+        " border: 1px solid rgba(255, 255, 255, 0.16);"
+        " border-radius: 10px;"
+        "}"
+        "QToolButton#dashboardDialogClose:hover {"
+        " background: rgba(226, 54, 68, 0.86);"
+        " border: 1px solid rgba(255, 142, 150, 0.68);"
+        "}"
+        "QToolButton#dashboardDialogClose:pressed {"
+        " background: rgba(194, 38, 52, 0.93);"
+        "}"
+    )
+
+
+def _build_premium_dialog_title_bar(
+    dialog: QDialog,
+    title: str,
+    subtitle: str = "",
+) -> tuple[QWidget, QLabel, QLabel, QToolButton]:
+    title_bar = QWidget(dialog)
+    title_bar.setObjectName("dashboardDialogTitleBar")
+    title_bar.setStyleSheet("background: transparent;")
+    layout = QHBoxLayout(title_bar)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(12)
+
+    title_stack = QVBoxLayout()
+    title_stack.setContentsMargins(0, 0, 0, 0)
+    title_stack.setSpacing(2)
+
+    title_label = QLabel(title)
+    title_label.setObjectName("dashboardDialogTitle")
+    title_stack.addWidget(title_label)
+
+    subtitle_label = QLabel(subtitle)
+    subtitle_label.setObjectName("dashboardDialogSubtitle")
+    subtitle_label.setWordWrap(True)
+    subtitle_label.setVisible(bool(subtitle))
+    title_stack.addWidget(subtitle_label)
+
+    close_btn = QToolButton(title_bar)
+    close_btn.setObjectName("dashboardDialogClose")
+    close_btn.clicked.connect(dialog.reject)
+
+    layout.addLayout(title_stack, 1)
+    layout.addWidget(close_btn, 0, Qt.AlignmentFlag.AlignTop)
+    return title_bar, title_label, subtitle_label, close_btn
+
+
+def _apply_premium_dialog_title_bar_theme(
+    title_label: QLabel,
+    subtitle_label: QLabel,
+    close_btn: QToolButton,
+    charging: bool,
+) -> None:
+    palette = _charging_theme_palette(charging)
+    title_label.setStyleSheet(
+        f"color: {palette['panel_text']}; font-size: 12px; font-weight: 850; "
+        "letter-spacing: 0.2px; background: transparent;"
+    )
+    subtitle_label.setStyleSheet(
+        f"color: {palette['panel_muted']}; font-size: 11px; font-weight: 650; background: transparent;"
+    )
+    _style_premium_dialog_close_button(close_btn, charging)
 
 
 class DashboardGlassDialog(QDialog):
@@ -1024,6 +1383,91 @@ class ChangePasswordDialog(DashboardGlassDialog):
         }
 
 
+class StatusVerificationDialog(DashboardGlassDialog):
+    """Verify the signed-in user before changing another user's active status."""
+
+    def __init__(
+        self,
+        action_label: str,
+        target_username: str,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent, radius=18.0)
+        self.setWindowTitle("Verifikasi Status User")
+        self.setModal(True)
+        self.resize(430, 250)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(14)
+
+        self._title = QLabel(f"Verifikasi {action_label}\nUser: {target_username}")
+        layout.addWidget(self._title)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+
+        self._password_input = QLineEdit()
+        self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._password_input.setFixedHeight(36)
+        self._password_input.setPlaceholderText("Password user yang sedang login")
+
+        self._pin_input = QLineEdit()
+        self._pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._pin_input.setFixedHeight(36)
+        self._pin_input.setPlaceholderText("PIN user yang sedang login")
+        self._pin_input.setMaxLength(6)
+
+        form.addRow("Password", self._password_input)
+        form.addRow("PIN", self._pin_input)
+        layout.addLayout(form)
+
+        self._hint = QLabel("Perubahan status membutuhkan otorisasi password dan PIN.")
+        self._hint.setWordWrap(True)
+        layout.addWidget(self._hint)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Verify")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancel")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self._buttons = buttons
+
+        self._charging_timer = QTimer(self)
+        self._charging_timer.timeout.connect(self._update_charging_theme)
+        self._charging_timer.start(500)
+        self._update_charging_theme()
+
+    def _update_charging_theme(self) -> None:
+        charging = _read_charging_state_from_context(self.parentWidget(), bool(self._charging))
+        if self._charging == charging and self.styleSheet():
+            return
+        self.set_charging(charging)
+        palette = _charging_theme_palette(charging)
+        self.setStyleSheet(_dashboard_dialog_stylesheet(charging))
+        self._title.setStyleSheet(
+            f"color: {palette['panel_text']}; font-size: 15px; font-weight: 850; background: transparent;"
+        )
+        self._hint.setStyleSheet(
+            f"color: {palette['panel_muted']}; font-size: 12px; font-weight: 650; background: transparent;"
+        )
+
+    def data(self) -> dict[str, str]:
+        return {
+            "password": self._password_input.text(),
+            "pin": self._pin_input.text().strip(),
+        }
+
+    def reset_password(self) -> None:
+        self._password_input.clear()
+        self._password_input.setFocus()
+
+    def reset_pin(self) -> None:
+        self._pin_input.clear()
+        self._pin_input.setFocus()
+
+
 class UserEditDialog(DashboardGlassDialog):
     def __init__(
         self,
@@ -1038,7 +1482,11 @@ class UserEditDialog(DashboardGlassDialog):
         super().__init__(parent, radius=18.0)
         self.setWindowTitle("Edit User")
         self.setModal(True)
-        self.resize(520, 660)
+        self.setWindowFlags(
+            (self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+            | Qt.WindowType.FramelessWindowHint
+        )
+        self.resize(540, 730)
         self._edit_glass_panels: list[LoginGlassPanel] = []
         self._edit_row_labels: list[QLabel] = []
         self._edit_hint_labels: list[QLabel] = []
@@ -1047,8 +1495,18 @@ class UserEditDialog(DashboardGlassDialog):
         self._edit_theme_applied = False
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(24, 20, 24, 20)
-        main_layout.setSpacing(14)
+        main_layout.setContentsMargins(24, 16, 24, 20)
+        main_layout.setSpacing(12)
+
+        title_bar, title_label, subtitle_label, close_btn = _build_premium_dialog_title_bar(
+            self,
+            "User Management",
+            "Edit access profile and credential reset",
+        )
+        self._dialog_title_label = title_label
+        self._dialog_subtitle_label = subtitle_label
+        self._dialog_close_btn = close_btn
+        main_layout.addWidget(title_bar)
 
         # --- Accent bar ---
         self._header_bar = QFrame()
@@ -1336,6 +1794,12 @@ class UserEditDialog(DashboardGlassDialog):
         palette = _charging_theme_palette(charging)
         accent = palette["accent"]
         self.setStyleSheet(_dashboard_dialog_stylesheet(charging))
+        _apply_premium_dialog_title_bar_theme(
+            self._dialog_title_label,
+            self._dialog_subtitle_label,
+            self._dialog_close_btn,
+            charging,
+        )
         self._header_bar.setStyleSheet(
             f"background: {accent}; border-radius: 2px;"
         )
@@ -1389,14 +1853,23 @@ class UserEditDialog(DashboardGlassDialog):
             "new_pin": self._new_pin_input.text().strip(),
         }
 
+    def reset_password_verification(self) -> None:
+        self._old_password_input.clear()
+        self._old_password_input.setFocus()
+
+    def reset_pin_verification(self) -> None:
+        self._old_pin_input.clear()
+        self._old_pin_input.setFocus()
+
 
 class UserAddDialog(DashboardGlassDialog):
     """Dialog to add a new user (password and PIN are auto-generated)."""
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: Optional[QWidget] = None, allowed_roles: Optional[list[str]] = None) -> None:
         super().__init__(parent, radius=18.0)
         self.setWindowTitle("Add User")
         self.setModal(True)
         self.resize(420, 260)
+        allowed_roles = allowed_roles or ["Auditor"]
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)
@@ -1413,9 +1886,12 @@ class UserAddDialog(DashboardGlassDialog):
         self._nama_input.setPlaceholderText("Example: Riko Sinaga")
         
         self._role_combo = QComboBox()
-        self._role_combo.addItems(list(CANONICAL_ROLES))
+        self._role_combo.addItems(allowed_roles)
         self._role_combo.setFixedHeight(36)
-        self._role_combo.setCurrentText("Operator")
+        if "Operator" in allowed_roles:
+            self._role_combo.setCurrentText("Operator")
+        else:
+            self._role_combo.setCurrentIndex(0)
         
         self._status_combo = QComboBox()
         self._status_combo.addItems(["Active", "Inactive"])
@@ -1502,7 +1978,13 @@ class DashboardForm(QMainWindow):
         self._hris_quality_summary_label: Optional[QLabel] = None
         self._search_username: Optional[QLineEdit] = None
         self._role_filter: Optional[QComboBox] = None
+        self._user_management_summary_label: Optional[QLabel] = None
+        self._user_table_normal_column_widths: dict[int, int] = {}
+        self._user_table_expanded_columns: set[int] = set()
+        self._user_role_chip_width = 104
+        self._user_status_badge_width = 104
         self._all_users_rows: list[UserRow] = []
+        self._logout_recorded = False
         self.setWindowTitle("Dashboard")
         self.resize(1360, 820)
         self.setMinimumSize(960, 600)
@@ -1534,7 +2016,66 @@ class DashboardForm(QMainWindow):
         self._update_charging_theme()
 
     def current_user_id(self) -> int:
-        return int(getattr(self._user, "id", 0) or 0)
+        return int(getattr(self._user, "id", None) or getattr(self._user, "user_id", 0) or 0)
+
+    def _record_current_user_logout(self) -> None:
+        if self._logout_recorded:
+            return
+        user_id = self.current_user_id()
+        if user_id <= 0:
+            logger.warning("Logout timestamp was not recorded because current user id is empty")
+            self._logout_recorded = True
+            return
+
+        session = Session()
+        try:
+            columns = _table_columns(session, "users")
+            if "last_logout" not in columns:
+                logger.warning("Logout timestamp was not recorded because users.last_logout column is missing")
+                return
+
+            if _is_hris_auth_schema(session):
+                assignments: list[str] = ["last_logout = CURRENT_TIMESTAMP"]
+                if "updated_at" in columns:
+                    assignments.append("updated_at = CURRENT_TIMESTAMP")
+                result = session.execute(
+                    text(f"UPDATE users SET {', '.join(assignments)} WHERE user_id = :user_id"),
+                    {"user_id": user_id},
+                )
+                if getattr(result, "rowcount", 0) <= 0:
+                    session.rollback()
+                    logger.warning("Logout timestamp was not recorded because HRIS user_id %s was not found", user_id)
+                    return
+                session.commit()
+                self._logout_recorded = True
+                return
+
+            assignments = ["last_logout = CURRENT_TIMESTAMP"]
+            if "updated_at" in columns:
+                assignments.append("updated_at = CURRENT_TIMESTAMP")
+            result = session.execute(
+                text(f"UPDATE users SET {', '.join(assignments)} WHERE id = :user_id"),
+                {"user_id": user_id},
+            )
+            if getattr(result, "rowcount", 0) <= 0:
+                session.rollback()
+                logger.warning("Logout timestamp was not recorded because desktop user id %s was not found", user_id)
+                return
+            session.commit()
+            self._logout_recorded = True
+        except Exception:
+            session.rollback()
+            logger.exception("Failed to record user logout timestamp")
+        finally:
+            session.close()
+
+    def _logout_current_user(self) -> None:
+        self._record_current_user_logout()
+        self.close()
+
+    def closeEvent(self, event: QEvent) -> None:  # noqa: N802
+        self._record_current_user_logout()
+        super().closeEvent(event)
 
     def _build_temp_password(self, length: int = TEMP_PASSWORD_LENGTH) -> str:
         alphabet = string.ascii_letters + string.digits
@@ -1587,7 +2128,7 @@ class DashboardForm(QMainWindow):
 
         logout_btn = AnimatedActionButton("Logout")
         logout_btn.setFixedSize(108, 40)
-        logout_btn.clicked.connect(self.close)
+        logout_btn.clicked.connect(self._logout_current_user)
         self._action_buttons.append(logout_btn)
 
         layout.addWidget(self._header_brand)
@@ -2343,16 +2884,38 @@ class DashboardForm(QMainWindow):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(12)
 
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(12)
+
         self._page_title_label = QLabel("User Management")
+        self._page_title_label.setProperty("compactPageTitle", True)
         self._page_title_labels.append(self._page_title_label)
-        layout.addWidget(self._page_title_label)
+
+        self._add_user_btn = QPushButton("+ Add User")
+        self._add_user_btn.setFixedHeight(38)
+        self._add_user_btn.setMinimumWidth(132)
+        self._add_user_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._add_user_btn.clicked.connect(self._open_add_user_dialog)
+
+        title_row.addWidget(self._page_title_label)
+        title_row.addStretch(1)
+        title_row.addWidget(self._add_user_btn, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(title_row)
+
+        self._user_management_summary_label = QLabel("Loading users...")
+        self._user_management_summary_label.setWordWrap(True)
+        self._dashboard_muted_labels.append(self._user_management_summary_label)
+        layout.addWidget(self._user_management_summary_label)
 
         controls = QHBoxLayout()
+        controls.setContentsMargins(0, 2, 0, 4)
         controls.setSpacing(12)
 
         self._search_username = QLineEdit()
-        self._search_username.setPlaceholderText("Search username...")
+        self._search_username.setPlaceholderText("Search name, username, email, or phone...")
         self._search_username.setFixedHeight(36)
+        self._search_username.setMinimumWidth(320)
         self._search_username.textChanged.connect(self._apply_user_filters)
 
         filter_label = QLabel("Role Filter")
@@ -2361,39 +2924,32 @@ class DashboardForm(QMainWindow):
         self._role_filter = QComboBox()
         self._role_filter.addItem("All")
         self._role_filter.setFixedHeight(36)
-        self._role_filter.setMinimumWidth(180)
+        self._role_filter.setFixedWidth(170)
         self._role_filter.currentTextChanged.connect(self._apply_user_filters)
 
-        self._add_user_btn = QPushButton("+ Add User")
-        self._add_user_btn.setFixedHeight(36)
-        self._add_user_btn.setMinimumWidth(140)
-        self._add_user_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._add_user_btn.clicked.connect(self._open_add_user_dialog)
-
-        controls.addWidget(self._search_username, 2)
+        controls.addWidget(self._search_username, 1)
         controls.addStretch(1)
         controls.addWidget(filter_label)
         controls.addWidget(self._role_filter)
-        controls.addWidget(self._add_user_btn)
         layout.addLayout(controls)
 
         self._users_table = QTableWidget()
         self._users_table.setColumnCount(9)
         self._users_table.setHorizontalHeaderLabels(
             [
-                "FULL NAME",
-                "USERNAME",
-                "ROLE",
-                "EMAIL",
-                "PHONE",
-                "UPDATED",
-                "STATUS",
+                "User",
+                "Role",
+                "Status",
+                "Last Login",
+                "Last Logout",
+                "Created By",
+                "Modified By",
+                "Actions",
                 "ID",
-                "ACTIONS",
             ]
         )
         self._users_table.verticalHeader().setVisible(False)
-        self._users_table.verticalHeader().setDefaultSectionSize(62)
+        self._users_table.verticalHeader().setDefaultSectionSize(68)
         self._users_table.setAlternatingRowColors(True)
         self._users_table.setShowGrid(False)
         self._users_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -2405,10 +2961,10 @@ class DashboardForm(QMainWindow):
         self._users_table.setTextElideMode(Qt.TextElideMode.ElideRight)
         self._users_table.setStyleSheet(
             "QTableWidget { background: rgba(23, 31, 42, 0.78); alternate-background-color: rgba(38, 47, 59, 0.72); "
-            "color: #F4F8FF; border: 1px solid rgba(255, 255, 255, 0.26); border-radius: 12px; font-size: 14px; outline: none; }"
+            "color: #F4F8FF; border: 1px solid rgba(255, 255, 255, 0.26); border-radius: 12px; font-size: 13px; outline: none; }"
             "QHeaderView::section { background: rgba(43, 52, 65, 0.86); color: rgba(230, 237, 246, 0.72); "
-            "font-size: 11px; font-weight: 800; border: none; border-bottom: 1px solid rgba(255,255,255,0.18); padding: 10px 14px; }"
-            "QTableWidget::item { padding: 10px 12px; border: none; }"
+            "font-size: 12px; font-weight: 700; border: none; border-bottom: 1px solid rgba(255,255,255,0.18); padding: 10px 14px; }"
+            "QTableWidget::item { padding: 8px 10px; border: none; }"
             "QTableWidget::item:hover { background: rgba(255, 255, 255, 0.09); }"
             "QTableWidget::item:selected { background: rgba(255, 255, 255, 0.16); color: #F4F8FF; }"
         )
@@ -2416,9 +2972,8 @@ class DashboardForm(QMainWindow):
         header = self._users_table.horizontalHeader()
         header.setMinimumSectionSize(72)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        # Widget-based columns should keep fixed width for consistent pixel alignment.
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
+        for column_index in range(9):
+            header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
         header.setSectionsClickable(True)
         header.setStretchLastSection(False)
         header.sectionDoubleClicked.connect(self._auto_size_user_table_column)
@@ -2427,20 +2982,18 @@ class DashboardForm(QMainWindow):
             section_handle_double_clicked.connect(self._auto_size_user_table_column)
 
         # Default widths tuned for readability while keeping manual resize enabled.
-        self._users_table.setColumnWidth(0, 210)
-        self._users_table.setColumnWidth(1, 165)
-        self._users_table.setColumnWidth(2, 108)
-        self._users_table.setColumnWidth(3, 220)
-        self._users_table.setColumnWidth(4, 140)
-        self._users_table.setColumnWidth(5, 150)
-        self._users_table.setColumnWidth(6, 176)
-        self._users_table.setColumnWidth(7, 72)
-        self._users_table.setColumnWidth(8, 210)
-        self._users_table.setColumnHidden(7, True)
+        self._users_table.setColumnWidth(0, 220)
+        self._users_table.setColumnWidth(1, 124)
+        self._users_table.setColumnWidth(2, 96)
+        self._users_table.setColumnWidth(3, 152)
+        self._users_table.setColumnWidth(4, 152)
+        self._users_table.setColumnWidth(5, 118)
+        self._users_table.setColumnWidth(6, 118)
+        self._users_table.setColumnWidth(7, 104)
+        self._users_table.setColumnWidth(8, 72)
+        self._users_table.setColumnHidden(8, True)
 
-        # Double-click row → edit; right-click → context menu; keyboard Delete/Enter
-        self._users_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self._users_table.customContextMenuRequested.connect(self._show_user_context_menu)
+        # Double-click row -> edit; keyboard Delete/Enter follow the visible row actions.
         self._users_table.cellDoubleClicked.connect(self._on_user_table_double_click)
         self._users_table.itemSelectionChanged.connect(self._sync_user_table_widget_states)
         self._users_table.installEventFilter(self)
@@ -2452,28 +3005,109 @@ class DashboardForm(QMainWindow):
         if self._users_table is None:
             return
 
-        # Keep widget-based columns fixed to avoid visual drift.
-        if logical_index in {6, 8}:
+        if logical_index == 8 or self._users_table.isColumnHidden(logical_index):
             return
 
+        normal_width = self._user_table_normal_column_widths.get(
+            logical_index,
+            self._users_table.columnWidth(logical_index),
+        )
+
+        if logical_index in self._user_table_expanded_columns:
+            self._users_table.setColumnWidth(logical_index, normal_width)
+            self._user_table_expanded_columns.remove(logical_index)
+            return
+
+        self._user_table_normal_column_widths[logical_index] = normal_width
         self._users_table.resizeColumnToContents(logical_index)
         fitted_width = self._users_table.columnWidth(logical_index)
-        padded_width = fitted_width + 18
-        self._users_table.setColumnWidth(logical_index, max(72, min(padded_width, 520)))
+        padded_width = fitted_width + 24
+        self._users_table.setColumnWidth(logical_index, max(normal_width, min(padded_width, 520)))
+        self._user_table_expanded_columns.add(logical_index)
 
     def _auto_fit_all_user_columns(self) -> None:
-        """Resize all columns to fit their content, with padding and a max cap."""
+        """Keep the user table stable: one stretch name column, fixed utility columns."""
         if self._users_table is None:
             return
-        self._users_table.resizeColumnsToContents()
-        for col in range(self._users_table.columnCount() - 1):
-            if self._users_table.isColumnHidden(col):
-                continue
-            w = self._users_table.columnWidth(col)
-            self._users_table.setColumnWidth(col, max(72, min(w + 20, 320)))
-        # Keep hidden ID internal-only and lock columns that use custom widgets.
-        self._users_table.setColumnWidth(6, 176)
-        self._users_table.setColumnWidth(8, 210)
+        self._fit_user_table_columns_to_rows(self._all_users_rows)
+
+    def _fit_user_table_columns_to_rows(self, rows: list[UserRow]) -> None:
+        if self._users_table is None:
+            return
+
+        metrics = QFontMetrics(self._users_table.font())
+
+        def text_width(values: list[str], fallback: str) -> int:
+            longest = max(values, key=len, default=fallback)
+            return metrics.horizontalAdvance(longest)
+
+        user_values: list[str] = []
+        role_values: list[str] = []
+        login_values: list[str] = []
+        logout_values: list[str] = []
+        status_values: list[str] = []
+        created_by_values: list[str] = []
+        modified_by_values: list[str] = []
+        for row in rows:
+            user_values.extend(
+                [
+                    str(row["username"]),
+                    str(row["full_name"]),
+                    str(row["email"]),
+                ]
+            )
+            role_values.append(str(row["role"]))
+            login_values.append(str(row["login_at"]))
+            logout_values.append(str(row["logout_at"]))
+            status_values.append(str(row["status"]))
+            created_by_values.append(str(row["created_by_text"]))
+            modified_by_values.append(str(row["modified_by_text"]))
+
+        user_width = text_width(user_values, "username") + 76
+        role_chip_width = max(
+            text_width(role_values, "Operator"),
+            metrics.horizontalAdvance("Administrator"),
+        ) + 22
+        status_badge_width = max(
+            text_width(status_values, "Inactive"),
+            metrics.horizontalAdvance("Inactive"),
+        ) + 28
+        role_width = role_chip_width + 28
+        login_width = max(
+            text_width(login_values, "-"),
+            metrics.horizontalAdvance("10 June 2026 14:05"),
+            metrics.horizontalAdvance("Last Login"),
+        ) + 32
+        logout_width = max(
+            text_width(logout_values, "-"),
+            metrics.horizontalAdvance("10 June 2026 14:05"),
+            metrics.horizontalAdvance("Last Logout"),
+        ) + 32
+        created_by_width = max(
+            text_width(created_by_values, "-"),
+            metrics.horizontalAdvance("Created By"),
+        ) + 32
+        modified_by_width = max(
+            text_width(modified_by_values, "-"),
+            metrics.horizontalAdvance("Modified By"),
+        ) + 32
+
+        self._users_table.setColumnWidth(0, max(176, min(user_width, 260)))
+        self._user_role_chip_width = max(60, min(role_chip_width, 108))
+        self._users_table.setColumnWidth(1, max(96, min(role_width, 132)))
+        self._user_status_badge_width = max(76, min(status_badge_width, 108))
+        self._users_table.setColumnWidth(2, 96)
+        self._users_table.setColumnWidth(3, max(142, min(login_width, 190)))
+        self._users_table.setColumnWidth(4, max(142, min(logout_width, 190)))
+        self._users_table.setColumnWidth(5, max(108, min(created_by_width, 148)))
+        self._users_table.setColumnWidth(6, max(112, min(modified_by_width, 156)))
+        self._users_table.setColumnWidth(7, max(104, metrics.horizontalAdvance("Actions") + 34))
+        self._users_table.setColumnWidth(8, 72)
+        self._user_table_normal_column_widths = {
+            column_index: self._users_table.columnWidth(column_index)
+            for column_index in range(self._users_table.columnCount())
+        }
+        self._user_table_expanded_columns.clear()
 
     def _build_status_badge(self, status_value: str) -> QWidget:
         is_active = status_value.strip().lower() == "active"
@@ -2491,16 +3125,16 @@ class DashboardForm(QMainWindow):
         pill.setObjectName("statusBadgePill")
         pill.setProperty("isActive", is_active)
         pill.setProperty("rowSelected", False)
-        pill.setFixedSize(124, 32)
+        pill.setFixedSize(self._user_status_badge_width, 26)
         pill_layout = QHBoxLayout(pill)
-        pill_layout.setContentsMargins(10, 0, 12, 0)
+        pill_layout.setContentsMargins(9, 0, 10, 0)
         pill_layout.setSpacing(5)
         pill_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         # Colored dot indicator
         dot = QLabel()
         dot.setObjectName("statusBadgeDot")
-        dot.setFixedSize(10, 10)
+        dot.setFixedSize(9, 9)
 
         # Text label
         lbl = QLabel(status_value)
@@ -2559,29 +3193,179 @@ class DashboardForm(QMainWindow):
         pill.setStyleSheet(f"background: {pill_bg}; border: 1px solid {pill_border}; border-radius: 12px;")
         dot.setStyleSheet(f"QLabel {{ background: {dot_color}; border-radius: 4px; border: none; }}")
         lbl.setStyleSheet(
-            f"QLabel {{ color: {text_color}; font-size: 12px; font-weight: 700; background: transparent; border: none; }}"
+            f"QLabel {{ color: {text_color}; font-size: 11px; font-weight: 800; background: transparent; border: none; }}"
         )
+
+    def _build_status_toggle_cell(self, user_id: int, status_value: str, enabled: bool) -> QWidget:
+        is_active = status_value.strip().lower() == "active"
+
+        container = QWidget()
+        container.setObjectName("statusToggleContainer")
+        container.setAutoFillBackground(False)
+        container.setStyleSheet("background: transparent;")
+        outer = QHBoxLayout(container)
+        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        toggle = StatusToggleSwitch(is_active, container)
+        toggle.setObjectName("userStatusToggle")
+        toggle.set_charging(bool(self._charging))
+        toggle.setEnabled(enabled)
+        toggle.setToolTip(
+            "Click to set Active/Inactive"
+            if enabled
+            else "Only Active Superior or Administrator users can change user status."
+        )
+        toggle.toggled.connect(
+            lambda checked, uid=user_id, widget=toggle: self._toggle_user_status_from_table(
+                int(uid),
+                bool(checked),
+                widget,
+            )
+        )
+
+        outer.addWidget(toggle)
+        return container
+
+    def _sync_status_toggle_from_widget(self, toggle: StatusToggleSwitch) -> None:
+        toggle.update()
+
+    def _build_user_identity_cell(self, username: str, full_name: str, email: str) -> QWidget:
+        palette = _charging_theme_palette(bool(self._charging))
+        display_name = username.strip() or "-"
+        middle_text = full_name.strip() or "-"
+        bottom_text = email.strip() if email.strip() and email.strip() != "-" else "-"
+        initials = "".join(part[:1] for part in display_name.split()[:2]).upper() or "U"
+
+        container = QWidget()
+        container.setAutoFillBackground(False)
+        container.setStyleSheet("background: transparent;")
+        outer = QHBoxLayout(container)
+        outer.setContentsMargins(10, 5, 10, 5)
+        outer.setSpacing(10)
+        outer.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        avatar = QLabel(initials)
+        avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        avatar.setFixedSize(36, 36)
+        avatar.setStyleSheet(
+            "QLabel {"
+            f" background: {palette['surface_selected']}; color: {palette['panel_text']};"
+            f" border: 1px solid {palette['panel_border']}; border-radius: 17px;"
+            " font-size: 11px; font-weight: 850;"
+            "}"
+        )
+
+        text_stack = QVBoxLayout()
+        text_stack.setContentsMargins(0, 0, 0, 0)
+        text_stack.setSpacing(0)
+
+        name_label = QLabel(display_name)
+        name_label.setToolTip(f"Username: {username}\nFull Name: {full_name}\nEmail: {email}")
+        name_label.setStyleSheet(
+            f"color: {palette['panel_text']}; font-size: 13px; font-weight: 800; background: transparent;"
+        )
+
+        full_name_label = QLabel(middle_text)
+        full_name_label.setToolTip(f"Username: {username}\nFull Name: {full_name}\nEmail: {email}")
+        full_name_label.setStyleSheet(
+            f"color: {palette['panel_muted']}; font-size: 11px; font-weight: 650; background: transparent;"
+        )
+
+        email_label = QLabel(bottom_text)
+        email_label.setToolTip(f"Username: {username}\nFull Name: {full_name}\nEmail: {email}")
+        email_label.setStyleSheet(
+            "color: rgba(230, 237, 246, 0.54); font-size: 10px; font-weight: 600; background: transparent;"
+        )
+
+        text_stack.addWidget(name_label)
+        text_stack.addWidget(full_name_label)
+        text_stack.addWidget(email_label)
+        outer.addWidget(avatar)
+        outer.addLayout(text_stack, 1)
+        return container
+
+    def _build_user_role_cell(self, role_value: str) -> QWidget:
+        palette = _charging_theme_palette(bool(self._charging))
+        role_text = role_value.strip() or "Operator"
+        role_key = role_text.lower()
+        if role_key == "superior":
+            bg = "rgba(255, 199, 92, 0.22)"
+            border = "rgba(255, 212, 112, 0.36)"
+            text = "#FFE7A6"
+        elif role_key == "administrator":
+            bg = "rgba(80, 180, 255, 0.18)"
+            border = "rgba(126, 232, 255, 0.34)"
+            text = "#DDF8FF"
+        elif role_key == "auditor":
+            bg = "rgba(72, 187, 120, 0.18)"
+            border = "rgba(104, 211, 145, 0.34)"
+            text = "#DDFBE8"
+        else:
+            bg = palette["surface_bg"]
+            border = palette["panel_border"]
+            text = palette["panel_text"]
+
+        container = QWidget()
+        container.setAutoFillBackground(False)
+        container.setStyleSheet("background: transparent;")
+        outer = QHBoxLayout(container)
+        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        pill = QLabel(role_text)
+        pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pill.setFixedSize(self._user_role_chip_width, 26)
+        pill.setStyleSheet(
+            "QLabel {"
+            f" background: {bg}; color: {text}; border: 1px solid {border};"
+            " border-radius: 9px; font-size: 11px; font-weight: 800;"
+            "}"
+        )
+        outer.addWidget(pill)
+        return container
 
     def _apply_table_action_button_style(self, button: QPushButton, role: str) -> None:
         charging = bool(self._charging)
         if role == "primary":
             if charging:
                 button.setStyleSheet(
-                    "QPushButton { background: rgba(80, 180, 255, 0.25); color: #ECFCFF; "
-                    "border: 1px solid rgba(126, 232, 255, 0.45); border-radius: 6px; "
-                    "font-size: 12px; font-weight: 700; }"
-                    "QPushButton:hover { background: rgba(80, 180, 255, 0.34); }"
-                    "QPushButton:pressed { background: rgba(80, 180, 255, 0.18); }"
-                    "QPushButton:disabled { background: rgba(255, 255, 255, 0.09); color: rgba(236, 252, 255, 0.44); }"
+                    "QPushButton { background: transparent; color: #ECFCFF; "
+                    "border: none; border-radius: 7px; "
+                    "font-size: 12px; font-weight: 700; padding: 0; }"
+                    "QPushButton:hover { background: rgba(80, 180, 255, 0.18); }"
+                    "QPushButton:pressed { background: rgba(80, 180, 255, 0.11); }"
+                    "QPushButton:disabled { background: transparent; color: rgba(236, 252, 255, 0.34); }"
                 )
                 return
             button.setStyleSheet(
-                "QPushButton { background: rgba(255, 255, 255, 0.14); color: #F4F8FF; "
-                "border: 1px solid rgba(255, 255, 255, 0.28); border-radius: 6px; "
-                "font-size: 12px; font-weight: 700; }"
-                "QPushButton:hover { background: rgba(255, 255, 255, 0.20); }"
-                "QPushButton:pressed { background: rgba(255, 255, 255, 0.11); }"
-                "QPushButton:disabled { background: rgba(255, 255, 255, 0.08); color: rgba(244, 248, 255, 0.44); }"
+                "QPushButton { background: transparent; color: #F4F8FF; "
+                "border: none; border-radius: 7px; "
+                "font-size: 12px; font-weight: 700; padding: 0; }"
+                "QPushButton:hover { background: rgba(255, 255, 255, 0.13); }"
+                "QPushButton:pressed { background: rgba(255, 255, 255, 0.08); }"
+                "QPushButton:disabled { background: transparent; color: rgba(244, 248, 255, 0.34); }"
+            )
+            return
+
+        if role == "danger":
+            if charging:
+                button.setStyleSheet(
+                    "QPushButton { background: transparent; color: #FFD8D8; "
+                    "border: none; border-radius: 7px; "
+                    "font-size: 12px; font-weight: 750; padding: 0; }"
+                    "QPushButton:hover { background: rgba(255, 96, 96, 0.14); color: #FFFFFF; }"
+                    "QPushButton:pressed { background: rgba(255, 96, 96, 0.09); }"
+                    "QPushButton:disabled { background: transparent; color: rgba(255, 216, 216, 0.32); }"
+                )
+                return
+            button.setStyleSheet(
+                "QPushButton { background: transparent; color: #FFB8B8; "
+                "border: none; border-radius: 7px; "
+                "font-size: 12px; font-weight: 750; padding: 0; }"
+                "QPushButton:hover { background: rgba(255, 92, 92, 0.13); color: #FFECEC; }"
+                "QPushButton:pressed { background: rgba(255, 92, 92, 0.08); }"
+                "QPushButton:disabled { background: transparent; color: rgba(255, 184, 184, 0.30); }"
             )
             return
 
@@ -2612,24 +3396,28 @@ class DashboardForm(QMainWindow):
                 self._users_table.rootIndex(),
             )
 
-            status_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 6))
+            status_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 2))
             if status_container is not None:
-                pill = status_container.findChild(QWidget, "statusBadgePill")
-                dot = status_container.findChild(QLabel, "statusBadgeDot")
-                lbl = status_container.findChild(QLabel, "statusBadgeLabel")
-                if pill is not None and dot is not None and lbl is not None:
-                    is_active = bool(pill.property("isActive"))
-                    self._apply_status_badge_style(pill, dot, lbl, is_active, is_selected)
-                    pill.setProperty("rowSelected", is_selected)
+                toggle = status_container.findChild(StatusToggleSwitch, "userStatusToggle")
+                if toggle is not None:
+                    toggle.set_charging(bool(self._charging))
+                else:
+                    pill = status_container.findChild(QWidget, "statusBadgePill")
+                    dot = status_container.findChild(QLabel, "statusBadgeDot")
+                    lbl = status_container.findChild(QLabel, "statusBadgeLabel")
+                    if pill is not None and dot is not None and lbl is not None:
+                        is_active = bool(pill.property("isActive"))
+                        self._apply_status_badge_style(pill, dot, lbl, is_active, is_selected)
+                        pill.setProperty("rowSelected", is_selected)
 
-            actions_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 8))
+            actions_container = cast(Optional[QWidget], self._users_table.cellWidget(row_index, 7))
             if actions_container is not None:
                 edit_btn = actions_container.findChild(QPushButton, "userActionEditButton")
-                more_btn = actions_container.findChild(QPushButton, "userActionMoreButton")
+                delete_btn = actions_container.findChild(QPushButton, "userActionDeleteButton")
                 if edit_btn is not None:
                     self._apply_table_action_button_style(edit_btn, "primary")
-                if more_btn is not None:
-                    self._apply_table_action_button_style(more_btn, "secondary")
+                if delete_btn is not None:
+                    self._apply_table_action_button_style(delete_btn, "danger")
 
     def _row_data_from_table(self, row: int) -> Optional[tuple[int, str, str, str, str, str]]:
         if self._users_table is None:
@@ -2648,65 +3436,6 @@ class DashboardForm(QMainWindow):
             return
         user_id, role_value, status_value, password_value, pin_value, _username = data
         self._edit_user(int(user_id), str(role_value), str(status_value), str(password_value), str(pin_value))
-
-    def _show_user_context_menu(self, pos: object) -> None:
-        if self._users_table is None:
-            return
-        index = self._users_table.indexAt(pos)  # type: ignore[arg-type]
-        if not index.isValid():
-            return
-        data = self._row_data_from_table(index.row())
-        if not data:
-            return
-        user_id, role_value, status_value, password_value, pin_value, username = data
-        self._show_user_actions_menu(
-            self._users_table.viewport().mapToGlobal(pos),  # type: ignore[arg-type]
-            int(user_id),
-            str(role_value),
-            str(status_value),
-            str(password_value),
-            str(pin_value),
-            str(username),
-        )
-
-    def _show_user_actions_menu(
-        self,
-        global_pos: object,
-        user_id: int,
-        role_value: str,
-        status_value: str,
-        password_value: str,
-        pin_value: str,
-        username: str,
-    ) -> None:
-        menu = QMenu(self)
-        if bool(self._charging):
-            menu.setStyleSheet(
-                "QMenu { background: #14283A; border: 1px solid rgba(126, 232, 255, 0.34); border-radius: 8px; padding: 4px; font-size: 13px; }"
-                "QMenu::item { padding: 7px 20px; border-radius: 5px; color: #ECFCFF; }"
-                "QMenu::item:selected { background: rgba(80, 180, 255, 0.20); color: #FFFFFF; }"
-                "QMenu::separator { height: 1px; background: rgba(126, 232, 255, 0.18); margin: 3px 8px; }"
-            )
-        else:
-            menu.setStyleSheet(
-                "QMenu { background: #1F2732; border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 8px; padding: 4px; font-size: 13px; }"
-                "QMenu::item { padding: 7px 20px; border-radius: 5px; color: #F4F8FF; }"
-                "QMenu::item:selected { background: rgba(255, 255, 255, 0.14); color: #FFFFFF; }"
-                "QMenu::separator { height: 1px; background: rgba(255, 255, 255, 0.14); margin: 3px 8px; }"
-            )
-        edit_action = menu.addAction("Edit User")
-        can_manage_actions = self._can_current_user_manage_user_actions()
-        if not can_manage_actions:
-            edit_action.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
-        menu.addSeparator()
-        delete_action = menu.addAction("Delete User")
-        if not can_manage_actions:
-            delete_action.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
-        action = menu.exec(global_pos)  # type: ignore[arg-type]
-        if action is edit_action:
-            self._edit_user(user_id, role_value, status_value, password_value, pin_value)
-        elif action is delete_action:
-            self._delete_user(user_id, username)
 
     def _action_on_selected_user_row(self, action: str) -> None:
         if self._users_table is None:
@@ -2746,26 +3475,163 @@ class DashboardForm(QMainWindow):
                 normalized = normalized[:16]
             try:
                 dt = datetime.strptime(normalized, "%Y-%m-%d %H:%M")
-                today = datetime.now().date()
-                delta = (today - dt.date()).days
-                time_str = dt.strftime("%H:%M")
-                if delta == 0:
-                    return f"Today {time_str}"
-                elif delta == 1:
-                    return f"Yesterday {time_str}"
-                elif 2 <= delta <= 6:
-                    return dt.strftime("%a") + f" {time_str}"
-                else:
-                    return f"{dt.strftime('%b')} {dt.day}, {time_str}"
+                return dt.strftime("%d %B %Y %H:%M")
             except ValueError:
                 return normalized
 
+        def _audit_description_from_payload(payload: object) -> str:
+            if isinstance(payload, dict):
+                return str(payload.get("description") or "").strip()
+            if isinstance(payload, str) and payload.strip():
+                try:
+                    decoded = json.loads(payload)
+                except json.JSONDecodeError:
+                    return payload.strip()
+                if isinstance(decoded, dict):
+                    return str(decoded.get("description") or "").strip()
+            return ""
+
+        def _audit_actor_from_description(description: str) -> str:
+            patterns = (
+                r"\bby\s+(.+?)\s+for\s+user\b",
+                r"\bby\s+(.+?):",
+            )
+            for pattern in patterns:
+                match = re.search(pattern, description)
+                if match:
+                    actor = match.group(1).strip()
+                    actor = re.sub(r"\s*\([^)]*\)\s*$", "", actor).strip()
+                    return actor or "-"
+            return "-"
+
+        def _audit_actor_from_payload(payload: object, description: str) -> str:
+            decoded: object = payload
+            if isinstance(payload, str) and payload.strip():
+                try:
+                    decoded = json.loads(payload)
+                except json.JSONDecodeError:
+                    decoded = None
+            if isinstance(decoded, dict):
+                actor_username = str(decoded.get("actor_username") or "").strip()
+                if actor_username:
+                    return actor_username
+                actor = str(decoded.get("actor") or "").strip()
+                if actor:
+                    return re.sub(r"\s*\([^)]*\)\s*$", "", actor).strip() or "-"
+            return _audit_actor_from_description(description)
+
+        def _read_user_audit_columns(session: object, target_users: dict[int, str]) -> dict[int, tuple[str, str]]:
+            if not target_users or not _table_exists(session, "audit_logs"):
+                return {}
+
+            columns = _table_columns(session, "audit_logs")
+            audit_texts: dict[int, tuple[str, str]] = {}
+
+            def set_created(target_user_id: int, description: str) -> None:
+                _created, modified = audit_texts.get(
+                    target_user_id,
+                    ("-", "-"),
+                )
+                audit_texts[target_user_id] = (description, modified)
+
+            def set_modified(target_user_id: int, description: str) -> None:
+                created, _modified = audit_texts.get(
+                    target_user_id,
+                    ("-", "-"),
+                )
+                audit_texts[target_user_id] = (created, description)
+
+            try:
+                if {"module_name", "action_name", "record_id"}.issubset(columns):
+                    select_new_data = "new_data" if "new_data" in columns else "NULL AS new_data"
+                    order_column = "created_at" if "created_at" in columns else "audit_log_id"
+                    rows = session.execute(
+                        text(
+                            f"""
+                            SELECT record_id, action_name, {select_new_data}
+                            FROM audit_logs
+                            WHERE module_name = 'user_management'
+                              AND action_name IN ('user_created', 'role_changed', 'status_changed')
+                            ORDER BY {order_column} DESC
+                            """
+                        )
+                    ).mappings().all()
+                    for row in rows:
+                        try:
+                            target_user_id = int(str(row.get("record_id") or "0"))
+                        except ValueError:
+                            continue
+                        if target_user_id not in target_users:
+                            continue
+                        action_name = str(row.get("action_name") or "")
+                        description = _audit_description_from_payload(row.get("new_data"))
+                        description = description or action_name or "-"
+                        actor = _audit_actor_from_payload(row.get("new_data"), description)
+                        current_created, current_modified = audit_texts.get(
+                            target_user_id,
+                            ("-", "-"),
+                        )
+                        if action_name == "user_created" and current_created == "-":
+                            set_created(target_user_id, actor)
+                        elif action_name in {"role_changed", "status_changed"} and current_modified == "-":
+                            set_modified(target_user_id, actor)
+                    return audit_texts
+
+                if {"action", "description"}.issubset(columns):
+                    order_column = "created_at" if "created_at" in columns else "id"
+                    rows = session.execute(
+                        text(
+                            f"""
+                            SELECT action, description
+                            FROM audit_logs
+                            WHERE action IN (
+                                'user_management.user_created',
+                                'user_management.role_changed',
+                                'user_management.status_changed'
+                            )
+                            ORDER BY {order_column} DESC
+                            """
+                        )
+                    ).mappings().all()
+                    for row in rows:
+                        description = str(row.get("description") or "").strip()
+                        if not description:
+                            continue
+                        for target_user_id, username in target_users.items():
+                            if f"'{username}'" in description or f"user {username}" in description:
+                                action = str(row.get("action") or "")
+                                current_created, current_modified = audit_texts.get(
+                                    target_user_id,
+                                    ("-", "-"),
+                                )
+                                actor = _audit_actor_from_description(description)
+                                if action == "user_management.user_created" and current_created == "-":
+                                    set_created(target_user_id, actor)
+                                elif action in {"user_management.role_changed", "user_management.status_changed"} and current_modified == "-":
+                                    set_modified(target_user_id, actor)
+                    return audit_texts
+            except Exception:
+                logger.exception("Failed to read user management audit summaries")
+                return {}
+
+            return {}
+
+        user_audit_columns: dict[int, tuple[str, str]] = {}
         session = Session()
         try:
             if _is_hris_auth_schema(session):
+                user_columns = _table_columns(session, "users")
+                last_login_select = "u.last_login" if "last_login" in user_columns else "NULL AS last_login"
+                last_logout_select = "u.last_logout" if "last_logout" in user_columns else "NULL AS last_logout"
+                timestamp_group_columns = []
+                if "last_login" in user_columns:
+                    timestamp_group_columns.append("u.last_login")
+                if "last_logout" in user_columns:
+                    timestamp_group_columns.append("u.last_logout")
+                timestamp_group_sql = f", {', '.join(timestamp_group_columns)}" if timestamp_group_columns else ""
                 rows = session.execute(
                     text(
-                        """
+                        f"""
                         SELECT
                             u.user_id,
                             u.username,
@@ -2775,6 +3641,8 @@ class DashboardForm(QMainWindow):
                             COALESCE(NULLIF(u.status, ''), CASE WHEN u.is_active THEN 'active' ELSE 'inactive' END) AS status,
                             u.password_hash IS NOT NULL AS has_password,
                             u.pin_hash IS NOT NULL AS has_pin,
+                            {last_login_select},
+                            {last_logout_select},
                             u.created_at,
                             u.updated_at,
                             u.is_active,
@@ -2786,8 +3654,8 @@ class DashboardForm(QMainWindow):
                         LEFT JOIN roles r ON r.role_id = ur.role_id
                         GROUP BY
                             u.user_id, u.username, u.full_name, u.email, u.phone, u.status,
-                            u.password_hash, u.pin_hash,
                             u.created_at, u.updated_at, u.is_active, u.is_locked
+                            {timestamp_group_sql}
                         ORDER BY u.user_id ASC
                         """
                     )
@@ -2795,14 +3663,26 @@ class DashboardForm(QMainWindow):
 
                 self._all_users_rows = []
                 role_values: set[str] = set()
+                user_audit_columns = _read_user_audit_columns(
+                    session,
+                    {
+                        int(row.get("user_id") or 0): str(row.get("username") or "")
+                        for row in rows
+                    },
+                )
                 for row in rows:
+                    row_id = int(row.get("user_id") or 0)
+                    created_by_text, modified_by_text = user_audit_columns.get(
+                        row_id,
+                        ("-", "-"),
+                    )
                     role_names = _role_names_from_value(row.get("role_names"))
                     normalized_role = _map_hris_role_to_dashboard_role(role_names)
                     is_active = bool(row.get("is_active")) and not bool(row.get("is_locked"))
                     status = str(row.get("status") or "").strip().lower()
                     row_status = "Active" if is_active and status in {"aktif", "active"} else "Inactive"
                     row_data: UserRow = {
-                        "id": int(row.get("user_id") or 0),
+                        "id": row_id,
                         "username": str(row.get("username") or ""),
                         "full_name": str(row.get("full_name") or row.get("username") or ""),
                         "email": str(row.get("email") or "-"),
@@ -2811,8 +3691,11 @@ class DashboardForm(QMainWindow):
                         "status": row_status,
                         "password_value": _credential_status_label(row.get("has_password")),
                         "pin_value": _credential_status_label(row.get("has_pin")),
+                        "login_at": _fmt_dt(row.get("last_login")),
                         "created_at": _fmt_dt(row.get("created_at")),
-                        "updated_at": _fmt_dt(row.get("updated_at")),
+                        "logout_at": _fmt_dt(row.get("last_logout")),
+                        "created_by_text": created_by_text,
+                        "modified_by_text": modified_by_text,
                     }
                     self._all_users_rows.append(row_data)
                     role_values.add(normalized_role)
@@ -2831,7 +3714,6 @@ class DashboardForm(QMainWindow):
                     self._search_username.blockSignals(False)
 
                 self._apply_user_filters()
-                self._auto_fit_all_user_columns()
                 return
 
             # CRITICAL: Pre-load role_links before closing session to prevent DetachedInstanceError
@@ -2850,6 +3732,13 @@ class DashboardForm(QMainWindow):
             # Prime all role values while session is still open
             for user in users:
                 getattr(user, "role", None)  # Force evaluation of role property before detach
+            user_audit_columns = _read_user_audit_columns(
+                session,
+                {
+                    int(getattr(user, "id", 0) or 0): str(getattr(user, "username", "") or "")
+                    for user in users
+                },
+            )
         finally:
             session.close()
 
@@ -2868,10 +3757,15 @@ class DashboardForm(QMainWindow):
             except ValueError:
                 normalized_role = raw_role
             status = str(getattr(user, "status", "aktif") or "aktif").strip().lower()
+            login_at = _fmt_dt(getattr(user, "last_login", None))
             created_at = _fmt_dt(getattr(user, "created_at", None))
-            updated_at = _fmt_dt(getattr(user, "updated_at", None))
+            logout_at = _fmt_dt(getattr(user, "last_logout", None))
             password_record = getattr(user, "password_record", None)
             pin_record = getattr(user, "pin_record", None)
+            created_by_text, modified_by_text = user_audit_columns.get(
+                user_id,
+                ("-", "-"),
+            )
             row: UserRow = {
                 "id": user_id,
                 "username": username,
@@ -2884,8 +3778,11 @@ class DashboardForm(QMainWindow):
                     getattr(password_record, "password_hash", None)
                 ),
                 "pin_value": _credential_status_label(getattr(pin_record, "pin_hash", None)),
+                "login_at": login_at,
                 "created_at": created_at,
-                "updated_at": updated_at,
+                "logout_at": logout_at,
+                "created_by_text": created_by_text,
+                "modified_by_text": modified_by_text,
             }
             self._all_users_rows.append(row)
             role_values.add(normalized_role)
@@ -2905,7 +3802,6 @@ class DashboardForm(QMainWindow):
             self._search_username.blockSignals(False)
 
         self._apply_user_filters()
-        self._auto_fit_all_user_columns()
 
     def _apply_user_filters(self) -> None:
         if self._users_table is None or self._search_username is None or self._role_filter is None:
@@ -2917,12 +3813,41 @@ class DashboardForm(QMainWindow):
         filtered_rows = [
             row
             for row in self._all_users_rows
-            if (not search_value or search_value in row["username"].lower())
+            if (
+                not search_value
+                or search_value in str(row["username"]).lower()
+                or search_value in str(row["full_name"]).lower()
+                or search_value in str(row["email"]).lower()
+                or search_value in str(row["phone"]).lower()
+                or search_value in str(row["login_at"]).lower()
+                or search_value in str(row["logout_at"]).lower()
+                or search_value in str(row["created_by_text"]).lower()
+                or search_value in str(row["modified_by_text"]).lower()
+            )
             and (selected_role == "All" or row["role"] == selected_role)
         ]
 
         can_manage_actions = self._can_current_user_manage_user_actions()
+        can_add_users = self._can_current_user_add_users()
+        can_change_status = self._can_current_user_change_user_status()
+        total_users = len(self._all_users_rows)
+        active_users = sum(1 for row in self._all_users_rows if str(row["status"]).lower() == "active")
+        inactive_users = total_users - active_users
 
+        if self._user_management_summary_label is not None:
+            access_text = "Manage enabled" if can_manage_actions else "View only"
+            self._user_management_summary_label.setText(
+                f"Showing {len(filtered_rows)} of {total_users} users  |  Active {active_users}  |  "
+                f"Inactive {inactive_users}  |  {access_text}"
+            )
+
+        if self._add_user_btn is not None:
+            self._add_user_btn.setEnabled(can_add_users)
+            self._add_user_btn.setToolTip(
+                "" if can_add_users else "Current role cannot add new users."
+            )
+
+        self._fit_user_table_columns_to_rows(filtered_rows)
         self._users_table.setRowCount(len(filtered_rows))
         for row_index, row in enumerate(filtered_rows):
             # Hoist row scalars so lambdas and UserRole data share the same refs
@@ -2932,36 +3857,40 @@ class DashboardForm(QMainWindow):
             row_password = str(row["password_value"])
             row_pin = str(row["pin_value"])
             row_username = str(row["username"])
+            row_login_at = str(row["login_at"])
+            row_created_by_text = str(row["created_by_text"])
+            row_modified_by_text = str(row["modified_by_text"])
 
             # Col 0 — Full Name (also carries full row data for row actions)
-            full_name_item = QTableWidgetItem(str(row["full_name"]))
+            full_name_item = QTableWidgetItem("")
             full_name_item.setToolTip(str(row["full_name"]))
             full_name_item.setData(
                 Qt.ItemDataRole.UserRole,
                 (row_id, row_role, row_status, row_password, row_pin, row_username),
             )
+            full_name_item.setToolTip(
+                f"{row['full_name']}\nUsername: {row_username}\nEmail: {row['email']}\nPhone: {row['phone']}"
+            )
             self._users_table.setItem(row_index, 0, full_name_item)
+            self._users_table.setCellWidget(
+                row_index,
+                0,
+                self._build_user_identity_cell(row_username, str(row["full_name"]), str(row["email"])),
+            )
 
-            username_item = QTableWidgetItem(row_username)
-            username_item.setToolTip(row_username)
-            self._users_table.setItem(row_index, 1, username_item)
-
-            self._users_table.setItem(row_index, 2, QTableWidgetItem(row_role))
-
-            email_item = QTableWidgetItem(str(row["email"]))
-            email_item.setToolTip(str(row["email"]))
-            self._users_table.setItem(row_index, 3, email_item)
-
-            self._users_table.setItem(row_index, 4, QTableWidgetItem(str(row["phone"])))
-
-            updated_item = QTableWidgetItem(str(row["updated_at"]))
-            updated_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._users_table.setItem(row_index, 5, updated_item)
+            role_item = QTableWidgetItem("")
+            role_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._users_table.setItem(row_index, 1, role_item)
+            self._users_table.setCellWidget(row_index, 1, self._build_user_role_cell(row_role))
 
             status_value = row_status
-            self._users_table.setCellWidget(row_index, 6, self._build_status_badge(status_value))
+            self._users_table.setCellWidget(
+                row_index,
+                2,
+                self._build_status_toggle_cell(int(row_id), status_value, can_change_status),
+            )
 
-            self._users_table.setItem(row_index, 7, QTableWidgetItem(str(row_id)))
+            self._users_table.setItem(row_index, 8, QTableWidgetItem(str(row_id)))
 
             actions = QWidget()
             actions.setAutoFillBackground(False)
@@ -2971,9 +3900,13 @@ class DashboardForm(QMainWindow):
             actions_layout.setSpacing(8)
             actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            edit_btn = QPushButton("Edit")
+            edit_btn = QPushButton()
             edit_btn.setObjectName("userActionEditButton")
-            edit_btn.setFixedSize(102, 28)
+            edit_btn.setAccessibleName("Edit")
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(32, 28)
+            edit_btn.setIcon(QIcon(_draw_user_action_icon("edit", 19, "#9AAAB6")))
+            edit_btn.setIconSize(QSize(18, 18))
             edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             self._apply_table_action_button_style(edit_btn, "primary")
             edit_btn.clicked.connect(
@@ -2986,31 +3919,228 @@ class DashboardForm(QMainWindow):
                 )
             )
             if not can_manage_actions:
-                edit_btn.setToolTip("Only Active Superior users can perform Edit/Delete actions.")
+                edit_btn.setToolTip("Only Active Superior or Administrator users can perform Edit/Delete actions.")
+                edit_btn.setEnabled(False)
 
-            more_btn = QPushButton("...")
-            more_btn.setObjectName("userActionMoreButton")
-            more_btn.setFixedSize(38, 28)
-            more_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            self._apply_table_action_button_style(more_btn, "secondary")
-            more_btn.clicked.connect(
-                lambda _checked=False, button=more_btn, user_id=row_id, role_value=row_role, status_value=row_status, password_value=row_password, pin_value=row_pin, username=row_username: self._show_user_actions_menu(
-                    button.mapToGlobal(button.rect().bottomLeft()),
-                    user_id,
-                    role_value,
-                    status_value,
-                    password_value,
-                    pin_value,
-                    username,
+            delete_btn = QPushButton()
+            delete_btn.setObjectName("userActionDeleteButton")
+            delete_btn.setAccessibleName("Delete")
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(32, 28)
+            delete_btn.setIcon(QIcon(_draw_user_action_icon("delete", 19, "#9AAAB6")))
+            delete_btn.setIconSize(QSize(18, 18))
+            delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._apply_table_action_button_style(delete_btn, "danger")
+            delete_btn.clicked.connect(
+                lambda _checked=False, user_id=row_id, username=row_username: self._delete_user(
+                    int(user_id),
+                    str(username),
                 )
             )
+            if not can_manage_actions:
+                delete_btn.setToolTip("Only Active Superior or Administrator users can perform Edit/Delete actions.")
+                delete_btn.setEnabled(False)
 
             actions_layout.addWidget(edit_btn)
-            actions_layout.addWidget(more_btn)
-            self._users_table.setCellWidget(row_index, 8, actions)
-            self._users_table.setRowHeight(row_index, 62)
+            actions_layout.addWidget(delete_btn)
+            self._users_table.setCellWidget(row_index, 7, actions)
+
+            login_item = QTableWidgetItem(row_login_at)
+            login_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._users_table.setItem(row_index, 3, login_item)
+
+            logout_item = QTableWidgetItem(str(row["logout_at"]))
+            logout_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._users_table.setItem(row_index, 4, logout_item)
+
+            created_by_item = QTableWidgetItem(row_created_by_text)
+            created_by_item.setToolTip(row_created_by_text)
+            self._users_table.setItem(row_index, 5, created_by_item)
+
+            modified_by_item = QTableWidgetItem(row_modified_by_text)
+            modified_by_item.setToolTip(row_modified_by_text)
+            self._users_table.setItem(row_index, 6, modified_by_item)
+            self._users_table.setRowHeight(row_index, 68)
 
         self._sync_user_table_widget_states()
+
+    def _username_for_user_id(self, user_id: int) -> str:
+        for row in self._all_users_rows:
+            if int(row["id"]) == int(user_id):
+                return str(row["username"])
+        return f"User #{user_id}"
+
+    def _toggle_user_status_from_table(
+        self,
+        user_id: int,
+        active: bool,
+        toggle: StatusToggleSwitch,
+    ) -> None:
+        if not self._can_current_user_change_user_status():
+            toggle.blockSignals(True)
+            toggle.set_active(not active)
+            toggle.blockSignals(False)
+            self._sync_status_toggle_from_widget(toggle)
+            self._show_user_action_access_denied_dialog("Change Status")
+            return
+
+        normalized_status = "aktif" if active else "nonaktif"
+        target_username = self._username_for_user_id(user_id)
+        action_label = "Activate" if active else "Deactivate"
+        previous_status = "Active" if not active else "Inactive"
+        new_status = "Active" if active else "Inactive"
+        if not self._verify_current_user_for_status_change(action_label, target_username):
+            toggle.blockSignals(True)
+            toggle.set_active(not active)
+            toggle.blockSignals(False)
+            self._sync_status_toggle_from_widget(toggle)
+            return
+
+        session = Session()
+        try:
+            update_user(session, user_id, status=normalized_status)
+            description = (
+                f"Status changed by {self._current_actor_label()} for user '{target_username}': "
+                f"{previous_status} -> {new_status}."
+            )
+            self._write_user_management_audit(
+                session,
+                action_name="status_changed",
+                target_user_id=user_id,
+                target_username=target_username,
+                description=description,
+                old_data={"status": previous_status},
+                new_data={"status": new_status},
+            )
+            session.commit()
+        except ValueError as error:
+            session.rollback()
+            toggle.blockSignals(True)
+            toggle.set_active(not active)
+            toggle.blockSignals(False)
+            self._sync_status_toggle_from_widget(toggle)
+            self._show_user_management_notice("Status Update Failed", str(error))
+            return
+        except Exception as error:
+            session.rollback()
+            toggle.blockSignals(True)
+            toggle.set_active(not active)
+            toggle.blockSignals(False)
+            self._sync_status_toggle_from_widget(toggle)
+            self._show_user_management_notice("Status Update Failed", f"Error: {error}")
+            return
+        finally:
+            session.close()
+
+        self._load_users_table()
+
+    def _show_user_management_notice(
+        self,
+        title: str,
+        message: str,
+        *,
+        window_title: str = "User Management",
+    ) -> None:
+        _show_credentials_warning(
+            self,
+            title,
+            message,
+            bool(self._charging),
+            333,
+            window_title,
+            "pin",
+        )
+
+    def _confirm_user_management_action(
+        self,
+        title: str,
+        message: str,
+        *,
+        confirm_text: str,
+        window_title: str = "User Management",
+    ) -> bool:
+        charging = bool(self._charging)
+        palette = _charging_theme_palette(charging)
+        dialog = DashboardGlassDialog(self, radius=18.0)
+        dialog.set_charging(charging)
+        dialog.setModal(True)
+        dialog.setWindowTitle(window_title)
+        dialog.setWindowFlags(
+            (dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+            | Qt.WindowType.FramelessWindowHint
+        )
+        dialog.setFixedSize(406, 238)
+        dialog.setStyleSheet(
+            _dashboard_dialog_stylesheet(charging)
+            + f"""
+            QLabel#confirmTitle {{
+                color: {palette['panel_text']};
+                font-size: 15px;
+                font-weight: 850;
+                background: transparent;
+            }}
+            QLabel#confirmMessage {{
+                color: {palette['panel_muted']};
+                font-size: 12px;
+                font-weight: 600;
+                background: transparent;
+            }}
+            QFrame#confirmSeparator {{
+                background: {palette['panel_border']};
+                border: none;
+            }}
+            """
+        )
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(18, 14, 18, 16)
+        layout.setSpacing(12)
+
+        title_bar, title_label, subtitle_label, close_btn = _build_premium_dialog_title_bar(
+            dialog,
+            window_title,
+            "Confirm this user management action",
+        )
+        _apply_premium_dialog_title_bar_theme(title_label, subtitle_label, close_btn, charging)
+        layout.addWidget(title_bar)
+
+        separator = QFrame()
+        separator.setObjectName("confirmSeparator")
+        separator.setFixedHeight(1)
+        layout.addWidget(separator)
+
+        headline = QLabel(title)
+        headline.setObjectName("confirmTitle")
+        headline.setWordWrap(True)
+        layout.addWidget(headline)
+
+        body = QLabel(message)
+        body.setObjectName("confirmMessage")
+        body.setWordWrap(True)
+        layout.addWidget(body, 1)
+
+        button_row = QHBoxLayout()
+        button_row.setSpacing(10)
+        button_row.addStretch(1)
+        cancel_btn = QPushButton("Cancel")
+        confirm_btn = QPushButton(confirm_text)
+        for button, role in ((cancel_btn, "secondary"), (confirm_btn, "primary")):
+            button.setFixedSize(104, 34)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._apply_table_action_button_style(button, role)
+            button_row.addWidget(button)
+        layout.addLayout(button_row)
+
+        cancel_btn.clicked.connect(dialog.reject)
+        confirm_btn.clicked.connect(dialog.accept)
+
+        if self.isVisible():
+            center = self.frameGeometry().center()
+            dialog_rect = dialog.frameGeometry()
+            dialog_rect.moveCenter(center)
+            dialog.move(dialog_rect.topLeft())
+
+        return dialog.exec() == QDialog.DialogCode.Accepted
 
     def _edit_user(
         self,
@@ -3026,80 +4156,188 @@ class DashboardForm(QMainWindow):
 
         session = Session()
         try:
-            user = session.get(User, user_id)
-            if user is None:
-                QMessageBox.warning(self, "Data Not Found", "User not found.")
-                return
+            hris_auth_schema = _is_hris_auth_schema(session)
+            if hris_auth_schema:
+                user_row = session.execute(
+                    text(
+                        """
+                        SELECT user_id, username, full_name, status, is_active, password_hash, pin_hash
+                        FROM users
+                        WHERE user_id = :user_id
+                        """
+                    ),
+                    {"user_id": user_id},
+                ).mappings().first()
+                if user_row is None:
+                    self._show_user_management_notice("Data Not Found", "User not found.")
+                    return
+                user = None
+                username_value = str(user_row.get("username") or "")
+                full_name_value = str(user_row.get("full_name") or "")
+                raw_role = fallback_role
+                raw_status = "aktif" if bool(user_row.get("is_active")) else "nonaktif"
+            else:
+                user = session.get(User, user_id)
+                if user is None:
+                    self._show_user_management_notice("Data Not Found", "User not found.")
+                    return
+                username_value = str(getattr(user, "username", "") or "")
+                full_name_value = str(getattr(user, "nama", "") or "")
+                raw_role = str(getattr(user, "role", "") or "").strip()
+                raw_status = str(getattr(user, "status", "") or "").strip()
 
-            raw_role = str(getattr(user, "role", "") or "").strip()
             role_value = raw_role if raw_role else fallback_role
 
-            raw_status = str(getattr(user, "status", "") or "").strip()
             status_value = raw_status if raw_status else fallback_status
+            try:
+                previous_role = normalize_role_name(role_value)
+            except ValueError:
+                previous_role = role_value.strip() or fallback_role
+            previous_status = "Active" if status_value.strip().lower() in {"aktif", "active"} else "Inactive"
 
             dialog = UserEditDialog(
-                username=str(getattr(user, "username", "") or ""),
-                nama=str(getattr(user, "nama", "") or ""),
+                username=username_value,
+                nama=full_name_value,
                 role=role_value,
                 status=status_value,
                 current_password="",
                 current_pin="",
                 parent=self,
             )
-            if dialog.exec() != QDialog.DialogCode.Accepted:
-                return
 
-            payload = dialog.data()
-            if not payload["username"]:
-                QMessageBox.warning(self, "Validation", "Username cannot be empty.")
-                return
-
-            old_password = str(payload.get("old_password", "") or "")
-            new_password = str(payload.get("new_password", "") or "")
-            old_pin = str(payload.get("old_pin", "") or "")
-            new_pin = str(payload.get("new_pin", "") or "")
-
-            if old_password:
-                password_record = getattr(user, "password_record", None)
-                stored_salt = str(getattr(password_record, "password_salt", "") or "")
-                stored_hash = str(getattr(password_record, "password_hash", "") or "")
-                if not stored_salt or not stored_hash:
-                    QMessageBox.warning(self, "Validation", "Current password is not available for this user.")
-                    return
-                if not verify_password(old_password, stored_salt, stored_hash):
-                    QMessageBox.warning(self, "Validation", "Current password is incorrect.")
+            while True:
+                if dialog.exec() != QDialog.DialogCode.Accepted:
                     return
 
-            if old_pin:
-                pin_record = getattr(user, "pin_record", None)
-                stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
-                stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
-                if not stored_pin_salt or not stored_pin_hash:
-                    QMessageBox.warning(self, "Validation", "Current PIN is not available for this user.")
-                    return
-                if not verify_pin_code(old_pin, stored_pin_salt, stored_pin_hash):
-                    QMessageBox.warning(self, "Validation", "Current PIN is incorrect.")
-                    return
+                payload = dialog.data()
+                if not payload["username"]:
+                    self._show_user_management_notice("Validation", "Username cannot be empty.")
+                    continue
 
-            update_user(
-                session,
-                user_id,
-                username=payload["username"],
-                nama=payload["nama"],
-                role=payload["role"],
-                status=payload["status"],
-                password=new_password,
-            )
+                old_password = str(payload.get("old_password", "") or "")
+                new_password = str(payload.get("new_password", "") or "")
+                old_pin = str(payload.get("old_pin", "") or "")
+                new_pin = str(payload.get("new_pin", "") or "")
+                try:
+                    new_role = normalize_role_name(str(payload.get("role") or ""))
+                except ValueError:
+                    new_role = str(payload.get("role") or "").strip()
+                new_status_value = "Active" if str(payload.get("status") or "").strip().lower() in {"aktif", "active"} else "Inactive"
 
-            if new_pin:
-                set_user_pin(session, user_id, new_pin)
+                if old_password:
+                    if hris_auth_schema:
+                        stored_hash = str(user_row.get("password_hash") or "")
+                        password_valid = bool(
+                            stored_hash
+                            and _verify_bcrypt_secret(old_password, stored_hash)
+                        )
+                    else:
+                        password_record = getattr(user, "password_record", None)
+                        stored_salt = str(getattr(password_record, "password_salt", "") or "")
+                        stored_hash = str(getattr(password_record, "password_hash", "") or "")
+                        password_valid = bool(
+                            stored_salt
+                            and stored_hash
+                            and verify_password(old_password, stored_salt, stored_hash)
+                        )
+                    if not stored_hash:
+                        self._show_user_management_notice(
+                            "Credential Unavailable",
+                            "Current password is not available for this user.",
+                        )
+                        dialog.reset_password_verification()
+                        continue
+                    if not password_valid:
+                        self._show_user_management_notice(
+                            "Incorrect Password",
+                            "Current password is incorrect.",
+                        )
+                        dialog.reset_password_verification()
+                        continue
+
+                if old_pin:
+                    if hris_auth_schema:
+                        stored_pin_hash = str(user_row.get("pin_hash") or "")
+                        pin_valid = bool(
+                            stored_pin_hash
+                            and _verify_bcrypt_secret(old_pin, stored_pin_hash)
+                        )
+                    else:
+                        pin_record = getattr(user, "pin_record", None)
+                        stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
+                        stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
+                        pin_valid = bool(
+                            stored_pin_salt
+                            and stored_pin_hash
+                            and verify_pin_code(old_pin, stored_pin_salt, stored_pin_hash)
+                        )
+                    if not stored_pin_hash:
+                        self._show_user_management_notice(
+                            "Credential Unavailable",
+                            "Current PIN is not available for this user.",
+                        )
+                        dialog.reset_pin_verification()
+                        continue
+                    if not pin_valid:
+                        self._show_user_management_notice("Incorrect PIN", "Current PIN is incorrect.")
+                        dialog.reset_pin_verification()
+                        continue
+
+                update_user(
+                    session,
+                    user_id,
+                    username=payload["username"],
+                    nama=payload["nama"],
+                    role=payload["role"],
+                    status=payload["status"],
+                    password=new_password,
+                )
+
+                if new_pin:
+                    set_user_pin(session, user_id, new_pin)
+
+                if previous_role != new_role:
+                    description = (
+                        f"Role changed by {self._current_actor_label()} for user '{username_value}': "
+                        f"{previous_role} -> {new_role}."
+                    )
+                    self._write_user_management_audit(
+                        session,
+                        action_name="role_changed",
+                        target_user_id=user_id,
+                        target_username=username_value,
+                        description=description,
+                        old_data={"role": previous_role},
+                        new_data={"role": new_role},
+                    )
+                if previous_status != new_status_value:
+                    description = (
+                        f"Status changed by {self._current_actor_label()} for user '{username_value}': "
+                        f"{previous_status} -> {new_status_value}."
+                    )
+                    self._write_user_management_audit(
+                        session,
+                        action_name="status_changed",
+                        target_user_id=user_id,
+                        target_username=username_value,
+                        description=description,
+                        old_data={"status": previous_status},
+                        new_data={"status": new_status_value},
+                    )
+                if previous_role != new_role or previous_status != new_status_value:
+                    session.commit()
+                break
         except ValueError as error:
-            QMessageBox.warning(self, "Validation", str(error))
+            self._show_user_management_notice("Validation", str(error))
             return
         finally:
             session.close()
 
         self._load_users_table()
+        self._show_user_management_notice(
+            "User Updated",
+            "User profile and credentials were updated successfully.",
+        )
 
     def _get_current_user_access_profile(self) -> tuple[str, str]:
         if self._user is None:
@@ -3130,9 +4368,10 @@ class DashboardForm(QMainWindow):
                         role_value = _map_hris_role_to_dashboard_role(
                             _role_names_from_value(row.get("role_names"))
                         )
-                        raw_status = str(row.get("status") or "").strip().lower()
                         is_active = bool(row.get("is_active")) and not bool(row.get("is_locked"))
-                        status_value = "Active" if is_active and raw_status in {"aktif", "active"} else "Inactive"
+                        raw_status = str(row.get("status") or "").strip().lower()
+                        status_blocks_access = raw_status in {"nonaktif", "inactive", "disabled"}
+                        status_value = "Active" if is_active and not status_blocks_access else "Inactive"
                         return (role_value, status_value)
 
                 user = session.get(User, user_id)
@@ -3160,7 +4399,200 @@ class DashboardForm(QMainWindow):
 
     def _can_current_user_manage_user_actions(self) -> bool:
         role_value, status_value = self._get_current_user_access_profile()
-        return role_value.strip().lower() == "superior" and status_value.strip().lower() == "active"
+        return (
+            role_value.strip().lower() in {"superior", "administrator"}
+            and status_value.strip().lower() == "active"
+        )
+
+    def _can_current_user_change_user_status(self) -> bool:
+        role_value, status_value = self._get_current_user_access_profile()
+        return (
+            role_value.strip().lower() in {"superior", "administrator"}
+            and status_value.strip().lower() == "active"
+        )
+
+    def _allowed_roles_for_new_user(self) -> list[str]:
+        role_value, status_value = self._get_current_user_access_profile()
+        if status_value.strip().lower() != "active":
+            return []
+
+        role_key = role_value.strip().lower()
+        if role_key == "superior":
+            return ["Superior", "Administrator", "Operator", "Auditor"]
+        if role_key == "administrator":
+            return ["Administrator", "Operator", "Auditor"]
+        if role_key == "operator":
+            return ["Operator", "Auditor"]
+        if role_key == "auditor":
+            return ["Auditor"]
+        return []
+
+    def _can_current_user_add_users(self) -> bool:
+        return bool(self._allowed_roles_for_new_user())
+
+    def _can_current_user_assign_new_user_role(self, role_name: str) -> bool:
+        try:
+            normalized_role = normalize_role_name(role_name)
+        except ValueError:
+            return False
+        return normalized_role in self._allowed_roles_for_new_user()
+
+    def _current_actor_label(self) -> str:
+        username = str(getattr(self._user, "username", "") or "").strip() or "Unknown user"
+        role_value, _status_value = self._get_current_user_access_profile()
+        return f"{username} ({role_value})"
+
+    def _current_actor_username(self) -> str:
+        return str(getattr(self._user, "username", "") or "").strip() or "Unknown user"
+
+    def _write_user_management_audit(
+        self,
+        session: object,
+        *,
+        action_name: str,
+        target_user_id: int,
+        target_username: str,
+        description: str,
+        old_data: Optional[dict[str, object]] = None,
+        new_data: Optional[dict[str, object]] = None,
+    ) -> None:
+        if not _table_exists(session, "audit_logs"):
+            return
+
+        columns = _table_columns(session, "audit_logs")
+        actor_user_id = self.current_user_id() or None
+        payload = {
+            "actor_user_id": actor_user_id,
+            "actor_username": self._current_actor_username(),
+            "actor": self._current_actor_label(),
+            "target_user_id": target_user_id,
+            "target_username": target_username,
+            "description": description,
+        }
+        if new_data:
+            payload.update(new_data)
+
+        if {"module_name", "action_name", "table_name", "record_id"}.issubset(columns):
+            insert_columns = ["user_id", "module_name", "action_name", "table_name", "record_id"]
+            insert_values = [":user_id", ":module_name", ":action_name", ":table_name", ":record_id"]
+            params: dict[str, object] = {
+                "user_id": actor_user_id,
+                "module_name": "user_management",
+                "action_name": action_name,
+                "table_name": "users",
+                "record_id": str(target_user_id),
+            }
+            if "old_data" in columns:
+                insert_columns.append("old_data")
+                insert_values.append(":old_data")
+                params["old_data"] = json.dumps(old_data or {}, ensure_ascii=True)
+            if "new_data" in columns:
+                insert_columns.append("new_data")
+                insert_values.append(":new_data")
+                params["new_data"] = json.dumps(payload, ensure_ascii=True)
+            if "created_at" in columns:
+                insert_columns.append("created_at")
+                insert_values.append("CURRENT_TIMESTAMP")
+            session.execute(
+                text(
+                    f"""
+                    INSERT INTO audit_logs ({", ".join(insert_columns)})
+                    VALUES ({", ".join(insert_values)})
+                    """
+                ),
+                params,
+            )
+            return
+
+        if {"action", "action_type", "description"}.issubset(columns):
+            session.add(
+                AuditLog(
+                    user_id=actor_user_id,
+                    action=f"user_management.{action_name}",
+                    action_type="user_management",
+                    description=description,
+                    ip_address=None,
+                )
+            )
+
+    def _verify_current_user_credentials(self, password: str, pin: str) -> tuple[bool, str]:
+        user_id = self.current_user_id()
+        if user_id <= 0:
+            return (False, "Session user tidak valid.")
+        if not password:
+            return (False, "Password wajib diisi.")
+        if not pin:
+            return (False, "PIN wajib diisi.")
+
+        session = Session()
+        try:
+            if _is_hris_auth_schema(session):
+                row = session.execute(
+                    text(
+                        """
+                        SELECT password_hash, pin_hash
+                        FROM users
+                        WHERE user_id = :user_id
+                        """
+                    ),
+                    {"user_id": user_id},
+                ).mappings().first()
+                if row is None:
+                    return (False, "User login tidak ditemukan.")
+                stored_hash = str(row.get("password_hash") or "")
+                stored_pin_hash = str(row.get("pin_hash") or "")
+                if not stored_hash:
+                    return (False, "Password user login belum tersedia.")
+                if not stored_pin_hash:
+                    return (False, "PIN user login belum tersedia.")
+                if not _verify_bcrypt_secret(password, stored_hash):
+                    return (False, "Password tidak sesuai.")
+                if not _verify_bcrypt_secret(pin, stored_pin_hash):
+                    return (False, "PIN tidak sesuai.")
+                return (True, "")
+
+            user = session.get(User, user_id)
+            if user is None:
+                return (False, "User login tidak ditemukan.")
+
+            password_record = getattr(user, "password_record", None)
+            stored_salt = str(getattr(password_record, "password_salt", "") or "")
+            stored_hash = str(getattr(password_record, "password_hash", "") or "")
+            if not stored_salt or not stored_hash:
+                return (False, "Password user login belum tersedia.")
+            if not verify_password(password, stored_salt, stored_hash):
+                return (False, "Password tidak sesuai.")
+
+            pin_record = getattr(user, "pin_record", None)
+            stored_pin_salt = str(getattr(pin_record, "pin_salt", "") or "")
+            stored_pin_hash = str(getattr(pin_record, "pin_hash", "") or "")
+            if not stored_pin_salt or not stored_pin_hash:
+                return (False, "PIN user login belum tersedia.")
+            if not verify_pin_code(pin, stored_pin_salt, stored_pin_hash):
+                return (False, "PIN tidak sesuai.")
+            return (True, "")
+        finally:
+            session.close()
+
+    def _verify_current_user_for_status_change(self, action_label: str, target_username: str) -> bool:
+        dialog = StatusVerificationDialog(action_label, target_username, self)
+        while True:
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return False
+
+            payload = dialog.data()
+            valid, message = self._verify_current_user_credentials(
+                str(payload.get("password") or ""),
+                str(payload.get("pin") or ""),
+            )
+            if valid:
+                return True
+
+            self._show_user_management_notice("Verification Failed", message)
+            if "Password" in message or "password" in message:
+                dialog.reset_password()
+            elif "PIN" in message:
+                dialog.reset_pin()
 
     def _current_user_has_permission(self, module_name: str, action_name: str) -> Optional[bool]:
         return current_user_has_permission(
@@ -3222,143 +4654,51 @@ class DashboardForm(QMainWindow):
 
     def _show_user_action_access_denied_dialog(self, action_name: str) -> None:
         role_value, status_value = self._get_current_user_access_profile()
-        charging = bool(self._charging)
-        palette = _charging_theme_palette(charging)
-        dialog = DashboardGlassDialog(self, radius=16.0)
-        dialog.set_charging(charging)
-        dialog.setModal(True)
-        dialog.setWindowTitle("User Action Restricted")
-        dialog.setWindowFlags(
-            (dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
-            | Qt.WindowType.WindowCloseButtonHint
+        required_access = (
+            "Only Active Superior or Administrator users can change Active/Inactive status."
+            if action_name == "Change Status"
+            else "Current role cannot perform this user management action."
         )
-        dialog.setFixedWidth(464)
-        dialog.setStyleSheet(
-            "QDialog { background: transparent; }"
-            "QFrame#headerBand {"
-            f" background: {palette['surface_bg']};"
-            f" border: 1px solid {palette['panel_border']};"
-            " border-radius: 8px;"
-            "}"
-            f"QLabel#titleLabel {{ color: {palette['panel_text']}; font-size: 14px; font-weight: 850; background: transparent; }}"
-            f"QLabel#subtitleLabel {{ color: {palette['panel_muted']}; font-size: 11px; font-weight: 650; background: transparent; }}"
-            "QFrame#contentCard {"
-            f" background: {palette['surface_bg']};"
-            f" border: 1px solid {palette['panel_border']};"
-            " border-radius: 8px;"
-            "}"
-            "QLabel#infoIcon {"
-            " min-width: 28px; max-width: 28px;"
-            " min-height: 28px; max-height: 28px;"
-            " border-radius: 14px;"
-            f" background: {palette['surface_selected']};"
-            f" border: 1px solid {palette['panel_border']};"
-            f" color: {palette['panel_text']};"
-            " font-size: 15px;"
-            " font-weight: 900;"
-            " qproperty-alignment: AlignCenter;"
-            "}"
-            f"QLabel#contentText {{ color: {palette['panel_text']}; font-size: 11px; background: transparent; }}"
-            "QLabel#statusPill {"
-            f" color: {palette['panel_text']};"
-            f" background: {palette['badge_bg']};"
-            f" border: 1px solid {palette['badge_border']};"
-            " border-radius: 8px;"
-            " padding: 3px 8px;"
-            " font-size: 10px;"
-            " font-weight: 700;"
-            "}"
+        self._show_user_management_notice(
+            "User Action Restricted",
+            f"{required_access}\n\n"
+            f"Action: {action_name}\nCurrent access: {role_value} / {status_value}",
         )
-
-        root_layout = QVBoxLayout(dialog)
-        root_layout.setContentsMargins(12, 10, 12, 10)
-        root_layout.setSpacing(7)
-
-        header_band = QFrame()
-        header_band.setObjectName("headerBand")
-        header_layout = QVBoxLayout(header_band)
-        header_layout.setContentsMargins(9, 6, 9, 6)
-        header_layout.setSpacing(1)
-        title = QLabel("User Action Restricted")
-        title.setObjectName("titleLabel")
-        subtitle = QLabel(f"Action blocked: {action_name} in User Management")
-        subtitle.setObjectName("subtitleLabel")
-        header_layout.addWidget(title)
-        header_layout.addWidget(subtitle)
-        root_layout.addWidget(header_band)
-
-        content_card = QFrame()
-        content_card.setObjectName("contentCard")
-        content_layout = QVBoxLayout(content_card)
-        content_layout.setContentsMargins(10, 9, 10, 9)
-        content_layout.setSpacing(6)
-
-        content_top = QHBoxLayout()
-        content_top.setSpacing(9)
-        info_icon = QLabel("i")
-        info_icon.setObjectName("infoIcon")
-        content_text = QLabel(
-            "You are not allowed to perform this action.\n"
-            "Only users with Role = Superior and Status = Active can perform Edit and Delete actions.\n"
-            "Please contact an Active Superior for assistance."
-        )
-        content_text.setObjectName("contentText")
-        content_text.setWordWrap(True)
-        content_text.setMinimumWidth(370)
-        content_text.setMaximumWidth(370)
-        content_text.adjustSize()
-        content_text.setMinimumHeight(content_text.sizeHint().height() + 6)
-        content_top.addWidget(info_icon, alignment=Qt.AlignmentFlag.AlignTop)
-        content_top.addWidget(content_text, stretch=1)
-        content_layout.addLayout(content_top)
-
-        access_row = QHBoxLayout()
-        role_pill = QLabel(f"Role: {role_value}")
-        role_pill.setObjectName("statusPill")
-        status_pill = QLabel(f"Status: {status_value}")
-        status_pill.setObjectName("statusPill")
-        access_row.addWidget(role_pill)
-        access_row.addWidget(status_pill)
-        access_row.addStretch()
-        content_layout.addLayout(access_row)
-        root_layout.addWidget(content_card)
-
-        required_height = max(220, content_text.sizeHint().height() + 150)
-        dialog.setFixedHeight(required_height)
-
-        if self.isVisible():
-            center = self.frameGeometry().center()
-            dialog_rect = dialog.frameGeometry()
-            dialog_rect.moveCenter(center)
-            dialog.move(dialog_rect.topLeft())
-
-        dialog.exec()
 
     def _delete_user(self, user_id: int, username: str) -> None:
         if not self._can_current_user_manage_user_actions():
             self._show_user_action_access_denied_dialog("Delete")
             return
 
-        answer = QMessageBox.question(
-            self,
+        current_user_id = self.current_user_id()
+        if current_user_id == user_id:
+            self._show_user_management_notice(
+                "Delete Blocked",
+                "You cannot delete the currently signed-in user.",
+            )
+            return
+
+        if not self._confirm_user_management_action(
             "Delete User",
-            f"Delete user '{username}'?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if answer != QMessageBox.StandardButton.Yes:
+            f"Delete user '{username}'? This action cannot be undone.",
+            confirm_text="Delete",
+        ):
             return
 
         session = Session()
         try:
             delete_user(session, user_id)
         except ValueError as error:
-            QMessageBox.warning(self, "Delete Failed", str(error))
+            self._show_user_management_notice("Delete Failed", str(error))
             return
         finally:
             session.close()
 
         self._load_users_table()
+        self._show_user_management_notice(
+            "User Deleted",
+            f"User '{username}' was deleted successfully.",
+        )
 
     def _open_change_password_dialog(self) -> None:
         """Buka dialog untuk user mengganti password dan PIN mereka sendiri"""
@@ -3472,7 +4812,12 @@ class DashboardForm(QMainWindow):
 
     def _open_add_user_dialog(self) -> None:
         """Open dialog to add a new user."""
-        dialog = UserAddDialog(self)
+        allowed_roles = self._allowed_roles_for_new_user()
+        if not allowed_roles:
+            self._show_user_action_access_denied_dialog("Add")
+            return
+
+        dialog = UserAddDialog(self, allowed_roles=allowed_roles)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         
@@ -3480,53 +4825,84 @@ class DashboardForm(QMainWindow):
         
         # Validasi
         if not data["username"]:
-            QMessageBox.warning(self, "Validation", "Username cannot be empty.")
+            self._show_user_management_notice("Validation", "Username cannot be empty.")
             return
         
         if not data["nama"]:
-            QMessageBox.warning(self, "Validation", "Full name cannot be empty.")
+            self._show_user_management_notice("Validation", "Full name cannot be empty.")
+            return
+
+        if not self._can_current_user_assign_new_user_role(data["role"]):
+            self._show_user_management_notice(
+                "Role Restricted",
+                "Role yang dipilih tidak boleh dibuat oleh user login saat ini.",
+            )
             return
         
         self._add_user(data)
 
     def _add_user(self, data: dict[str, str]) -> None:
         """Add a new user to the database with generated password and PIN."""
+        if not self._can_current_user_assign_new_user_role(data.get("role", "")):
+            self._show_user_management_notice(
+                "Role Restricted",
+                "Role yang dipilih tidak boleh dibuat oleh user login saat ini.",
+            )
+            return
+
         # Generate password dan PIN
         generated_password = self._build_temp_password()
         generated_pin = "".join(secrets.choice(string.digits) for _ in range(6))
         
         session = Session()
         try:
-            from database.crud import create_user
+            try:
+                from database.crud import create_user
+            except ImportError:
+                from src.database.crud import create_user  # type: ignore
             
-            user = create_user(
+            created_user = create_user(
                 session,
                 username=data["username"],
                 nama=data["nama"],
                 password=generated_password,
                 role=data["role"],
                 status=data["status"],
+                pin=generated_pin,
             )
-            
-            # Set PIN untuk user baru
-            created_user_id = int(getattr(user, "id", 0) or 0)
-            set_user_pin(session, created_user_id, generated_pin)
+            created_user_id = int(getattr(created_user, "id", 0) or getattr(created_user, "user_id", 0) or 0)
+            created_role = normalize_role_name(data["role"])
+            created_status = "Active" if data["status"].strip().lower() in {"aktif", "active"} else "Inactive"
+            description = (
+                f"User created by {self._current_actor_label()}: '{data['username']}' "
+                f"with role {created_role} and status {created_status}."
+            )
+            self._write_user_management_audit(
+                session,
+                action_name="user_created",
+                target_user_id=created_user_id,
+                target_username=data["username"],
+                description=description,
+                new_data={
+                    "username": data["username"],
+                    "full_name": data["nama"],
+                    "role": created_role,
+                    "status": created_status,
+                },
+            )
+            session.commit()
             
             self._load_users_table()
-            QMessageBox.information(
-                self,
-                "User Created",
-                f"User '{data['username']}' was added successfully.\n\n"
-                f"Password: {generated_password}\n"
-                f"PIN: {generated_pin}\n\n"
-                f"Save these credentials now (shown only once)."
+            self._show_user_management_notice(
+                "Temporary Credentials",
+                f"{data['username']} created.\nPassword: {generated_password}\nPIN: {generated_pin}\nShown only once.",
             )
         except ValueError as error:
-            QMessageBox.warning(self, "Validation", str(error))
+            self._show_user_management_notice("Validation", str(error))
             session.rollback()
             return
         except Exception as error:
-            QMessageBox.critical(self, "Error", f"Error: {error}")
+            self._show_user_management_notice("User Create Failed", f"Error: {error}")
             session.rollback()
             return
         finally:
@@ -3772,12 +5148,14 @@ class DashboardForm(QMainWindow):
                 "}"
             )
         if self._page_title_label is not None:
+            title_size = "26px" if bool(self._page_title_label.property("compactPageTitle")) else "38px"
             self._page_title_label.setStyleSheet(
-                f"color: {palette['panel_text']}; font-size: 38px; font-weight: 850; background: transparent;"
+                f"color: {palette['panel_text']}; font-size: {title_size}; font-weight: 850; background: transparent;"
             )
         for title_label in self._page_title_labels:
+            title_size = "26px" if bool(title_label.property("compactPageTitle")) else "38px"
             title_label.setStyleSheet(
-                f"color: {palette['panel_text']}; font-size: 38px; font-weight: 850; background: transparent;"
+                f"color: {palette['panel_text']}; font-size: {title_size}; font-weight: 850; background: transparent;"
             )
         if self._footer_label is not None:
             self._footer_label.setStyleSheet(
@@ -3843,22 +5221,24 @@ class DashboardForm(QMainWindow):
                 "QPushButton {"
                 f" background: {palette['surface_selected']}; color: {palette['panel_text']};"
                 f" border: 1px solid {palette['panel_border']};"
-                " border-radius: 9px; padding: 0 16px; font-size: 14px; font-weight: 800;"
+                " border-radius: 9px; padding: 0 18px; font-size: 13px; font-weight: 850;"
                 "}"
                 f"QPushButton:hover {{ background: {palette['surface_hover']}; }}"
                 f"QPushButton:pressed {{ background: {palette['surface_selected']}; }}"
+                "QPushButton:disabled { background: rgba(255, 255, 255, 0.07); color: rgba(230, 237, 246, 0.42);"
+                " border-color: rgba(255, 255, 255, 0.14); }"
             )
         table_style = (
             "QTableWidget {"
             f" background: {palette['table_bg']}; alternate-background-color: {palette['table_alt']};"
             f" color: {palette['panel_text']}; border: 1px solid {palette['panel_border']};"
-            " border-radius: 12px; font-size: 14px; outline: none;"
+            " border-radius: 12px; font-size: 13px; outline: none;"
             "}"
             "QHeaderView::section {"
             f" background: {palette['table_header']}; color: {palette['panel_muted']};"
             " font-size: 11px; font-weight: 800; border: none; border-bottom: 1px solid rgba(255,255,255,0.18); padding: 10px 14px;"
             "}"
-            "QTableWidget::item { padding: 10px 12px; border: none; }"
+            "QTableWidget::item { padding: 8px 10px; border: none; }"
             f"QTableWidget::item:hover {{ background: {palette['surface_hover']}; }}"
             f"QTableWidget::item:selected {{ background: {palette['surface_selected']}; color: {palette['panel_text']}; }}"
         )
@@ -3891,7 +5271,7 @@ class DashboardForm(QMainWindow):
             button.setStyleSheet(quality_button_style)
 
 
-def show_dashboard(app: QApplication, user: Optional[User] = None) -> DashboardForm:
+def show_main_dashboard(app: QApplication, user: Optional[User] = None) -> DashboardForm:
     global _active_dashboard
     if _active_dashboard is not None and _active_dashboard.isVisible():
         current_user_id = _active_dashboard.current_user_id()

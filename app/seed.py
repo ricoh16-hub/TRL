@@ -42,6 +42,8 @@ EMPLOYEE_PERMISSIONS: tuple[tuple[str, str, str], ...] = (
     ("data_quality", "view", "Melihat issue kualitas data HRIS."),
     ("data_quality", "update", "Mengubah workflow issue kualitas data HRIS."),
     ("data_quality", "export", "Ekspor issue kualitas data HRIS."),
+    ("manpower", "view", "Melihat ringkasan headcount dan sebaran manpower."),
+    ("manpower", "manage", "Mengelola snapshot dan target manpower."),
     ("attendance", "view", "Melihat absensi, HK, dan ringkasan kehadiran."),
     ("attendance", "manage", "Membuat dan mengoreksi absensi karyawan."),
     ("work_output", "view", "Melihat output kerja dan produktivitas manpower."),
@@ -54,7 +56,7 @@ SUPER_ADMIN_PERMISSION_KEYS = tuple(
 HR_ADMIN_PERMISSION_KEYS = tuple(
     key
     for key in SUPER_ADMIN_PERMISSION_KEYS
-    if key not in {"employee:delete"}
+    if key not in {"employee:delete", "manpower:manage"}
 )
 HR_VIEWER_PERMISSION_KEYS = tuple(
     key

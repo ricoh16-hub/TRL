@@ -8,7 +8,7 @@ from ui.boot import show_boot
 from ui.lock import show_lock
 from ui.login import show_login
 from ui.credentials_login import show_credentials_login
-from ui.dashboard import show_dashboard
+from ui.dashboard import show_main_dashboard
 from database.models import init_db
 
 
@@ -48,6 +48,8 @@ def _best_effort_sync_app_privileges() -> None:
             with conn.cursor() as cursor:
                 cursor.execute(f'GRANT CONNECT ON DATABASE "{db_name}" TO "{app_user}"')
                 cursor.execute(f'GRANT USAGE ON SCHEMA public TO "{app_user}"')
+                cursor.execute("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS last_login TIMESTAMPTZ")
+                cursor.execute("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS last_logout TIMESTAMPTZ")
                 cursor.execute(
                     f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{app_user}"'
                 )
@@ -86,7 +88,7 @@ def main():
                 print("[INFO] Credentials dibatalkan. Kembali ke form PIN.")
                 continue
 
-        dashboard = show_dashboard(app, authenticated_user)
+        dashboard = show_main_dashboard(app, authenticated_user)
         dashboard.raise_()
         dashboard.activateWindow()
         app.exec()

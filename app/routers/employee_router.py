@@ -15,6 +15,7 @@ from app.schemas.employee_schema import (
     EmployeeDocumentResponse,
     EmployeeFamilyCreate,
     EmployeeFamilyResponse,
+    EmployeeListPageResponse,
     EmployeeListResponse,
     EmployeeMutationRequest,
     EmployeeStatusChangeRequest,
@@ -105,7 +106,7 @@ def _bpjs_status(detail: EmployeeDetailResponse) -> str:
 
 @router.get(
     "",
-    response_model=list[EmployeeListResponse],
+    response_model=EmployeeListPageResponse,
     dependencies=[Depends(require_permission("employee", "view"))],
 )
 def get_employees(
@@ -116,15 +117,14 @@ def get_employees(
     status_id: Annotated[int | None, Query(gt=0)] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
-) -> list[EmployeeListResponse]:
-    offset = (page - 1) * limit
-    return employee_service.get_employee_list(
+) -> EmployeeListPageResponse:
+    return employee_service.get_employee_page(
         db,
         search=search,
         division_id=division_id,
         category_id=category_id,
         status_id=status_id,
-        offset=offset,
+        page=page,
         limit=limit,
     )
 

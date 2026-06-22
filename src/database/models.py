@@ -66,8 +66,8 @@ class User(Base):
     email = Column(String, unique=True, nullable=True)
     phone = Column(String, nullable=True)
     status = Column(String, nullable=False, server_default='aktif')
-    password_plaintext = Column(String, nullable=True)  # Temporary plaintext storage (for display only)
-    pin_plaintext = Column(String, nullable=True)  # Temporary plaintext storage (for display only)
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    last_logout = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
@@ -801,17 +801,35 @@ def _validate_centralized_database_target() -> None:
 
 engine = None
 if DATABASE_URL:  # pragma: no branch
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-        pool_timeout=30,
-        pool_recycle=1800,
-        pool_use_lifo=True,
-        connect_args=_build_connect_args(),
-        future=True,
-    )
+    # For SQLite URLs the DB-API does not accept PostgreSQL connect args
+    try:
+        parsed = make_url(DATABASE_URL)
+    except Exception:
+        parsed = None
+
+    if parsed is not None and parsed.drivername and parsed.drivername.startswith("sqlite"):
+        # SQLite: avoid passing postgres-specific connect args
+        sqlite_connect_args: dict[str, object] = {}
+        # If using pysqlite and running in threaded app, allow same-thread checks to be relaxed
+        sqlite_connect_args["check_same_thread"] = False
+
+        engine = create_engine(
+            DATABASE_URL,
+            connect_args=sqlite_connect_args,
+            future=True,
+        )
+    else:
+        engine = create_engine(
+            DATABASE_URL,
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+            pool_timeout=30,
+            pool_recycle=1800,
+            pool_use_lifo=True,
+            connect_args=_build_connect_args(),
+            future=True,
+        )
 
 Session = sessionmaker(
     bind=engine,
@@ -850,6 +868,10 @@ def _run_user_table_migration() -> None:
             connection.execute(text("ALTER TABLE users ALTER COLUMN status SET NOT NULL"))
         if "deleted_at" not in existing_columns:  # pragma: no branch
             connection.execute(text("ALTER TABLE users ADD COLUMN deleted_at TIMESTAMPTZ"))
+        if "last_login" not in existing_columns:  # pragma: no branch
+            connection.execute(text("ALTER TABLE users ADD COLUMN last_login TIMESTAMPTZ"))
+        if "last_logout" not in existing_columns:  # pragma: no branch
+            connection.execute(text("ALTER TABLE users ADD COLUMN last_logout TIMESTAMPTZ"))
 
         connection.execute(
             text(

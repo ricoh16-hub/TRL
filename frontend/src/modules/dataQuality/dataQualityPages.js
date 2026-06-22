@@ -49,11 +49,16 @@ function metric(label, value) {
 }
 
 function renderSummary(summary) {
+  const statusText = summary.status ? String(summary.status).toUpperCase() : "";
+  const totalLabel = statusText === "OPEN" ? "Open" : statusText || "Total";
+  const totalValue = summary.total ?? summary.open_total ?? 0;
   const reviewCount = summary.by_severity?.REVIEW ?? summary.watch_total ?? 0;
   const infoCount = summary.by_severity?.INFO ?? 0;
+  const periodLabel = summary.source_period ? `Periode ${summary.source_period}` : "Semua periode";
   return `
+    <div class="section-caption">${escapeHtml(periodLabel)}</div>
     <section class="metric-grid">
-      ${metric("Open", summary.open_total ?? 0)}
+      ${metric(totalLabel, totalValue)}
       ${metric("Perlu Review", reviewCount)}
       ${metric("Info", infoCount)}
       ${metric("Kode Issue", Object.keys(summary.by_code || {}).length)}
@@ -137,6 +142,13 @@ function bindIssueActions(container, onUpdated) {
   });
 }
 
+function summaryParamsFromFilters(form) {
+  const params = serializeForm(form);
+  delete params.page;
+  delete params.limit;
+  return params;
+}
+
 export async function renderDataQualityPage(container) {
   container.innerHTML = `
     ${pageHeader({
@@ -186,7 +198,7 @@ export async function renderDataQualityPage(container) {
 
   const loadSummary = async () => {
     try {
-      const summary = await dataQualityService.summary();
+      const summary = await dataQualityService.summary(summaryParamsFromFilters(form));
       summaryTarget.innerHTML = renderSummary(summary);
     } catch (error) {
       summaryTarget.innerHTML = renderError(error);
@@ -209,7 +221,7 @@ export async function renderDataQualityPage(container) {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await loadIssues();
+    await Promise.all([loadSummary(), loadIssues()]);
   });
 
   await Promise.all([loadSummary(), loadIssues()]);

@@ -107,6 +107,14 @@ class EmployeeListResponse(SchemaBase):
     data_completeness: float = Field(default=0, ge=0, le=100)
 
 
+class EmployeeListPageResponse(SchemaBase):
+    items: list[EmployeeListResponse] = Field(default_factory=list)
+    page: int = Field(ge=1)
+    limit: int = Field(ge=1)
+    total: int = Field(ge=0)
+    pages: int = Field(ge=0)
+
+
 class EmployeeProfileResponse(SchemaBase):
     employee_id: int
     employee_no: str
@@ -286,6 +294,7 @@ __all__ = [
     "EmployeeFamilyResponse",
     "EmployeeIdentityResponse",
     "EmployeeIdentityCreate",
+    "EmployeeListPageResponse",
     "EmployeeListResponse",
     "EmployeeMovementResponse",
     "EmployeeMutationRequest",

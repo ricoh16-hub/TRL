@@ -1,10 +1,11 @@
 import os
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QToolButton, QWidget
 
 from src.ui.dashboard import (
     CHARGING_ACCENT,
@@ -130,6 +131,33 @@ def test_dashboard_dialogs_render_both_charging_states() -> None:
             parent.close()
 
 
+def test_user_edit_dialog_can_clear_failed_verification_fields() -> None:
+    _get_app()
+    dialog = UserEditDialog(
+        username="operator",
+        nama="Operator",
+        role="Operator",
+        status="Active",
+    )
+
+    try:
+        close_btn = dialog.findChild(QToolButton, "dashboardDialogClose")
+        assert close_btn is not None
+        assert close_btn.accessibleName() == "Close"
+        assert dialog.windowFlags() & Qt.WindowType.FramelessWindowHint
+
+        dialog._old_password_input.setText("wrong-password")  # type: ignore[attr-defined]
+        dialog._old_pin_input.setText("123456")  # type: ignore[attr-defined]
+
+        dialog.reset_password_verification()
+        dialog.reset_pin_verification()
+
+        assert dialog._old_password_input.text() == ""  # type: ignore[attr-defined]
+        assert dialog._old_pin_input.text() == ""  # type: ignore[attr-defined]
+    finally:
+        dialog.close()
+
+
 def test_hris_quality_permission_allows_active_superior_and_administrator() -> None:
     dashboard = DashboardForm.__new__(DashboardForm)
     dashboard._current_user_has_permission = lambda _module, _action: None  # type: ignore[method-assign]
@@ -186,6 +214,209 @@ def test_hris_quality_export_permission_database_denial_blocks_auditor_fallback(
     dashboard._get_current_user_access_profile = lambda: ("Auditor", "Active")  # type: ignore[method-assign]
 
     assert dashboard._can_current_user_export_hris_quality() is False
+
+
+def test_user_management_allows_active_superior_without_status_text(monkeypatch) -> None:  # noqa: ANN001
+    class FakeResult:
+        def mappings(self) -> "FakeResult":
+            return self
+
+        def first(self) -> dict[str, object]:
+            return {
+                "user_id": 7,
+                "is_active": True,
+                "is_locked": False,
+                "status": None,
+                "role_names": ["SUPER_ADMIN"],
+            }
+
+    class FakeSession:
+        def execute(self, _statement, _params):  # noqa: ANN001, ANN201
+            return FakeResult()
+
+        def close(self) -> None:
+            pass
+
+    dashboard = DashboardForm.__new__(DashboardForm)
+    dashboard._user = type("UserStub", (), {"id": 7, "role": "Operator", "status": "nonaktif"})()
+
+    monkeypatch.setattr("src.ui.dashboard.Session", lambda: FakeSession())
+    monkeypatch.setattr("src.ui.dashboard._is_hris_auth_schema", lambda _session: True)
+
+    assert dashboard._get_current_user_access_profile() == ("Superior", "Active")
+    assert dashboard._can_current_user_manage_user_actions() is True
+
+
+def test_user_management_allows_active_administrator_actions() -> None:
+    dashboard = DashboardForm.__new__(DashboardForm)
+    dashboard._get_current_user_access_profile = lambda: ("Administrator", "Active")  # type: ignore[method-assign]
+
+    assert dashboard._can_current_user_manage_user_actions() is True
+
+
+def test_user_management_blocks_inactive_or_operator_actions() -> None:
+    dashboard = DashboardForm.__new__(DashboardForm)
+
+    dashboard._get_current_user_access_profile = lambda: ("Administrator", "Inactive")  # type: ignore[method-assign]
+    assert dashboard._can_current_user_manage_user_actions() is False
+
+    dashboard._get_current_user_access_profile = lambda: ("Operator", "Active")  # type: ignore[method-assign]
+    assert dashboard._can_current_user_manage_user_actions() is False
+
+
+def test_user_management_new_user_role_scope_by_current_role() -> None:
+    dashboard = DashboardForm.__new__(DashboardForm)
+
+    dashboard._get_current_user_access_profile = lambda: ("Superior", "Active")  # type: ignore[method-assign]
+    assert dashboard._allowed_roles_for_new_user() == ["Superior", "Administrator", "Operator", "Auditor"]
+    assert dashboard._can_current_user_assign_new_user_role("Superior") is True
+
+    dashboard._get_current_user_access_profile = lambda: ("Administrator", "Active")  # type: ignore[method-assign]
+    assert dashboard._allowed_roles_for_new_user() == ["Administrator", "Operator", "Auditor"]
+    assert dashboard._can_current_user_assign_new_user_role("Superior") is False
+    assert dashboard._can_current_user_assign_new_user_role("Operator") is True
+
+    dashboard._get_current_user_access_profile = lambda: ("Operator", "Active")  # type: ignore[method-assign]
+    assert dashboard._allowed_roles_for_new_user() == ["Operator", "Auditor"]
+    assert dashboard._can_current_user_assign_new_user_role("Administrator") is False
+    assert dashboard._can_current_user_assign_new_user_role("Auditor") is True
+
+    dashboard._get_current_user_access_profile = lambda: ("Auditor", "Active")  # type: ignore[method-assign]
+    assert dashboard._allowed_roles_for_new_user() == ["Auditor"]
+    assert dashboard._can_current_user_assign_new_user_role("Operator") is False
+    assert dashboard._can_current_user_assign_new_user_role("Auditor") is True
+
+
+def test_user_management_audit_writes_structured_schema(monkeypatch) -> None:  # noqa: ANN001
+    class FakeSession:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def execute(self, statement, params):  # noqa: ANN001, ANN201
+            self.calls.append((str(statement), params))
+            return SimpleNamespace(rowcount=1)
+
+    session = FakeSession()
+    dashboard = DashboardForm.__new__(DashboardForm)
+    dashboard.current_user_id = lambda: 7  # type: ignore[method-assign]
+    dashboard._current_actor_label = lambda: "admin (Superior)"  # type: ignore[method-assign]
+    dashboard._current_actor_username = lambda: "admin"  # type: ignore[method-assign]
+
+    monkeypatch.setattr("src.ui.dashboard._table_exists", lambda _session, table_name: table_name == "audit_logs")
+    monkeypatch.setattr(
+        "src.ui.dashboard._table_columns",
+        lambda _session, _table_name: {
+            "user_id",
+            "module_name",
+            "action_name",
+            "table_name",
+            "record_id",
+            "old_data",
+            "new_data",
+            "created_at",
+        },
+    )
+
+    dashboard._write_user_management_audit(
+        session,
+        action_name="role_changed",
+        target_user_id=10,
+        target_username="operator01",
+        description="Role changed by admin (Superior) for user 'operator01': Auditor -> Operator.",
+        old_data={"role": "Auditor"},
+        new_data={"role": "Operator"},
+    )
+
+    sql, params = session.calls[0]
+    assert "INSERT INTO audit_logs" in sql
+    assert params["user_id"] == 7
+    assert params["module_name"] == "user_management"
+    assert params["action_name"] == "role_changed"
+    assert params["record_id"] == "10"
+    assert "Role changed by admin" in params["new_data"]
+    assert '"actor_username": "admin"' in params["new_data"]
+    assert '"role": "Operator"' in params["new_data"]
+
+
+def test_user_management_audit_writes_legacy_schema(monkeypatch) -> None:  # noqa: ANN001
+    class FakeSession:
+        def __init__(self) -> None:
+            self.added = []
+
+        def add(self, value):  # noqa: ANN001, ANN201
+            self.added.append(value)
+
+    session = FakeSession()
+    dashboard = DashboardForm.__new__(DashboardForm)
+    dashboard.current_user_id = lambda: 7  # type: ignore[method-assign]
+    dashboard._current_actor_label = lambda: "admin (Superior)"  # type: ignore[method-assign]
+    dashboard._current_actor_username = lambda: "admin"  # type: ignore[method-assign]
+
+    monkeypatch.setattr("src.ui.dashboard._table_exists", lambda _session, table_name: table_name == "audit_logs")
+    monkeypatch.setattr(
+        "src.ui.dashboard._table_columns",
+        lambda _session, _table_name: {"user_id", "action", "action_type", "description", "created_at"},
+    )
+
+    dashboard._write_user_management_audit(
+        session,
+        action_name="user_created",
+        target_user_id=10,
+        target_username="operator01",
+        description="User created by admin (Superior): 'operator01' with role Operator and status Active.",
+        new_data={"role": "Operator", "status": "Active"},
+    )
+
+    audit_log = session.added[0]
+    assert audit_log.user_id == 7
+    assert audit_log.action == "user_management.user_created"
+    assert audit_log.action_type == "user_management"
+    assert audit_log.description.startswith("User created by admin")
+
+
+def test_dashboard_logout_records_last_logout(monkeypatch) -> None:  # noqa: ANN001
+    class FakeSession:
+        def __init__(self) -> None:
+            self.calls = []
+            self.committed = False
+            self.closed = False
+            self.rolled_back = False
+
+        def execute(self, statement, params):  # noqa: ANN001, ANN201
+            self.calls.append((str(statement), params))
+            return SimpleNamespace(rowcount=1)
+
+        def commit(self) -> None:
+            self.committed = True
+
+        def rollback(self) -> None:
+            self.rolled_back = True
+
+        def close(self) -> None:
+            self.closed = True
+
+    session = FakeSession()
+    dashboard = DashboardForm.__new__(DashboardForm)
+    dashboard._logout_recorded = False
+    dashboard.current_user_id = lambda: 12  # type: ignore[method-assign]
+
+    monkeypatch.setattr("src.ui.dashboard.Session", lambda: session)
+    monkeypatch.setattr("src.ui.dashboard._is_hris_auth_schema", lambda _session: False)
+    monkeypatch.setattr(
+        "src.ui.dashboard._table_columns",
+        lambda _session, _table_name: {"id", "last_logout", "updated_at"},
+    )
+
+    dashboard._record_current_user_logout()
+
+    sql, params = session.calls[0]
+    assert "last_logout = CURRENT_TIMESTAMP" in sql
+    assert "updated_at = CURRENT_TIMESTAMP" in sql
+    assert "WHERE id = :user_id" in sql
+    assert params["user_id"] == 12
+    assert session.committed is True
+    assert session.closed is True
+    assert dashboard._logout_recorded is True
 
 
 def test_hris_data_warning_label_only_renders_when_summary_warns() -> None:
@@ -465,6 +696,7 @@ def test_format_hris_quality_issue_row_calculates_sla() -> None:
 def test_map_hris_role_to_dashboard_role_prefers_canonical_dashboard_roles() -> None:
     assert map_hris_role_to_dashboard_role(["SUPER_ADMIN", "HR_VIEWER"]) == "Superior"
     assert map_hris_role_to_dashboard_role(["HR_ADMIN"]) == "Administrator"
+    assert map_hris_role_to_dashboard_role(["OPERATOR"]) == "Operator"
     assert map_hris_role_to_dashboard_role(["HR_VIEWER"]) == "Auditor"
     assert map_hris_role_to_dashboard_role([]) == "Operator"
 

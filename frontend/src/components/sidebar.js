@@ -1,6 +1,7 @@
 import { icon } from "./icons.js";
 
 const items = [
+  { href: "#/manpower", label: "Manpower", icon: "dashboard" },
   { href: "#/employees", label: "Daftar Karyawan", icon: "users" },
   { href: "#/employees/new", label: "Input Karyawan", icon: "plus" },
   { href: "#/data-quality", label: "Data Quality", icon: "shield" },
@@ -20,6 +21,7 @@ export function renderSidebar(currentHash) {
         .map((item) => {
           const active =
             currentHash === item.href ||
+            (item.href === "#/manpower" && currentHash.startsWith("#/manpower")) ||
             (item.href === "#/employees" && currentHash.startsWith("#/employees/")) ||
             (item.href === "#/data-quality" && currentHash.startsWith("#/data-quality"));
           return `

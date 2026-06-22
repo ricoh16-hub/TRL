@@ -111,13 +111,34 @@ def get_data_quality_issues(
 @router.get("/summary", response_model=DataQualitySummaryResponse)
 def get_data_quality_summary(
     db: DbSession,
+    status: Annotated[str | None, Query(max_length=16)] = "OPEN",
+    severity: Annotated[str | None, Query(max_length=16)] = None,
+    issue_code: Annotated[str | None, Query(max_length=64)] = None,
     source_period: Annotated[str | None, Query(max_length=32)] = None,
+    employee_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> DataQualitySummaryResponse:
-    base_filters = [DataQualityIssue.status == "OPEN"]
+    base_filters = []
+    if status:
+        base_filters.append(DataQualityIssue.status == status.upper())
+    if severity:
+        base_filters.append(DataQualityIssue.severity == severity.upper())
+    if issue_code:
+        base_filters.append(DataQualityIssue.issue_code == issue_code.upper())
     if source_period:
         base_filters.append(DataQualityIssue.source_period == source_period)
+    if employee_id is not None:
+        base_filters.append(DataQualityIssue.employee_id == employee_id)
 
-    open_total = db.scalar(select(func.count()).select_from(DataQualityIssue).where(*base_filters)) or 0
+    total = db.scalar(select(func.count()).select_from(DataQualityIssue).where(*base_filters)) or 0
+    open_total = (
+        db.scalar(
+            select(func.count()).select_from(DataQualityIssue).where(
+                *base_filters,
+                DataQualityIssue.status == "OPEN",
+            ),
+        )
+        or 0
+    )
     watch_total = (
         db.scalar(
             select(func.count()).select_from(DataQualityIssue).where(
@@ -142,7 +163,12 @@ def get_data_quality_summary(
     ).all()
 
     return DataQualitySummaryResponse(
+        status=status.upper() if status else None,
+        severity=severity.upper() if severity else None,
+        issue_code=issue_code.upper() if issue_code else None,
         source_period=source_period,
+        employee_id=employee_id,
+        total=total,
         open_total=open_total,
         watch_total=watch_total,
         by_severity={str(key): int(value) for key, value in severity_rows},

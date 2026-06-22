@@ -129,12 +129,16 @@ function bindDeleteButtons(container) {
   });
 }
 
-function renderEmployeeTable(employees) {
+function renderEmployeeTable(employees, meta = {}) {
   if (!employees.length) {
     return emptyState("Data karyawan belum ada", "Gunakan tombol tambah untuk membuat record pertama.");
   }
 
   return `
+    <div class="list-summary">
+      <span>${Number(meta.total ?? employees.length).toLocaleString("id-ID")} karyawan ditemukan</span>
+      <strong>Halaman ${Number(meta.page || 1).toLocaleString("id-ID")} dari ${Number(meta.pages || 1).toLocaleString("id-ID")}</strong>
+    </div>
     <div class="table-wrap">
       <table class="data-table">
         <thead>
@@ -224,10 +228,12 @@ export async function renderEmployeeListPage(container) {
       </form>
     </section>
     <section class="surface" id="employee-list-content">${loading()}</section>
+    <div class="pager" id="employee-pager"></div>
   `;
 
   const form = container.querySelector("#employee-filter");
   const content = container.querySelector("#employee-list-content");
+  const pager = container.querySelector("#employee-pager");
 
   await Promise.allSettled([
     populateReferenceSelect(container.querySelector("#category-filter"), referenceService.employeeCategories),
@@ -238,16 +244,38 @@ export async function renderEmployeeListPage(container) {
   const loadRows = async () => {
     content.innerHTML = loading();
     try {
-      const employees = await employeeService.list(serializeForm(form));
-      content.innerHTML = renderEmployeeTable(employees);
+      const result = await employeeService.list(serializeForm(form));
+      const items = Array.isArray(result) ? result : result.items || [];
+      content.innerHTML = renderEmployeeTable(items, result);
       bindDeleteButtons(content);
+      const currentPage = Number(result.page || form.elements.page.value || 1);
+      const pages = Number(result.pages || 0);
+      pager.innerHTML =
+        pages > 1
+          ? `
+            <button class="button button-secondary" type="button" data-page="${currentPage - 1}" ${currentPage <= 1 ? "disabled" : ""}>Sebelumnya</button>
+            <span>${currentPage.toLocaleString("id-ID")} / ${pages.toLocaleString("id-ID")}</span>
+            <button class="button button-secondary" type="button" data-page="${currentPage + 1}" ${currentPage >= pages ? "disabled" : ""}>Berikutnya</button>
+          `
+          : "";
     } catch (error) {
       content.innerHTML = renderError(error);
+      pager.innerHTML = "";
     }
   };
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+    form.elements.page.value = "1";
+    loadRows();
+  });
+
+  pager.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-page]");
+    if (!button || button.disabled) {
+      return;
+    }
+    form.elements.page.value = button.dataset.page;
     loadRows();
   });
 

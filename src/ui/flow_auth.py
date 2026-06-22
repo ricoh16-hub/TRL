@@ -114,6 +114,8 @@ def _map_hris_role_to_desktop_role(role_names: list[str]) -> str:
         return "Superior"
     if {"HR_ADMIN", "ADMIN", "ADMINISTRATOR"} & normalized_roles:
         return "Administrator"
+    if {"OPERATOR", "HR_OPERATOR"} & normalized_roles:
+        return "Operator"
     if {"HR_VIEWER", "VIEWER", "AUDITOR"} & normalized_roles:
         return "Auditor"
     if role_names:
@@ -270,14 +272,18 @@ def _increment_hris_failed_login(session: Any, user_id: int) -> None:
 
 
 def _reset_hris_failed_login(session: Any, user_id: int) -> None:
+    user_columns = _table_columns(session, "users")
+    timestamp_assignments = ["last_login = now()"] if "last_login" in user_columns else []
+    if "updated_at" in user_columns:
+        timestamp_assignments.append("updated_at = now()")
+    timestamp_sql = f", {', '.join(timestamp_assignments)}" if timestamp_assignments else ""
     session.execute(
         text(
-            """
+            f"""
             UPDATE users
             SET failed_login_count = 0,
-                is_locked = false,
-                last_login = now(),
-                updated_at = now()
+                is_locked = false
+                {timestamp_sql}
             WHERE user_id = :user_id
             """
         ),
@@ -540,6 +546,9 @@ def authenticate_credentials_step(
         if pin_record is not None:
             pin_record.failed_attempts = 0
             pin_record.locked_until = None
+
+        if hasattr(user, "last_login"):
+            user.last_login = _utc_now()
 
         access_token = token_urlsafe(24)
         refresh_token = token_urlsafe(32)

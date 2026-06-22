@@ -45,7 +45,7 @@ print("   └─ Setelah 5x salah → lockout 30 detik")
 print("\n   Behavior: Verify 1x password + verify 1x PIN = 2 faktor authentikasi")
 print("   Status: ✅ VERIFY 1x SAJA PER FAKTOR (tidak berulang)")
 
-print("\n3️⃣  DASHBOARD (show_dashboard)")
+print("\n3️⃣  DASHBOARD (show_main_dashboard)")
 print("   Lokasi: src/ui/dashboard.py - class DashboardForm")
 print("   Apa yang ada?")
 print("   ✅ Langsung akses, tidak perlu re-verify")
@@ -86,7 +86,7 @@ User flow:
    │     ├─ Jika User → accept()
    │     └─ Return User ke main.py
    │
-5. show_dashboard(app, user)
+5. show_main_dashboard(app, user)
    ├─ Menerima User object dari step 4
    └─ ✅ LANGSUNG AKSES, TIDAK VERIFY LAGI
 6. User dapat menggunakan dashboard

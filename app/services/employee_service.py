@@ -27,6 +27,7 @@ from app.schemas.employee_schema import (
     EmployeeFamilyCreate,
     EmployeeFamilyResponse,
     EmployeeIdentityResponse,
+    EmployeeListPageResponse,
     EmployeeListResponse,
     EmployeeMovementResponse,
     EmployeeMutationRequest,
@@ -462,6 +463,46 @@ def get_employee_list(
     return [to_list_response(employee) for employee in employees]
 
 
+def get_employee_page(
+    session: Session,
+    *,
+    search: str | None = None,
+    division_id: int | None = None,
+    category_id: int | None = None,
+    status_id: int | None = None,
+    is_active: bool | None = True,
+    page: int = 1,
+    limit: int = 100,
+) -> EmployeeListPageResponse:
+    offset = (page - 1) * limit
+    total = employee_repository.count_employees(
+        session,
+        search=search,
+        division_id=division_id,
+        category_id=category_id,
+        status_id=status_id,
+        is_active=is_active,
+    )
+    items = get_employee_list(
+        session,
+        search=search,
+        division_id=division_id,
+        category_id=category_id,
+        status_id=status_id,
+        is_active=is_active,
+        offset=offset,
+        limit=limit,
+    )
+    pages = (total + limit - 1) // limit if total else 0
+    return EmployeeListPageResponse(
+        items=items,
+        page=page,
+        limit=limit,
+        total=total,
+        pages=pages,
+    )
+
+
 def get_employee_detail(session: Session, employee_id: int) -> EmployeeDetailResponse | None:
     employee = employee_repository.get_employee_detail(session, employee_id)
     return to_detail_response(employee) if employee else None
@@ -852,6 +893,7 @@ __all__ = [
     "get_employee_detail",
     "get_employee_history",
     "get_employee_list",
+    "get_employee_page",
     "mutate_employee",
     "soft_delete_employee",
     "to_detail_response",
