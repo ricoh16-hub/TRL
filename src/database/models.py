@@ -801,7 +801,7 @@ def _validate_centralized_database_target() -> None:
 
 engine = None
 if DATABASE_URL:  # pragma: no branch
-    # Do not accept SQLite URLs here — require PostgreSQL for application runtime.
+    # Parse URL to decide whether it's SQLite (allowed only for local dev opt-in)
     try:
         parsed = make_url(DATABASE_URL)
     except Exception:
@@ -826,18 +826,20 @@ if DATABASE_URL:  # pragma: no branch
             connect_args=sqlite_connect_args,
             future=True,
         )
-
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-        pool_timeout=30,
-        pool_recycle=1800,
-        pool_use_lifo=True,
-        connect_args=_build_connect_args(),
-        future=True,
-    )
+    else:
+        # Create a production/Postgres-capable engine and only pass Postgres-specific
+        # connect args in this branch.
+        engine = create_engine(
+            DATABASE_URL,
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+            pool_timeout=30,
+            pool_recycle=1800,
+            pool_use_lifo=True,
+            connect_args=_build_connect_args(),
+            future=True,
+        )
 
 Session = sessionmaker(
     bind=engine,

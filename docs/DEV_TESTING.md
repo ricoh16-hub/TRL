@@ -46,6 +46,19 @@ $env:ALLOW_SQLITE_DEV = '1'
 python -m pytest -q
 ```
 
+If you want to run the application directly with a local SQLite file, set `DATABASE_URL` too:
+
+```powershell
+$env:ALLOW_SQLITE_DEV = '1'
+$env:DATABASE_URL = 'sqlite:///./dev.db'
+python src/main.py
+```
+
+Notes:
+- Postgres-specific environment variables such as `DB_CONNECT_TIMEOUT` and `DB_SSLMODE` are
+	ignored for SQLite; the code intentionally avoids passing Postgres-only `connect_args` to
+	the SQLite DBAPI.
+
 ## Notes
 
 - Do not commit `.env` with secrets. Use `.env.example` as a template.
