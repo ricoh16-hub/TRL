@@ -25,20 +25,9 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
 
       - name: Run Ruff
-        run: >-
-          python -m ruff check
-          src/auth
-          src/database
-          src/main.py
-          src/ui/mainform.py
-          src/ui/userform.py
-          src/ui/webform.py
-          src/ui/battery_status.py
-          src/ui/boot.py
-          src/ui/login.py
-          src/ui/lock.py
-          scripts
-          tests
+        run: |
+          # Run ruff against directories to avoid failures from missing individual files
+          python -m ruff check src scripts tests
 
       - name: Run Pytest
         run: python -m pytest
