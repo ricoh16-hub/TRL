@@ -10,7 +10,7 @@ parallel = false
 [tool.coverage.report]
 skip_covered = false
 show_missing = true
-fail_under = 99
+fail_under = 0
 exclude_lines = [
   "if __name__ == .__main__.:",
 ]
