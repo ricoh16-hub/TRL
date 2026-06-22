@@ -801,35 +801,29 @@ def _validate_centralized_database_target() -> None:
 
 engine = None
 if DATABASE_URL:  # pragma: no branch
-    # For SQLite URLs the DB-API does not accept PostgreSQL connect args
+    # Do not accept SQLite URLs here — require PostgreSQL for application runtime.
     try:
         parsed = make_url(DATABASE_URL)
     except Exception:
         parsed = None
 
     if parsed is not None and parsed.drivername and parsed.drivername.startswith("sqlite"):
-        # SQLite: avoid passing postgres-specific connect args
-        sqlite_connect_args: dict[str, object] = {}
-        # If using pysqlite and running in threaded app, allow same-thread checks to be relaxed
-        sqlite_connect_args["check_same_thread"] = False
+        raise RuntimeError(
+            "SQLite URLs are no longer supported in production or CI runs. "
+            "Set DATABASE_URL to a PostgreSQL DSN (postgresql+psycopg2://...) or use DB_* env vars."
+        )
 
-        engine = create_engine(
-            DATABASE_URL,
-            connect_args=sqlite_connect_args,
-            future=True,
-        )
-    else:
-        engine = create_engine(
-            DATABASE_URL,
-            pool_pre_ping=True,
-            pool_size=10,
-            max_overflow=20,
-            pool_timeout=30,
-            pool_recycle=1800,
-            pool_use_lifo=True,
-            connect_args=_build_connect_args(),
-            future=True,
-        )
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=30,
+        pool_recycle=1800,
+        pool_use_lifo=True,
+        connect_args=_build_connect_args(),
+        future=True,
+    )
 
 Session = sessionmaker(
     bind=engine,
