@@ -1,5 +1,7 @@
 # README
 
+![CI](https://github.com/ricoh16-hub/TRL/actions/workflows/python-ci.yml/badge.svg?branch=main)
+
 ## Deskripsi
 
 Aplikasi ini adalah aplikasi Python yang telah dioptimalkan dan dibersihkan dari file tidak penting.
