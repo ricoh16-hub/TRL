@@ -30,6 +30,7 @@ assets/*.xlsb
 *.sqlite3
 *.db-wal
 *.db-shm
+dev.db
 *.db-journal
 *.sqlite-wal
 *.sqlite-shm
