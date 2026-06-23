@@ -83,6 +83,16 @@ Catatan:
 - CI GitHub menjalankan lint dan test yang sama pada setiap `push` dan `pull_request`.
 - Scope lint sekarang sudah mencakup modul UI utama yang aktif dipakai aplikasi. Jika ada file backup/legacy lain di luar scope ini, pertahankan terpisah sampai benar-benar siap dirapikan.
 
+## Best Practices (Summary)
+
+- **Code style & checks:** Enforce `ruff` + `black` via pre-commit and CI. Add `mypy` for type checks on public modules.
+- **Database:** Use PostgreSQL as canonical DB; support opt-in SQLite for fast local dev only (`ALLOW_SQLITE_DEV=1`). Ensure engine creation is dialect-aware (do not pass Postgres-only `connect_args` to SQLite).
+- **Tests & CI:** Run full test matrix against Postgres in CI; add a lightweight `sqlite-opt-in` job for PRs to run `tests/test_engine_creation.py` with `ALLOW_SQLITE_DEV=1`.
+- **Security:** Keep DB credentials out of the repo; use GH Secrets for CI and a local `.env` for development (ignored).
+- **PR Workflow:** Branch-per-PR, small commits, require CI green before merging, and request 1+ reviewers.
+
+*New:* a fast opt-in CI job was added: `.github/workflows/sqlite-opt-in.yml` (runs the engine creation test with `ALLOW_SQLITE_DEV=1`).
+
 ## Koneksi Database (Multi User)
 
 - Aplikasi sekarang menggunakan PostgreSQL melalui SQLAlchemy.
